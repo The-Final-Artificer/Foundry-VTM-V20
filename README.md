@@ -9,13 +9,10 @@ A Foundry VTT system for Vampire: The Masquerade 20th Anniversary Edition.
 - Automated dice rolling with trait pairing (click an attribute, then an ability)
 - Combat system with attack, defense, damage, and soak resolution
 - Health track with wound penalties, blood pool management, and healing
-- Discipline, Background, Merit/Flaw, and Weapon/Armor compendiums
-- Equipment and inventory system with body-slot paperdoll
 - Character generation wizard
 - Paged bio editor with rich text formatting
 - Jump and falling damage calculators
-- Portrait pan, zoom, and customization
-- Money tracking
+  
 
 ## Installation
 
