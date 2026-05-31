@@ -1,0 +1,30 @@
+<div class="vtm-roll {{outcome}}">
+  <div class="roll-header">
+    <div class="roll-portrait-wrap">
+      <img class="roll-portrait" src="{{actorImg}}" style="{{portraitStyle}}" />
+    </div>
+    <div class="roll-info">
+      <span class="roll-actor">{{actorName}}</span>
+      <span class="roll-label">{{label}}</span>
+    </div>
+  </div>
+  <div class="roll-meta">
+    Pool {{pool}} | Difficulty {{difficulty}}{{#if specialty}} | Specialty{{/if}}
+  </div>
+  <div class="roll-dice">
+    {{#each dice}}
+    <span class="die {{this.status}}">{{this.value}}</span>
+    {{/each}}
+  </div>
+  <div class="roll-result">
+    {{#if (eq outcome "botch")}}<span class="result-botch">BOTCH!</span>{{/if}}
+    {{#if (eq outcome "failure")}}<span class="result-fail">Failure</span>{{/if}}
+    {{#if (eq outcome "success")}}<span class="result-success">{{total}} Success{{#if (gt total 1)}}es{{/if}}</span>{{/if}}
+  </div>
+  {{#if extra}}
+  <div class="roll-extra">{{extra}}</div>
+  {{/if}}
+  {{#if ledgeBtn}}
+  <button type="button" class="jump-ledge-btn"><i class="fas fa-hand-rock"></i> Catch a Ledge (Dex + Athletics)</button>
+  {{/if}}
+</div>

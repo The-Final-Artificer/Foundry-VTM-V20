@@ -1,0 +1,92 @@
+<form class="vtm-roll-dialog">
+  <div class="form-group">
+    <label>Primary Trait</label>
+    <select name="primary">
+      <option value="">-- None --</option>
+      <optgroup label="Attributes">
+        {{#each attrOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+      <optgroup label="Abilities">
+        {{#each abilOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+      <optgroup label="Virtues">
+        {{#each virtOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+      <optgroup label="Other">
+        {{#each otherOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Secondary Trait</label>
+    <select name="secondary">
+      <option value="">-- None --</option>
+      <optgroup label="Attributes">
+        {{#each attrOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait2)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+      <optgroup label="Abilities">
+        {{#each abilOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait2)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+      <optgroup label="Virtues">
+        {{#each virtOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait2)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+      <optgroup label="Other">
+        {{#each otherOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait2)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Modifier</label>
+    <input type="number" name="modifier" value="0" />
+  </div>
+
+  {{#if woundPen}}
+  <div class="form-group wound-pen-row">
+    <label>Wound Penalty</label>
+    <span class="wound-pen-val">{{woundPen}}</span>
+  </div>
+  {{/if}}
+  {{#if armorPen}}
+  <div class="form-group wound-pen-row armor-pen-row">
+    <label>Armor Penalty (Dex)</label>
+    <span class="wound-pen-val">{{armorPen}}</span>
+  </div>
+  {{/if}}
+
+  <div class="form-group">
+    <label>Difficulty</label>
+    <input type="hidden" name="difficulty" value="{{difficulty}}" />
+    <div class="diff-buttons">
+      <button type="button" class="diff-btn {{#if (eq difficulty 3)}}active{{/if}}" data-diff="3">3</button>
+      <button type="button" class="diff-btn {{#if (eq difficulty 4)}}active{{/if}}" data-diff="4">4</button>
+      <button type="button" class="diff-btn {{#if (eq difficulty 5)}}active{{/if}}" data-diff="5">5</button>
+      <button type="button" class="diff-btn {{#if (eq difficulty 6)}}active{{/if}}" data-diff="6">6</button>
+      <button type="button" class="diff-btn {{#if (eq difficulty 7)}}active{{/if}}" data-diff="7">7</button>
+      <button type="button" class="diff-btn {{#if (eq difficulty 8)}}active{{/if}}" data-diff="8">8</button>
+      <button type="button" class="diff-btn {{#if (eq difficulty 9)}}active{{/if}}" data-diff="9">9</button>
+      <button type="button" class="diff-btn {{#if (eq difficulty 10)}}active{{/if}}" data-diff="10">10</button>
+    </div>
+  </div>
+
+  <div class="form-group check">
+    <label><input type="checkbox" name="specialty" /> Specialty (10s count double)</label>
+  </div>
+</form>
