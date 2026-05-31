@@ -20,7 +20,7 @@ A Foundry VTT system for Vampire: The Masquerade 20th Anniversary Edition.
 2. Paste the following manifest URL:
 
 ```
-https://raw.githubusercontent.com/YOUR_USERNAME/vtm-v20/main/system.json
+https://raw.githubusercontent.com/The-Final-Artificer/vtm-v20/main/system.json
 ```
 
 3. Click **Install**
