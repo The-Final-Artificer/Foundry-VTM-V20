@@ -405,314 +405,314 @@ const WEAPONS = [
   // ── Ranged ──
   {
     name: 'Semi-Auto, Lt', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '20', capacity: '17+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '20', capacity: '17+1', rate: '4',
       description: '<p>A light semi-automatic pistol (9mm/.22). Rate: 4.</p>' }
   },
   {
     name: 'Semi-Auto, Hv', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '7+1',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '7+1', rate: '3',
       description: '<p>A heavy semi-automatic pistol (.45 ACP/10mm). Rate: 3.</p>' }
   },
   {
     name: 'Rifle', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '200', capacity: '5+1',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '200', capacity: '5+1', rate: '1',
       description: '<p>A bolt-action or semi-automatic rifle. Rate: 1.</p>' }
   },
   {
     name: 'SMG, Small', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '30+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '30+1', rate: '3*',
       description: '<p>A compact submachine gun. Rate: 3. Capable of bursts, full-auto, and sprays.</p>' }
   },
   {
     name: 'SMG, Large', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '30+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '30+1', rate: '3*',
       description: '<p>A full-size submachine gun. Rate: 3. Capable of bursts, full-auto, and sprays.</p>' }
   },
   {
     name: 'Assault Rifle', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '150', capacity: '30+1',
+    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '150', capacity: '30+1', rate: '3*',
       description: '<p>A military assault rifle. Rate: 3. Capable of bursts, full-auto, and sprays.</p>' }
   },
   {
     name: 'Crossbow', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '1',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '1', rate: '1',
       description: '<p>A modern crossbow. Rate: 1. Wooden bolts can stake a vampire with a called shot to the heart.</p>' }
   },
 
   // ── Revolvers ──
   {
     name: 'Saturday Night Special', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '12', capacity: '6',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '12', capacity: '6', rate: '3',
       description: '<p>A cheap, small-caliber revolver. Low stopping power and unreliable, but easy to acquire and discard. Caliber varies (.22, .25, .38). Rate: 3.</p>' }
   },
   {
     name: 'S&W M640 / Colt Agent', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '12', capacity: '6',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '12', capacity: '6', rate: '3',
       description: '<p>A small holdout revolver with rounded hammer for quick draws from concealment. Caliber: .38 Special. Rate: 3.</p>' }
   },
   {
     name: 'S&W M686 / Colt Python', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '6',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '6', rate: '2',
       description: '<p>A well-regarded mid-caliber revolver. Various barrel lengths available. Caliber: .357 Magnum. Rate: 2.</p>' }
   },
   {
     name: 'S&W Model 29 / Colt Anaconda', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '6', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '35', capacity: '6',
+    system: { damage: '6', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '35', capacity: '6', rate: '2',
       description: '<p>A high-caliber revolver used for hunting and sport. Difficult to fire one-handed with Strength below 3. Caliber: .44 Magnum. Rate: 2.</p>' }
   },
   {
     name: 'Ruger Redhawk', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '6', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '6',
+    system: { damage: '6', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '6', rate: '2',
       description: '<p>A massive hunting revolver. Too bulky to fire one-handed below Strength 4. A long-barrel variant (Super Redhawk) has Range 100. Caliber: .44 Magnum. Rate: 2.</p>' }
   },
   {
     name: 'Freedom Arms Casull', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '5',
+    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '5', rate: '1',
       description: '<p>A custom-built revolver firing modified rifle rounds. Used for large game hunting. Cannot be fired one-handed below Strength 4. Single-action. Caliber: .454 Casull. Rate: 1.</p>' }
   },
   {
     name: 'Remington XP-100', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '50', capacity: '1',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '50', capacity: '1', rate: '1',
       description: '<p>A single-shot, bolt-action precision pistol. Can mount a scope. Caliber: .221. Rate: 1.</p>' }
   },
 
   // ── Automatic Pistols ──
   {
     name: 'Hammerli M280 Target', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '5+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '5+1', rate: '5',
       description: '<p>A precision target pistol with ergonomic custom grip (+1 die for the intended user, -1 for anyone else). Can mount a scope. Caliber: .22 LR. Rate: 5.</p>' }
   },
   {
     name: 'Sites M380', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '20', capacity: '8+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '20', capacity: '8+1', rate: '4',
       description: '<p>A slim, streamlined autoloader designed for easy concealment and minimal training. Also available in 9mm (Clip 9+1) and .40 S&W (Damage 5, Clip 9+1). Caliber: .380. Rate: 4.</p>' }
   },
   {
     name: 'Walther PPK', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '15', capacity: '7+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '15', capacity: '7+1', rate: '3',
       description: '<p>A compact, easily concealed German pistol. Silencers are relatively easy to find for this model. Caliber: .380. Rate: 4.</p>' }
   },
   {
     name: 'Beretta Model 92', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '15+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '15+1', rate: '4',
       description: '<p>A widely used high-capacity 9mm autoloader, standard issue for many police and military forces. Caliber: 9mm. Rate: 4.</p>' }
   },
   {
     name: 'Calico Model 950', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '50+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '50+1', rate: '4',
       description: '<p>An unusual pistol with a cylindrical top-mounted magazine. An SMG variant (Model 960A) exists with a folding stock (Range 40, burst/auto capable). Caliber: 9mm. Rate: 4. Clip: 50+1 or 100+1.</p>' }
   },
   {
     name: 'Glock 17', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '17+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '17+1', rate: '4',
       description: '<p>A popular polymer-framed 9mm pistol. A compact version exists (Clip 10+1, Conceal P). Caliber: 9mm. Rate: 4.</p>' }
   },
   {
     name: 'Glock 20', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '15+1',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '15+1', rate: '3',
       description: '<p>A 10mm polymer-framed pistol with greater stopping power than 9mm models. Compact version available (Clip 10+1, Conceal P). Caliber: 10mm. Rate: 3.</p>' }
   },
   {
     name: 'Glock 21', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '13+1',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '13+1', rate: '3',
       description: '<p>A .45 ACP polymer-framed pistol. Compact version available (Clip 10+1, Conceal P). Caliber: .45 ACP. Rate: 3.</p>' }
   },
   {
     name: 'Glock 22', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '15+1',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '15+1', rate: '4',
       description: '<p>A widely used law enforcement duty pistol. Compact version available (Clip 10+1, Conceal P). Caliber: .40 S&W. Rate: 4.</p>' }
   },
   {
     name: 'Heckler & Koch P7M13', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '20', capacity: '13',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '20', capacity: '13', rate: '4',
       description: '<p>A high-quality German pistol with a grip-integrated safety that fires when held and engages when released. Excellent reputation for reliability. Caliber: 9mm. Rate: 4.</p>' }
   },
   {
     name: 'Colt M1911A1', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '7+1',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '7+1', rate: '3',
       description: '<p>A classic .45 caliber semi-automatic pistol with widespread military and civilian use. Caliber: .45 ACP. Rate: 3. Clip varies by model (7+1 to 9+1).</p>' }
   },
   {
     name: 'SIG-Sauer P220 / P230', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '7+1',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '7+1', rate: '3',
       description: '<p>Reliable Swiss-German autoloaders. P220: .45 ACP, Damage 5. P230: .380, Damage 4. Rate: 3.</p>' }
   },
   {
     name: 'IMI Desert Eagle', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '7',
+    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '7', rate: '1',
       description: '<p>The largest production autoloader. Also available in .357 and .44 Magnum. Minimum Strength 4 to fire one-handed. Caliber: .50 AE. Rate: 1.</p>' }
   },
 
   // ── Submachine Guns ──
   {
     name: 'Beretta Model 93R', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '20+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '20+1', rate: '15',
       description: '<p>A three-round-burst machine pistol variant of the Model 92, with fold-down grip and stock. Not capable of full-auto. Caliber: 9mm. Rate: 15.</p>' }
   },
   {
     name: 'Ceska Model 61', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '10+1 or 20+1',
+    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '10+1 or 20+1', rate: '15*',
       description: '<p>A very small, cheap SMG. Low-powered but easily concealed. Widely available worldwide. Caliber: .32 ACP. Rate: 15. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'Glock 18', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '17+1, 19+1, or 33+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '17+1, 19+1, or 33+1', rate: '19*',
       description: '<p>A full-auto machine pistol variant of the Glock 17. Designed for law enforcement and military use. Caliber: 9mm. Rate: 19. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'Heckler & Koch MP5', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '15+1 or 30+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '15+1 or 30+1', rate: '21*',
       description: '<p>An extremely reliable and well-regarded SMG series used by special operations units worldwide. Also available in 10mm (Damage 5). Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'Heckler & Koch MP5K', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '15+1 or 30+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '15+1 or 30+1', rate: '21*',
       description: '<p>A short-barreled, highly concealable variant of the MP5. Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'Heckler & Koch MP5SD', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '15+1 or 30+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '15+1 or 30+1', rate: '21*',
       description: '<p>A sound-suppressed MP5 variant with integral suppressor. Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'IMI Uzi', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '16+1, 20+1, or 32+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '16+1, 20+1, or 32+1', rate: '21*',
       description: '<p>An iconic SMG with worldwide distribution. Also available in .45 ACP (Damage 5, Clip 16). Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'IMI Mini-Uzi', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '25', capacity: '16+1, 20+1, or 32+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '25', capacity: '16+1, 20+1, or 32+1', rate: '21*',
       description: '<p>A smaller Uzi variant with reduced range. Also available in .45 ACP (Damage 5, Clip 16). Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'IMI Micro-Uzi', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '15', capacity: '16+1, 20+1, or 32+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '15', capacity: '16+1, 20+1, or 32+1', rate: '21*',
       description: '<p>The smallest Uzi variant. Very short range. Also available in .45 ACP (Damage 5, Clip 16). Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'Ingram M10', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '32+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '32+1', rate: '32+*',
       description: '<p>A durable full-auto SMG. Fires full-auto only; single shots require skill. Also available in .45 ACP (Damage 5). Suppressors available. Caliber: 9mm. Rate: 32+. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'Intratec TEC-9', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '20+1 or 32+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '20+1 or 32+1', rate: '18*',
       description: '<p>A cheap semi-auto pistol easily converted to full-auto. Unreliable, especially after modification. Caliber: 9mm. Rate: 18. Burst/auto/spray capable.</p>' }
   },
   {
     name: 'Thompson M1928', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '20 or 100',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '20 or 100', rate: '15*',
       description: '<p>A heavy, full-auto-only SMG. Optional 100-round drum magazine. Caliber: .45 ACP. Rate: 15. Burst/auto/spray capable.</p>' }
   },
 
   // ── Rifles ──
   {
     name: 'Remington Model 700', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '300', capacity: '5+1',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '300', capacity: '5+1', rate: '1',
       description: '<p>A common bolt-action hunting rifle. Internal ammunition supply. Caliber: .30-06/.308. Rate: 1.</p>' }
   },
   {
     name: 'Remington M24', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '9', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '500', capacity: '5+1',
+    system: { damage: '9', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '500', capacity: '5+1', rate: '1',
       description: '<p>Military sniper variant of the Model 700. Extremely difficult to acquire. Caliber: .300 Win Mag. Rate: 1.</p>' }
   },
   {
     name: 'Remington Model 740', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '275', capacity: '5+1',
+    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '275', capacity: '5+1', rate: '3',
       description: '<p>A smaller-caliber semi-automatic rifle. Caliber: .223/5.56mm. Rate: 3.</p>' }
   },
   {
     name: 'Ruger 10/22', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '100', capacity: '10+1 or 50+1',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '100', capacity: '10+1 or 50+1', rate: '4',
       description: '<p>A small-caliber semi-automatic rifle for small game. Can be converted to full-auto with a skilled gunsmith. Caliber: .22 LR. Rate: 4.</p>' }
   },
   {
     name: 'Weatherby Mark V', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '10', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '300+', capacity: '3+1',
+    system: { damage: '10', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '300+', capacity: '3+1', rate: '1',
       description: '<p>A bolt-action big-game rifle. Recoil inflicts (7 - Strength) bashing on the firer if not properly braced. Caliber: .460 Weatherby Mag. Rate: 1.</p>' }
   },
   {
     name: 'Barrett Model 82', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '12', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '300', capacity: '11',
+    system: { damage: '12', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '300', capacity: '11', rate: '1',
       description: '<p>A massive semi-automatic anti-materiel rifle firing heavy machine gun rounds. Ignores any cover lighter than a cinder-block wall. Recoil can break bones in an unprepared shooter. Caliber: .50 BMG. Rate: 1.</p>' }
   },
 
   // ── Assault Rifles ──
   {
     name: 'Colt M16', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '200', capacity: '20+1 or 30+1',
+    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '200', capacity: '20+1 or 30+1', rate: '15 or 20, depending on the precise model',
       description: '<p>Standard U.S. military assault rifle. Newer models are burst-only; older models have full-auto. Caliber: 5.56mm. Rate: 15-20.</p>' }
   },
   {
     name: 'Colt M4', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '120', capacity: '20+1 or 30+1',
+    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '120', capacity: '20+1 or 30+1', rate: '15 or 20, depending on the precise model',
       description: '<p>A carbine variant of the M16 with folding stock and shorter barrel. Caliber: 5.56mm. Rate: 15-20.</p>' }
   },
   {
     name: 'AK-74', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '200', capacity: '30',
+    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '200', capacity: '30', rate: '20',
       description: '<p>Standard Soviet-era assault rifle. Folding-stock variants available (Range 120, Conceal T). Caliber: 5.45mm. Rate: 20.</p>' }
   },
   {
     name: 'Steyr AUG', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '200', capacity: '42+1',
+    system: { damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '200', capacity: '42+1', rate: '21',
       description: '<p>A bullpup assault rifle with modular design (convertible to SMG, carbine, or LMG). Integral scope. Caliber: 5.56mm. Rate: 21. SMG config: 9mm, Damage 4, Range 50.</p>' }
   },
   {
     name: 'M14', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '275', capacity: '20+1',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '275', capacity: '20+1', rate: '10',
       description: '<p>A 1950s-era battle rifle still in widespread use. A sniper variant (M21) exists. Caliber: 7.62mm. Rate: 10.</p>' }
   },
   {
     name: 'FN FAL', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '275', capacity: '20+1',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '275', capacity: '20+1', rate: '10',
       description: '<p>A widely distributed Belgian battle rifle. Caliber: 7.62mm. Rate: 10.</p>' }
   },
   {
     name: 'Heckler & Koch G3', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '275', capacity: '20+1',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '275', capacity: '20+1', rate: '10',
       description: '<p>A German battle rifle. Slightly heavier than similar models but very reliable. Caliber: 7.62mm. Rate: 10.</p>' }
   },
   {
     name: 'AK-47', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '250', capacity: '30+1',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '250', capacity: '30+1', rate: '10',
       description: '<p>One of the most widely distributed battle rifles in the world. Extremely reliable. Folding-stock variants available (Conceal T). Caliber: 7.62mm Soviet (not interchangeable). Rate: 10.</p>' }
   },
 
   // ── Shotguns ──
   {
     name: 'Double-Barreled Shotgun', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '2',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '2', rate: '2',
       description: '<p>A simple two-shot shotgun. Both barrels can fire as one action. Can be sawed off (Range 10/5, Conceal T/J). Rate: 2. Caliber: 12-gauge.</p>' }
   },
   {
     name: 'Benelli M3 Super 90', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '7',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '7', rate: '3',
       description: '<p>A semi-automatic shotgun used by SWAT teams. Caliber: 12-gauge. Rate: 3.</p>' }
   },
   {
     name: 'Remington 870P', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '8',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '8', rate: '1',
       description: '<p>A standard pump-action police shotgun. Can be sawed off (Range 10, Conceal T). Caliber: 12-gauge. Rate: 1.</p>' }
   },
   {
     name: 'Ithaca M37', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '5',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '5', rate: '1',
       description: '<p>A pump-action police shotgun. Can be sawed off (Range 10, Conceal T). Caliber: 12-gauge. Rate: 1.</p>' }
   },
   {
     name: 'Mossberg M500', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '5',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '5', rate: '1',
       description: '<p>A pump-action police shotgun. Can be sawed off (Range 10, Conceal T). Caliber: 12-gauge. Rate: 1.</p>' }
   },
   {
     name: 'Franchi SPAS-12', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '7',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '7', rate: '3',
       description: '<p>A semi-auto shotgun that can switch to pump-action (Rate drops to 1). Folding stock with one-hand brace. Caliber: 12-gauge. Rate: 3.</p>' }
   },
   {
     name: 'Daewoo USAS-12', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '12 or 28',
+    system: { damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '20', capacity: '12 or 28', rate: '6',
       description: '<p>A fully automatic military shotgun. Punishing recoil. Clip: 12 (magazine) or 28 (drum). Caliber: 12-gauge. Rate: 6.</p>' }
   },
 
@@ -788,47 +788,47 @@ const WEAPONS = [
   // ── Fan-Made Ranged ──
   {
     name: 'Hunters\' .44 Magnum', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '35', capacity: '6',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '35', capacity: '6', rate: '2',
       description: '<p>The .44 Remington Magnum, also known as Hunters\' .44 Magnum, is a rimmed, large-bore cartridge. Once famously called \'the most powerful handgun in the world\', it remains a favorite amongst Hunters looking to inform any foe that they mean business. This handgun is strong enough to take down a bear and will absolutely cause real damage to most foul creatures that walk the path of night.</p><p>Causes aggravated damage to kindred. On a critical, it sends the kindred into torpor. Results may vary on Werewolves. Ignores 2 Armor. Holds 6 bullets.</p>' }
   },
   {
     name: 'Special Affairs Division Riot Shotgun', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '10',
+    system: { damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '10', rate: '1',
       description: '<p>A riot shotgun is a shotgun designed or modified for use as a primarily defensive weapon, by the use of a short barrel and a larger magazine capacity than standard shotguns. This weapon was designed to ward off supernatural creatures in close quarters combat.</p><p>Ignores 2 armor in close combat. 10 shell capacity.</p>' }
   },
   {
     name: 'S.A.D. Flamethrower', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '15', capacity: '',
+    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '15', capacity: '', rate: '1',
       description: '<p>A flamethrower is a ranged incendiary device designed to project a controllable jet of fire. This device is made by the Special Affairs Division to help fight against enemies capable of warping the perception of others by spraying fire in any area an enemy might be. This device has a tank filled with fuel used to create the flames. While it does have a hardened tank to help prevent explosions, it is still vulnerable.</p><p>Ignores cover. 20 minutes worth of flame. Capable of attacking multiple enemies at once. Sets affected area on fire.</p>' }
   },
   {
     name: 'Compound Crossbow', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '1',
+    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '20', capacity: '1', rate: '1',
       description: '<p>A crossbow is a ranged weapon using an elastic launching device consisting of a bow-like assembly called a prod, mounted horizontally on the main frame called a tiller, which is hand-held in a similar fashion to the stock of a long firearm. Although the firepower offered by the crossbow pales in comparison to firearms, it makes up for in stealth and customization. Allowing users to alter the bolts to specifically target the weakness of their enemy.</p><p>Ignores 1 Armor. Silvered bolts affect all supernatural creatures.</p>' }
   },
   {
     name: 'Boomerang Blade', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '2', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '15', capacity: '1',
+    system: { damage: '2', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '15', capacity: '1', rate: '1',
       description: '<p>This weapon is crafted from sharpened metal and is intended to be thrown at enemies. During its flight, it will curve and return to the user if used correctly. While it may not outright kill a creature, it has been known to be effective in weakening a target for allies to bring down.</p><p>Requires 3 Dexterity to use properly. Affects all supernatural creatures.</p>' }
   },
   {
     name: 'Silenced Pistol', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '2', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '13',
+    system: { damage: '2', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '13', rate: '4',
       description: '<p>A silencer, also known as a sound suppressor, suppressor, or sound moderator, is a muzzle device that reduces the acoustic intensity of the gunshot. This helps the every day assassin with their goal of maintaining stealth while on a mission.</p><p>Silent gun shot. Ignores 1 armor. 13 rounds.</p>' }
   },
   {
     name: 'M134 Mini Gun', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '200', capacity: '6000',
+    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '200', capacity: '6000', rate: '60',
       description: '<p>The M134 Minigun is an American six-barrel rotary machine gun with a high rate of fire ranging around 2,000 to 6,000 rounds per minute. Featuring a Gatling-style rotating barrel assembly with an external power source, normally an electric motor. When stealth is not an objective, this weapon helps level the playing field regardless of what supernatural powers are in play.</p><p>Ignores armor. Requires 3 Strength to wield. 6000 rounds.</p>' }
   },
   {
     name: 'AS50 Sniper Rifle', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '250', capacity: '5',
+    system: { damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '250', capacity: '5', rate: '1',
       description: '<p>The AS50 is a semi-automatic .50 BMG anti-materiel precision rifle. It enables operators to engage targets at very long ranges with high accuracy using explosive or incendiary ammunition. Highly trained operatives use these weapons to eliminate threats before their targets even realize they are in danger. A well-placed shot from this weapon will grievously wound any creature regardless of what power it wields.</p><p>If you open a fight while using this weapon, add 2 additional dice to your combat roll. Causes aggravated damage to all physical creature types. Ignores armor.</p>' }
   },
   {
     name: 'SCAR', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '150', capacity: '20',
+    system: { damage: '3', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '150', capacity: '20', rate: '15',
       description: '<p>A favorite of most Special Affairs Division operatives. This Belgian-made assault rifle is capable of grenade launcher attachments to help eliminate threats big and small. This weapon allows for accuracy as well as fire power in the battlefield that is quick to overwhelm less armed enemies.</p><p>Gun - Ignores 1 armor. 20 Rounds.</p><p>Grenade Launcher (+5 Damage) - Ignores 2 Armor. 3 Grenades. Deals damage to all creatures within a 20ft area.</p>' }
   },
 ];
@@ -1150,7 +1150,7 @@ const WEAPON_CATEGORIES = [
   }
 ];
 
-const COMPENDIUM_VERSION = 35;
+const COMPENDIUM_VERSION = 36;
 
 export function registerCompendiumSettings() {
   game.settings.register('vtm-v20', 'compendiumVersion', {

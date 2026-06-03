@@ -6,6 +6,19 @@ function int(initial, min = 0, max = 10) {
 function str(initial = '') {
   return new f.StringField({ required: true, nullable: false, initial });
 }
+function attack() {
+  return new f.SchemaField({
+    id: str(),
+    name: str('Custom Maneuver'),
+    img: str(),
+    primary: str('attributes.dexterity'),
+    secondary: str('abilities.brawl'),
+    accuracyMod: int(0, -20, 20),
+    difficultyMod: int(0, -10, 10),
+    damageFormula: str('Str'),
+    damageType: str('bashing'),
+  });
+}
 
 export class VampireData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
@@ -72,6 +85,7 @@ export class VampireData extends foundry.abstract.TypeDataModel {
 
       bio: new f.HTMLField({ initial: '' }),
       notes: new f.HTMLField({ initial: '' }),
+      customAttacks: new f.ArrayField(attack(), { required: true, nullable: false, initial: [] }),
     };
   }
 

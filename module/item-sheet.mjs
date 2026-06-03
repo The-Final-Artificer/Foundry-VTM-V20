@@ -18,11 +18,13 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     sheet: { template: "systems/vtm-v20/templates/item-sheet.hbs" }
   };
 
-  // Disciplines and backgrounds get a bigger window
+  // Item types with dense sheet content get room to breathe.
   _onFirstRender(context, options) {
     super._onFirstRender(context, options);
     if (this.document.type === 'discipline' || this.document.type === 'background') {
       this.setPosition({ width: 655, height: 832 });
+    } else if (this.document.type === 'weapon') {
+      this.setPosition({ width: 540, height: 760 });
     }
   }
 

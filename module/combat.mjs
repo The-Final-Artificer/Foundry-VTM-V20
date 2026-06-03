@@ -1,5 +1,15 @@
 // Combat resolution: attack rolls, defense choices, damage + soak, auto-apply
 import { showDice } from './dice.mjs';
+import {
+  BLINDED_STATUS_ID,
+  DAZED_STATUS_ID,
+  FULL_IMMOBILIZED_STATUS_ID,
+  STRUGGLING_IMMOBILIZED_STATUS_ID,
+  hasStatus,
+  iterableValues,
+} from './status-effects.mjs';
+
+const TARGETING_ARMOR_REQUESTS = new Map();
 
 function portraitStyle(actor) {
   const p = actor.getFlag('vtm-v20', 'portrait') || {};
@@ -25,7 +35,240 @@ function evalPool(roll, diff) {
   return { dice, total: Math.max(succ, 0), raw: succ, outcome };
 }
 
-// "Str+2" → strength + 2 + net successes; "4" → 4 + net successes
+function firstActiveGm() {
+  const activeGms = game.users?.filter(user => user.active && user.isGM) ?? [];
+  return activeGms[0] ?? null;
+}
+
+async function promptTargetingArmorChoice({ attackerName, defenderName, weaponName, targeting }) {
+  return new Promise(resolve => {
+    const targetLabel = targeting?.label ?? 'Targeted attack';
+    new Dialog({
+      title: 'Targeted Attack',
+      content: `
+        <div class="vtm-roll-dialog gm-targeting-dialog">
+          <p class="gm-targeting-intro">Decide whether this targeted attack bypasses armor before the roll proceeds.</p>
+          <div class="gm-targeting-summary">
+            <strong>${attackerName}</strong> attacks <strong>${defenderName}</strong> with <strong>${weaponName}</strong>.<br>
+            ${targetLabel}: Difficulty +${targeting?.difficultyMod ?? 0}, Damage +${targeting?.damageMod ?? 0}
+          </div>
+        </div>
+      `,
+      buttons: {
+        armor: {
+          icon: '<i class="fas fa-shield-alt"></i>',
+          label: 'Armor Applies',
+          callback: () => resolve(false),
+        },
+        bypass: {
+          icon: '<i class="fas fa-bullseye"></i>',
+          label: 'Bypass Armor',
+          callback: () => resolve(true),
+        },
+      },
+      default: 'armor',
+      close: () => resolve(false),
+    }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-gm-targeting-dialog'], width: 410 }).render(true);
+  });
+}
+
+async function requestGmTargetingArmorChoice(attacker, defender, atk, targeting) {
+  if (!targeting || !defender) return false;
+
+  if (game.user.isGM) {
+    return promptTargetingArmorChoice({
+      attackerName: attacker.name,
+      defenderName: defender.name,
+      weaponName: atk.name,
+      targeting,
+    });
+  }
+
+  const gm = firstActiveGm();
+  if (!gm) {
+    ui.notifications.warn('No active GM found for the targeted attack armor decision. Armor will apply.');
+    return false;
+  }
+
+  const requestId = foundry.utils.randomID();
+  const result = new Promise(resolve => {
+    TARGETING_ARMOR_REQUESTS.set(requestId, resolve);
+    window.setTimeout(() => {
+      if (!TARGETING_ARMOR_REQUESTS.has(requestId)) return;
+      TARGETING_ARMOR_REQUESTS.delete(requestId);
+      ui.notifications.warn('Targeted attack armor decision timed out. Armor will apply.');
+      resolve(false);
+    }, 30000);
+  });
+
+  game.socket.emit('system.vtm-v20', {
+    action: 'targetingArmorRequest',
+    requestId,
+    requestingUserId: game.user.id,
+    targetGmId: gm.id,
+    attackerName: attacker.name,
+    defenderName: defender.name,
+    weaponName: atk.name,
+    targeting,
+  });
+
+  return result;
+}
+
+export function bindCombatSocketHandlers() {
+  game.socket.on('system.vtm-v20', async data => {
+    if (!data) return;
+
+    if (data.action === 'targetingArmorRequest') {
+      if (!game.user.isGM || data.targetGmId !== game.user.id) return;
+      const bypassArmor = await promptTargetingArmorChoice(data);
+      game.socket.emit('system.vtm-v20', {
+        action: 'targetingArmorResponse',
+        requestId: data.requestId,
+        requestingUserId: data.requestingUserId,
+        bypassArmor,
+      });
+      return;
+    }
+
+    if (data.action === 'targetingArmorResponse') {
+      if (data.requestingUserId !== game.user.id) return;
+      const resolve = TARGETING_ARMOR_REQUESTS.get(data.requestId);
+      if (!resolve) return;
+      TARGETING_ARMOR_REQUESTS.delete(data.requestId);
+      resolve(data.bypassArmor === true);
+    }
+  });
+}
+
+function signed(value) {
+  const n = Number(value) || 0;
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
+function traitLabel(path) {
+  if (!path) return '';
+  if (path === 'willpower') return 'Willpower';
+  if (path === 'humanity') return 'Humanity';
+  const [, key] = path.split('.');
+  if (!key) return path;
+  return game.i18n.localize(`VTM.${key.charAt(0).toUpperCase() + key.slice(1)}`);
+}
+
+function traitValue(actor, path) {
+  if (!path) return 0;
+  if (path === 'willpower') return actor.system.willpower?.max || 0;
+  if (path === 'humanity') return actor.system.humanity || 0;
+  const [category, key] = path.split('.');
+  return actor.system[category]?.[key] || 0;
+}
+
+function woundImmune(path) {
+  return path === 'willpower' || String(path || '').startsWith('virtues.');
+}
+
+const COVER_EFFECTS = {
+  'vtm-cover-light': { label: 'light cover', penalty: 1 },
+  'vtm-cover-good': { label: 'good cover', penalty: 2 },
+  'vtm-cover-superior': { label: 'superior cover', penalty: 3 },
+};
+
+function collectStatusIds(doc, ids = new Set()) {
+  if (!doc) return ids;
+
+  for (const id of iterableValues(doc.statuses)) ids.add(id);
+
+  for (const effect of iterableValues(doc.effects)) {
+    if (effect.disabled) continue;
+    for (const id of iterableValues(effect.statuses)) ids.add(id);
+
+    const coreStatus = effect.getFlag?.('core', 'statusId') ?? effect.flags?.core?.statusId;
+    if (coreStatus) ids.add(coreStatus);
+
+    if (effect.statusId) ids.add(effect.statusId);
+  }
+
+  return ids;
+}
+
+function isBlinded(token, actor) {
+  return hasStatus(BLINDED_STATUS_ID, token, token?.document, token?.actor, actor);
+}
+
+function isDazed(token, actor) {
+  return hasStatus(DAZED_STATUS_ID, token, token?.document, token?.actor, actor);
+}
+
+function isStrugglingImmobilized(token, actor) {
+  return hasStatus(STRUGGLING_IMMOBILIZED_STATUS_ID, token, token?.document, token?.actor, actor);
+}
+
+function isFullyImmobilized(token, actor) {
+  return hasStatus(FULL_IMMOBILIZED_STATUS_ID, token, token?.document, token?.actor, actor);
+}
+
+function coverFor(token, actor) {
+  const ids = new Set();
+  collectStatusIds(token, ids);
+  collectStatusIds(token?.document, ids);
+  collectStatusIds(token?.actor, ids);
+  collectStatusIds(actor, ids);
+
+  let cover = null;
+  for (const id of ids) {
+    const current = COVER_EFFECTS[id];
+    if (!current) continue;
+    if (!cover || current.penalty > cover.penalty) cover = current;
+  }
+  return cover;
+}
+
+function coverDifficulty(attacker, attackerToken, target, atk) {
+  const base = 6;
+  const maneuverPenalty = Number(atk.difficultyMod) || 0;
+  if (!atk.isRanged) {
+    return {
+      difficulty: Math.max(Math.min(base + maneuverPenalty, 10), 3),
+      parts: maneuverPenalty ? [`maneuver ${signed(maneuverPenalty)}`] : [],
+    };
+  }
+
+  const parts = [];
+  let penalty = maneuverPenalty;
+  if (maneuverPenalty) parts.push(`maneuver ${signed(maneuverPenalty)}`);
+
+  const targetCover = coverFor(target, target?.actor);
+  if (targetCover) {
+    penalty += targetCover.penalty;
+    parts.push(`target ${targetCover.label} +${targetCover.penalty}`);
+  }
+
+  const attackerCover = coverFor(attackerToken, attacker);
+  if (attackerCover) {
+    const returnFirePenalty = Math.max(attackerCover.penalty - 1, 0);
+    if (returnFirePenalty > 0) {
+      penalty += returnFirePenalty;
+      parts.push(`attacker ${attackerCover.label} +${returnFirePenalty}`);
+    }
+  }
+
+  return { difficulty: Math.max(Math.min(base + penalty, 10), 3), parts };
+}
+
+function targetingData(targeting) {
+  if (!targeting || typeof targeting !== 'object') return null;
+  const difficultyMod = Math.max(Number(targeting.difficultyMod) || 0, 0);
+  const damageMod = Math.max(Number(targeting.damageMod) || 0, 0);
+  if (!difficultyMod && !damageMod) return null;
+  return {
+    size: targeting.size || 'targeted',
+    label: targeting.label || 'Targeted attack',
+    difficultyMod,
+    damageMod,
+  };
+}
+
+// Damage formulas: "Str+2" means strength + 2 + net successes; "4" means 4 + net successes.
 function calcDmgPool(formula, str, netSucc) {
   const f = (formula || '').trim().toLowerCase();
   let base;
@@ -35,6 +278,12 @@ function calcDmgPool(formula, str, netSucc) {
   return Math.max(base + netSucc, 1);
 }
 
+export function finalDamageAfterSoak(actor, amount, type) {
+  const net = Math.max(amount, 0);
+  const damageType = String(type || '').toLowerCase();
+  return actor?.type === 'vampire' && damageType === 'bashing' ? Math.floor(net / 2) : net;
+}
+
 // Resolve actor through its token first (handles unlinked tokens with their own data)
 function getActor(actorId, tokenId) {
   if (tokenId && canvas.tokens) {
@@ -42,6 +291,62 @@ function getActor(actorId, tokenId) {
     if (tok?.actor) return tok.actor;
   }
   return game.actors.get(actorId);
+}
+
+function getToken(tokenId) {
+  return tokenId && canvas.tokens ? canvas.tokens.get(tokenId) : null;
+}
+
+function attackPool(actor, atk) {
+  const traits = Array.isArray(atk.poolTraits) && atk.poolTraits.length
+    ? atk.poolTraits.filter(Boolean)
+    : ['attributes.dexterity', atk.skill].filter(Boolean);
+  const parts = traits.map(path => `${traitLabel(path)} ${traitValue(actor, path)}`);
+  let total = traits.reduce((sum, path) => sum + traitValue(actor, path), 0);
+
+  const accuracyMod = Number(atk.accuracyMod) || 0;
+  if (accuracyMod) {
+    total += accuracyMod;
+    parts.push(`accuracy ${signed(accuracyMod)}`);
+  }
+
+  const wp = traits.some(woundImmune) ? 0 : (actor.system.woundPenalty || 0);
+  if (wp) {
+    total += wp;
+    parts.push(`wound ${wp}`);
+  }
+
+  const ap = traits.includes('attributes.dexterity')
+    ? Array.from(actor.items)
+      .filter(i => i.type === 'armor' && i.system.equipped)
+      .reduce((s, i) => s + (i.system.penalty || 0), 0)
+    : 0;
+  if (ap) {
+    total += ap;
+    parts.push(`armor ${ap}`);
+  }
+
+  return { pool: Math.max(total, 1), parts };
+}
+
+function dazeThreshold(actor) {
+  const stamina = actor.system.attributes?.stamina || 0;
+  return actor.type === 'mortal' ? stamina : stamina + 2;
+}
+
+async function applyDazed(actor) {
+  const existing = CONFIG.statusEffects.find(effect => effect.id === DAZED_STATUS_ID);
+  const icon = existing?.img ?? existing?.icon ?? 'systems/vtm-v20/VTM icons/star-swirl.svg';
+  const name = existing?.name ?? existing?.label ?? 'Dazed';
+  await actor.createEmbeddedDocuments('ActiveEffect', [{
+    name,
+    label: name,
+    icon,
+    img: icon,
+    origin: 'status',
+    statuses: [DAZED_STATUS_ID],
+    flags: { core: { statusId: DAZED_STATUS_ID } },
+  }]);
 }
 
 // Mark a combat message as resolved. If we don't own the message, ask the GM to do it.
@@ -64,39 +369,89 @@ export function getCondition(actor) {
 
 // ── Phase 1: Attack Roll ────────────────────────────────────────────
 
-export async function rollAttack(attacker, atk) {
+export async function rollAttack(attacker, atk, options = {}) {
   const target = game.user.targets.size ? game.user.targets.first() : null;
   const defender = target?.actor;
   const attackerToken = canvas.tokens?.placeables.find(t => t.actor === attacker);
+  const cover = coverDifficulty(attacker, attackerToken, target, atk);
+  const targeting = targetingData(options.targeting);
+  const bypassArmor = await requestGmTargetingArmorChoice(attacker, defender, atk, targeting);
+  const attackerBlinded = isBlinded(attackerToken, attacker);
+  const targetBlinded = isBlinded(target, defender);
+  const targetStrugglingImmobilized = isStrugglingImmobilized(target, defender);
+  const targetFullyImmobilized = isFullyImmobilized(target, defender);
 
-  const dex = attacker.system.attributes?.dexterity || 0;
-  const sk = atk.skill.split('.')[1];
-  const skVal = attacker.system.abilities?.[sk] || 0;
-  const wp = attacker.system.woundPenalty || 0;
-  const ap = Array.from(attacker.items)
-    .filter(i => i.type === 'armor' && i.system.equipped)
-    .reduce((s, i) => s + (i.system.penalty || 0), 0);
-  const pool = Math.max(dex + skVal + wp + ap, 1);
+  const atkPool = attackPool(attacker, atk);
+  const blindTargetBonus = targetBlinded ? 2 : 0;
+  const strugglingImmobilizedBonus = targetStrugglingImmobilized ? 2 : 0;
+  const pool = Math.max(atkPool.pool + blindTargetBonus + strugglingImmobilizedBonus, 1);
+  const targetingDifficulty = targeting?.difficultyMod || 0;
+  const baseDifficulty = Math.min(cover.difficulty + targetingDifficulty, 10);
+  const difficulty = attackerBlinded ? Math.min(baseDifficulty + 2, 10) : baseDifficulty;
+  const label = defender ? `${atk.name} -> ${defender.name}` : `${atk.name} Attack`;
+
+  if (targetFullyImmobilized && defender) {
+    const parts = [...atkPool.parts, 'target fully immobilized'];
+    const contextParts = [...cover.parts];
+    if (targeting) contextParts.push(`${targeting.label} +${targeting.difficultyMod} diff`);
+    const sublabel = contextParts.length
+      ? `${parts.join(' + ')} | ${contextParts.join(' | ')}`
+      : parts.join(' + ');
+    const html = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
+      actorImg: attacker.img, actorName: attacker.name,
+      portraitStyle: portraitStyle(attacker),
+      targetImg: defender.img,
+      targetPortraitStyle: portraitStyle(defender),
+      label, sublabel,
+      noDice: true, showDamageBtn: true,
+      hitLabel: `${atk.name} hits automatically; ${defender.name} is fully immobilized.`,
+    });
+    await ChatMessage.create({
+      user: game.user.id,
+      speaker: ChatMessage.getSpeaker({ actor: attacker }),
+      content: html,
+      type: CONST.CHAT_MESSAGE_STYLES.OTHER,
+      flags: { 'vtm-v20': { combat: {
+        phase: 'defense',
+        attackerId: attacker.id,
+        attackerTokenId: attackerToken?.id || null,
+        defenderTokenId: target.id,
+        defenderId: defender.id,
+        netSuccesses: 0,
+        weaponName: atk.name,
+        damageFormula: atk.damageFormula,
+        damageType: atk.damageType,
+        isRanged: atk.isRanged,
+        targetingDamageMod: targeting?.damageMod || 0,
+        targetingLabel: targeting?.label || null,
+        bypassArmor,
+      }}},
+    });
+    return;
+  }
 
   const roll = new Roll(`${pool}d10`);
   await roll.evaluate();
-  const res = evalPool(roll, 6);
+  const res = evalPool(roll, difficulty);
 
-  const skLabel = game.i18n.localize(`VTM.${sk.charAt(0).toUpperCase() + sk.slice(1)}`);
-  const parts = [`Dex ${dex}`, `${skLabel} ${skVal}`];
-  if (wp) parts.push(`wound ${wp}`);
-  if (ap) parts.push(`armor ${ap}`);
+  const parts = [...atkPool.parts];
+  if (blindTargetBonus) parts.push(`target blinded +${blindTargetBonus}`);
+  if (strugglingImmobilizedBonus) parts.push(`target struggling immobilized +${strugglingImmobilizedBonus}`);
+  const contextParts = [...cover.parts];
+  if (targeting) contextParts.push(`${targeting.label} +${targeting.difficultyMod} diff`);
+  if (attackerBlinded) contextParts.unshift('blinded diff +2');
+  const sublabel = contextParts.length
+    ? `${parts.join(' + ')} | ${contextParts.join(' | ')}`
+    : parts.join(' + ');
 
   const canDef = res.outcome === 'success' && !!defender;
-  const label = defender ? `${atk.name} → ${defender.name}` : `${atk.name} Attack`;
-
   const html = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
     actorImg: attacker.img, actorName: attacker.name,
     portraitStyle: portraitStyle(attacker),
     targetImg: defender?.img || null,
     targetPortraitStyle: defender ? portraitStyle(defender) : '',
-    label, sublabel: parts.join(' + '),
-    pool, difficulty: 6, isAttack: true,
+    label, sublabel,
+    pool, difficulty, isAttack: true,
     dice: res.dice, total: res.total, outcome: res.outcome,
     canDefend: canDef, targetName: defender?.name,
   });
@@ -114,6 +469,9 @@ export async function rollAttack(attacker, atk) {
       damageFormula: atk.damageFormula,
       damageType: atk.damageType,
       isRanged: atk.isRanged,
+      targetingDamageMod: targeting?.damageMod || 0,
+      targetingLabel: targeting?.label || null,
+      bypassArmor,
     }};
   }
 
@@ -134,6 +492,7 @@ export async function rollDefense(msg) {
   if (!c || c.phase !== 'attack') return;
 
   const defender = getActor(c.defenderId, c.defenderTokenId);
+  const defenderToken = getToken(c.defenderTokenId);
   if (!defender) return ui.notifications.error('Defender not found.');
   if (!defender.isOwner && !game.user.isGM)
     return ui.notifications.warn("You don't control this character.");
@@ -172,6 +531,9 @@ export async function rollDefense(msg) {
     phase: 'defense', attackerId: c.attackerId, attackerTokenId: c.attackerTokenId,
     defenderId: c.defenderId, defenderTokenId: c.defenderTokenId, weaponName: c.weaponName,
     damageFormula: c.damageFormula, damageType: c.damageType, isRanged: c.isRanged,
+    targetingDamageMod: c.targetingDamageMod || 0,
+    targetingLabel: c.targetingLabel || null,
+    bypassArmor: c.bypassArmor === true,
   };
 
   // No defense chosen: attack lands with full successes
@@ -202,10 +564,11 @@ export async function rollDefense(msg) {
     .filter(i => i.type === 'armor' && i.system.equipped)
     .reduce((s, i) => s + (i.system.penalty || 0), 0);
   const pool = Math.max(av + sv + wp + ap, 1);
+  const difficulty = isBlinded(defenderToken, defender) ? 8 : 6;
 
   const roll = new Roll(`${pool}d10`);
   await roll.evaluate();
-  const res = evalPool(roll, 6);
+  const res = evalPool(roll, difficulty);
 
   const net = c.attackSuccesses - res.total;
   const hit = net > 0;
@@ -215,14 +578,15 @@ export async function rollDefense(msg) {
   const parts = [`Dex ${av}`, `${sl} ${sv}`];
   if (wp) parts.push(`wound ${wp}`);
   if (ap) parts.push(`armor ${ap}`);
+  const sublabel = difficulty > 6 ? `${parts.join(' + ')} | blinded diff +2` : parts.join(' + ');
 
   const verbs = { dodge: 'dodges', block: 'blocks', parry: 'parries' };
 
   const html = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
     actorImg: defender.img, actorName: defender.name,
     portraitStyle: portraitStyle(defender),
-    label: `${def.label} Defense`, sublabel: parts.join(' + '),
-    pool, difficulty: 6, isAttack: false,
+    label: `${def.label} Defense`, sublabel,
+    pool, difficulty, isAttack: false,
     dice: res.dice, total: res.total, outcome: res.outcome,
     showDamageBtn: hit,
     hitLabel: hit ? `${c.weaponName} hits with ${net} net success${net > 1 ? 'es' : ''}!` : null,
@@ -250,31 +614,44 @@ export async function rollDamage(msg) {
 
   const attacker = getActor(c.attackerId, c.attackerTokenId);
   const defender = getActor(c.defenderId, c.defenderTokenId);
+  const defenderToken = getToken(c.defenderTokenId);
   if (!attacker || !defender) return ui.notifications.error('Actor not found.');
 
   // Damage roll
   const str = attacker.system.attributes?.strength || 0;
-  const dp = calcDmgPool(c.damageFormula, str, c.netSuccesses);
+  const targetingDamageMod = Math.max(Number(c.targetingDamageMod) || 0, 0);
+  const dp = calcDmgPool(c.damageFormula, str, c.netSuccesses) + targetingDamageMod;
   const dmgRoll = new Roll(`${dp}d10`);
   await dmgRoll.evaluate();
   const dmg = evalPool(dmgRoll, 6);
+  const dt = c.damageType || 'lethal';
+  const damageType = String(dt).toLowerCase();
+  const mortalLethalNoSoak = defender.type === 'mortal' && damageType === 'lethal';
 
   // Soak roll
   const sta = defender.system.attributes?.stamina || 0;
   const di = Array.from(defender.items);
   const fort = di.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
   const fl = fort?.system.level || 0;
-  const ar = di.filter(i => i.type === 'armor' && i.system.equipped)
+  const armorRating = di.filter(i => i.type === 'armor' && i.system.equipped)
     .reduce((s, i) => s + (i.system.rating || 0), 0);
-  const sp = Math.max(sta + fl + ar, 1);
-  const soakRoll = new Roll(`${sp}d10`);
-  await soakRoll.evaluate();
-  const soak = evalPool(soakRoll, 6);
+  const ar = c.bypassArmor ? 0 : armorRating;
+  const sp = mortalLethalNoSoak ? 0 : Math.max(sta + fl + ar, 1);
+  let soakRoll = null;
+  let soak = { dice: [], total: 0 };
+  if (!mortalLethalNoSoak) {
+    soakRoll = new Roll(`${sp}d10`);
+    await soakRoll.evaluate();
+    soak = evalPool(soakRoll, 6);
+  }
 
-  // Apply net damage
-  const net = Math.max(dmg.total - soak.total, 0);
-  const dt = c.damageType || 'lethal';
+  // Apply net damage. Mortals do not soak lethal damage; vampires halve bashing damage after soak, rounded down.
+  const rawNet = Math.max(dmg.total - soak.total, 0);
+  const net = finalDamageAfterSoak(defender, rawNet, dt);
   if (net > 0) await applyHealthDamage(defender, net, dt);
+  const threshold = dazeThreshold(defender);
+  const dazed = rawNet > 0 && rawNet > threshold;
+  if (dazed && !isDazed(defenderToken, defender)) await applyDazed(defender);
 
   // Read condition AFTER damage is applied
   const cond = getCondition(defender);
@@ -289,9 +666,15 @@ export async function rollDamage(msg) {
   } else {
     dmgLabel = `Base ${parseInt(f) || 0} + ${c.netSuccesses} net`;
   }
+  if (targetingDamageMod) dmgLabel += ` + ${targetingDamageMod} targeted`;
   const soakParts = [`Sta ${sta}`];
-  if (fl) soakParts.push(`Fort ${fl}`);
-  if (ar) soakParts.push(`Armor ${ar}`);
+  if (mortalLethalNoSoak) {
+    soakParts.splice(0, soakParts.length, 'Mortal cannot soak lethal damage');
+  } else {
+    if (fl) soakParts.push(`Fort ${fl}`);
+    if (ar) soakParts.push(`Armor ${ar}`);
+    else if (c.bypassArmor && armorRating) soakParts.push(`Armor ${armorRating} bypassed`);
+  }
 
   const html = await renderTemplate('systems/vtm-v20/templates/damage-card.hbs', {
     attackerName: attacker.name, attackerImg: attacker.img,
@@ -302,13 +685,15 @@ export async function rollDamage(msg) {
     dmgPool: dp, dmgLabel,
     dmgDice: dmg.dice, dmgSuccesses: dmg.total,
     soakPool: sp, soakLabel: soakParts.join(' + '),
-    soakDice: soak.dice, soakSuccesses: soak.total,
+    soakDice: soak.dice, soakSuccesses: soak.total, soakSkipped: mortalLethalNoSoak,
     netDamage: net, noDamage: net === 0,
+    damageAdjustment: rawNet !== net ? `Vampire bashing damage halved: ${rawNet} to ${net}.` : null,
+    dazedNotice: dazed ? `${defender.name} is dazed (${rawNet} damage successes exceeded ${threshold}).` : null,
     condition: cond, penalty: pen ? `${pen}` : null,
   });
 
   await showDice(dmgRoll, attacker);
-  await showDice(soakRoll, defender);
+  if (soakRoll) await showDice(soakRoll, defender);
   await ChatMessage.create({
     user: game.user.id,
     speaker: ChatMessage.getSpeaker({ actor: attacker }),

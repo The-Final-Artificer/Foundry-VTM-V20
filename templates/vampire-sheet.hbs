@@ -483,7 +483,13 @@
   {{!-- COMBAT --}}
   <div class="tab combat" data-group="primary" data-tab="combat">
     <div class="section-block">
-      <h2>Available Attacks</h2>
+      <div class="combat-attack-header">
+        <h2>Available Attacks <a class="attack-create" title="Create attack or maneuver"><i class="fas fa-plus"></i></a></h2>
+        <button type="button" class="targeting-toggle {{#if targetingEnabled}}active{{/if}}" title="Toggle targeted attacks">
+          <i class="fas fa-bullseye"></i>
+          <span>Targeting</span>
+        </button>
+      </div>
       <div class="attack-list">
         {{#each attacks}}
         <div class="attack-row" data-attack-id="{{this.id}}">
@@ -492,10 +498,23 @@
           <span class="attack-name">{{this.name}}</span>
           <span class="attack-stat">{{this.pool}}</span>
           <span class="attack-dmg">Dmg: {{this.damage}} {{this.damageType}}</span>
+          {{#if this.difficultyLabel}}<span class="attack-range">Difficulty: {{this.difficultyLabel}}</span>{{/if}}
           {{#if this.range}}<span class="attack-range">Range: {{this.range}} yds</span>{{/if}}
+          {{#if this.ammoLabel}}<span class="attack-range">Ammo: {{this.ammoLabel}}</span>{{/if}}
+          {{#if this.rate}}<span class="attack-range">Rate: {{this.rate}}</span>{{/if}}
           <button type="button" class="attack-btn" data-attack-id="{{this.id}}">
             <i class="fas fa-crosshairs"></i> Attack
           </button>
+          {{#if this.isRanged}}
+          <button type="button" class="attack-btn reload-btn" data-attack-id="{{this.id}}">
+            <i class="fas fa-rotate-right"></i> Reload
+          </button>
+          {{/if}}
+          {{#if this.custom}}
+          <button type="button" class="attack-delete" data-custom-id="{{this.customId}}" title="Delete maneuver">
+            <i class="fas fa-trash"></i>
+          </button>
+          {{/if}}
         </div>
         {{/each}}
       </div>
@@ -525,6 +544,8 @@
             <span class="item-detail">{{this.system.damage}} {{this.system.damageType}}</span>
             {{#if this.system.range}}<span class="item-detail">Range: {{this.system.range}} yds</span>{{/if}}
             {{#if this.system.capacity}}<span class="item-detail">Cap: {{this.system.capacity}}</span>{{/if}}
+            {{#if this.ammoLabel}}<span class="item-detail">Ammo: {{this.ammoLabel}}</span>{{/if}}
+            {{#if this.system.rate}}<span class="item-detail">Rate: {{this.system.rate}}</span>{{/if}}
             {{#if this.reqLabel}}<span class="item-req {{#if this.reqUnmet}}unmet{{/if}}" title="Requires {{this.reqLabel}}"><i class="fas fa-lock"></i> {{this.reqLabel}}</span>{{/if}}
             <div class="item-controls">
               <a class="item-edit"><i class="fas fa-edit"></i></a>

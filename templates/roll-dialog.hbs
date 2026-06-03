@@ -84,6 +84,11 @@
       <button type="button" class="diff-btn {{#if (eq difficulty 9)}}active{{/if}}" data-diff="9">9</button>
       <button type="button" class="diff-btn {{#if (eq difficulty 10)}}active{{/if}}" data-diff="10">10</button>
     </div>
+    {{#if blindedPenalty}}
+    <div class="difficulty-pen-row blinded-pen-row">
+      <span class="wound-pen-val">+{{blindedPenalty}} because of blinded condition</span>
+    </div>
+    {{/if}}
   </div>
 
   <div class="form-group check">

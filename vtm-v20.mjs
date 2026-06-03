@@ -5,15 +5,164 @@ import { DisciplineData, BackgroundData, MeritData, WeaponData, ArmorData, Equip
 import { VampireSheet } from './module/vampire-sheet.mjs';
 import { VtmItemSheet } from './module/item-sheet.mjs';
 import { rollDicePool } from './module/dice.mjs';
-import { rollAttack, bindCombatButtons } from './module/combat.mjs';
+import { rollAttack, bindCombatButtons, bindCombatSocketHandlers } from './module/combat.mjs';
 import { populateCompendiums, registerCompendiumSettings } from './module/compendiums.mjs';
 import { ChargenWizard } from './module/chargen.mjs';
+import {
+  BLINDED_STATUS_ID,
+  DAZED_STATUS_ID,
+  FULL_IMMOBILIZED_STATUS_ID,
+  STRUGGLING_IMMOBILIZED_STATUS_ID,
+  iterableValues,
+} from './module/status-effects.mjs';
+
+const COVER_STATUS_EFFECTS = [
+  {
+    id: 'vtm-cover-light',
+    name: 'Light Cover',
+    label: 'Light Cover',
+    icon: 'systems/vtm-v20/VTM icons/cover-light.svg',
+    origin: 'status',
+    statuses: ['vtm-cover-light'],
+  },
+  {
+    id: 'vtm-cover-good',
+    name: 'Good Cover',
+    label: 'Good Cover',
+    icon: 'systems/vtm-v20/VTM icons/cover-good.svg',
+    origin: 'status',
+    statuses: ['vtm-cover-good'],
+  },
+  {
+    id: 'vtm-cover-superior',
+    name: 'Superior Cover',
+    label: 'Superior Cover',
+    icon: 'systems/vtm-v20/VTM icons/cover-superior.svg',
+    origin: 'status',
+    statuses: ['vtm-cover-superior'],
+  },
+];
+
+const OTHER_STATUS_EFFECTS = [
+  {
+    id: BLINDED_STATUS_ID,
+    name: 'Blinded',
+    label: 'Blinded',
+    icon: 'systems/vtm-v20/VTM icons/blinded.svg',
+    img: 'systems/vtm-v20/VTM icons/blinded.svg',
+    origin: 'status',
+    statuses: [BLINDED_STATUS_ID],
+  },
+  {
+    id: DAZED_STATUS_ID,
+    name: 'Dazed',
+    label: 'Dazed',
+    icon: 'systems/vtm-v20/VTM icons/star-swirl.svg',
+    img: 'systems/vtm-v20/VTM icons/star-swirl.svg',
+    origin: 'status',
+    statuses: [DAZED_STATUS_ID],
+  },
+  {
+    id: STRUGGLING_IMMOBILIZED_STATUS_ID,
+    name: 'Struggling Immobilization',
+    label: 'Struggling Immobilization',
+    icon: 'systems/vtm-v20/VTM icons/nailed-foot.svg',
+    img: 'systems/vtm-v20/VTM icons/nailed-foot.svg',
+    origin: 'status',
+    statuses: [STRUGGLING_IMMOBILIZED_STATUS_ID],
+  },
+  {
+    id: FULL_IMMOBILIZED_STATUS_ID,
+    name: 'Full Immobilization',
+    label: 'Full Immobilization',
+    icon: 'systems/vtm-v20/VTM icons/heart-stake.svg',
+    img: 'systems/vtm-v20/VTM icons/heart-stake.svg',
+    origin: 'status',
+    statuses: [FULL_IMMOBILIZED_STATUS_ID],
+  },
+];
+
+const COVER_STATUS_IDS = new Set(COVER_STATUS_EFFECTS.map(effect => effect.id));
+const IMMOBILIZATION_STATUS_IDS = new Set([STRUGGLING_IMMOBILIZED_STATUS_ID, FULL_IMMOBILIZED_STATUS_ID]);
+
+function registerCoverStatusEffects() {
+  CONFIG.statusEffects = foundry.utils.deepClone([...COVER_STATUS_EFFECTS, ...OTHER_STATUS_EFFECTS]);
+}
+
+function coverStatusesForEffect(effect) {
+  const statuses = new Set();
+  for (const status of iterableValues(effect?.statuses)) {
+    if (COVER_STATUS_IDS.has(status)) statuses.add(status);
+  }
+
+  const coreStatus = effect?.getFlag?.('core', 'statusId')
+    ?? effect?.flags?.core?.statusId
+    ?? effect?.statusId;
+  if (COVER_STATUS_IDS.has(coreStatus)) statuses.add(coreStatus);
+
+  return statuses;
+}
+
+function immobilizationStatusesForEffect(effect) {
+  const statuses = new Set();
+  for (const status of iterableValues(effect?.statuses)) {
+    if (IMMOBILIZATION_STATUS_IDS.has(status)) statuses.add(status);
+  }
+
+  const coreStatus = effect?.getFlag?.('core', 'statusId')
+    ?? effect?.flags?.core?.statusId
+    ?? effect?.statusId;
+  if (IMMOBILIZATION_STATUS_IDS.has(coreStatus)) statuses.add(coreStatus);
+
+  return statuses;
+}
+
+function shouldEnforceCoverExclusivity(parent) {
+  const activeGms = game.users?.filter(user => user.active && user.isGM) ?? [];
+  if (activeGms.length) return game.user.id === activeGms[0].id;
+  return parent?.isOwner || game.user.isGM;
+}
+
+async function enforceExclusiveCoverStatus(effect) {
+  const activeCover = coverStatusesForEffect(effect);
+  if (!activeCover.size) return;
+
+  const parent = effect.parent;
+  if (!parent?.effects || !shouldEnforceCoverExclusivity(parent)) return;
+
+  const toDelete = [];
+  for (const other of iterableValues(parent.effects)) {
+    if (other.id === effect.id) continue;
+    const otherCover = coverStatusesForEffect(other);
+    if (otherCover.size) toDelete.push(other.id);
+  }
+
+  if (toDelete.length) await parent.deleteEmbeddedDocuments('ActiveEffect', toDelete);
+}
+
+async function enforceExclusiveImmobilizationStatus(effect) {
+  const activeImmobilization = immobilizationStatusesForEffect(effect);
+  if (!activeImmobilization.size) return;
+
+  const parent = effect.parent;
+  if (!parent?.effects || !shouldEnforceCoverExclusivity(parent)) return;
+
+  const toDelete = [];
+  for (const other of iterableValues(parent.effects)) {
+    if (other.id === effect.id) continue;
+    const otherImmobilization = immobilizationStatusesForEffect(other);
+    if (otherImmobilization.size) toDelete.push(other.id);
+  }
+
+  if (toDelete.length) await parent.deleteEmbeddedDocuments('ActiveEffect', toDelete);
+}
 
 Hooks.once('init', () => {
   console.log('VtM V20 | Initializing');
 
   game.vtm = { rollDicePool, rollAttack, ChargenWizard };
   CONFIG.VTM = VTM;
+  registerCoverStatusEffects();
 
   CONFIG.Actor.dataModels.vampire = VampireData;
   CONFIG.Actor.dataModels.mortal = MortalData;
@@ -81,6 +230,7 @@ Hooks.once('init', () => {
 
 Hooks.once('ready', () => {
   populateCompendiums();
+  bindCombatSocketHandlers();
 
   // GM-side handler for cross-permission operations (e.g. player marking an attack message resolved)
   game.socket.on('system.vtm-v20', async ({ action, msgId }) => {
@@ -90,6 +240,16 @@ Hooks.once('ready', () => {
       if (msg) await msg.update({ 'flags.vtm-v20.combat.resolved': true });
     }
   });
+});
+
+Hooks.on('createActiveEffect', effect => {
+  enforceExclusiveCoverStatus(effect);
+  enforceExclusiveImmobilizationStatus(effect);
+});
+
+Hooks.on('updateActiveEffect', effect => {
+  enforceExclusiveCoverStatus(effect);
+  enforceExclusiveImmobilizationStatus(effect);
 });
 
 // Dark Pack agreement notice in the settings sidebar

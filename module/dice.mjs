@@ -1,4 +1,6 @@
 // Find an active player who owns this actor (prefer non-GM so dice match the player's theme)
+import { blindedDifficulty } from './status-effects.mjs';
+
 function getOwner(actor) {
   const owners = game.users.filter(u => u.active && actor.testUserPermission(u, 'OWNER') && !u.isGM);
   return owners[0] || game.users.find(u => u.active && u.isGM) || game.user;
@@ -12,6 +14,7 @@ export async function showDice(roll, actor) {
 
 export async function rollDicePool(actor, { trait, trait2, label, pool, difficulty = 6 } = {}) {
   const sys = actor.system;
+  const baseDifficulty = Number(difficulty) || 6;
 
   const allTraits = {};
   if (sys.attributes) {
@@ -52,12 +55,17 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   const woundPen = actor.system.woundPenalty || 0;
   // Willpower and Virtue rolls aren't hindered by wounds
   const woundImmune = k => k === 'willpower' || (k || '').startsWith('virtues.');
+  const blindedImmune = k => woundImmune(k);
+  const initialBlindedImmune = blindedImmune(trait) || blindedImmune(trait2);
+  const blindedDifficultyValue = blindedDifficulty(actor, baseDifficulty);
+  const blindedPenalty = blindedDifficultyValue - baseDifficulty;
+  const dialogDifficulty = initialBlindedImmune ? baseDifficulty : blindedDifficultyValue;
   const armorPen = Array.from(actor.items)
     .filter(i => i.type === 'armor' && i.system.equipped)
     .reduce((sum, i) => sum + (i.system.penalty || 0), 0);
 
   const dlgHtml = await renderTemplate('systems/vtm-v20/templates/roll-dialog.hbs', {
-    trait, trait2, label, difficulty, woundPen, armorPen,
+    trait, trait2, label, difficulty: dialogDifficulty, woundPen, armorPen, blindedPenalty,
     attrOpts: groupOpts('attributes'),
     abilOpts: groupOpts('abilities'),
     virtOpts: groupOpts('virtues'),
@@ -77,7 +85,9 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
             const pri = form.primary.value;
             const sec = form.secondary.value;
             const mod = parseInt(form.modifier.value) || 0;
-            const diff = parseInt(form.difficulty.value) || 6;
+            const selectedBlindedImmune = blindedImmune(pri) || blindedImmune(sec);
+            const chosenDiff = parseInt(form.difficulty.value) || dialogDifficulty;
+            const diff = chosenDiff;
             const spec = form.specialty.checked;
 
             const wp = (woundImmune(pri) || woundImmune(sec)) ? 0 : woundPen;
@@ -95,7 +105,13 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
             }
             total = Math.max(total, 1);
 
-            resolve({ pool: total, difficulty: diff, specialty: spec, label: parts.join(' + ') || label });
+            const rollLabel = parts.join(' + ') || label;
+            resolve({
+              pool: total,
+              difficulty: diff,
+              specialty: spec,
+              label: blindedPenalty && !selectedBlindedImmune ? `${rollLabel} | blinded diff +${blindedPenalty}` : rollLabel,
+            });
           }
         },
       },
@@ -128,6 +144,22 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
           };
           checkWp();
           html.find('[name="primary"], [name="secondary"]').change(checkWp);
+        }
+
+        const blindedRow = html.find('.blinded-pen-row');
+        if (blindedRow.length) {
+          const checkBlinded = () => {
+            const pri = html.find('[name="primary"]').val();
+            const sec = html.find('[name="secondary"]').val();
+            const immune = blindedImmune(pri) || blindedImmune(sec);
+            const difficulty = immune ? baseDifficulty : blindedDifficultyValue;
+            blindedRow.toggle(!immune);
+            html.find('[name="difficulty"]').val(difficulty);
+            html.find('.diff-btn').removeClass('active');
+            html.find(`.diff-btn[data-diff="${difficulty}"]`).addClass('active');
+          };
+          checkBlinded();
+          html.find('[name="primary"], [name="secondary"]').change(checkBlinded);
         }
       },
       default: 'roll',

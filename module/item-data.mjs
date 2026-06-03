@@ -71,6 +71,8 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
       conceal: str('P'),
       range: str(''),
       capacity: str(''),
+      ammo: str(''),
+      rate: str(''),
       requireTrait: str(''),
       requireMin: int(0, 0, 5),
       equipped: new f.BooleanField({ initial: false }),

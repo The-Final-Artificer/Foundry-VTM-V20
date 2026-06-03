@@ -2,10 +2,73 @@ import { VTM } from './config.mjs';
 import { showDice } from './dice.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
 import { ChargenWizard } from './chargen.mjs';
-import { applyHealthDamage, getCondition } from './combat.mjs';
+import { applyHealthDamage, finalDamageAfterSoak, getCondition } from './combat.mjs';
+import { blindedDifficulty } from './status-effects.mjs';
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ActorSheetV2 } = foundry.applications.sheets;
+
+function parseAmmoCapacity(capacity) {
+  const parts = String(capacity || '').match(/\d+(?:\s*\+\s*\d+)?/g);
+  if (!parts?.length) return null;
+  const totals = parts.map(part => part.split('+')
+    .reduce((sum, n) => sum + (parseInt(n.trim(), 10) || 0), 0));
+  return Math.max(...totals);
+}
+
+function ammoRemaining(system) {
+  const ammo = String(system.ammo ?? '').trim();
+  if (/^\d+$/.test(ammo)) return parseInt(ammo, 10);
+  return parseAmmoCapacity(system.capacity);
+}
+
+function ammoLabel(system) {
+  const capacity = String(system.capacity || '').trim();
+  if (!capacity) return '';
+  const remaining = ammoRemaining(system);
+  return remaining === null ? '' : `${remaining} / ${capacity}`;
+}
+
+function signed(value) {
+  const n = Number(value) || 0;
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
+function traitLabel(path) {
+  if (!path) return '';
+  if (path === 'willpower') return 'Willpower';
+  if (path === 'humanity') return 'Humanity';
+  const [, key] = path.split('.');
+  if (!key) return path;
+  return game.i18n.localize(`VTM.${key.charAt(0).toUpperCase() + key.slice(1)}`);
+}
+
+function traitValue(system, path) {
+  if (!path) return 0;
+  if (path === 'willpower') return system.willpower?.max || 0;
+  if (path === 'humanity') return system.humanity || 0;
+  const [category, key] = path.split('.');
+  return system[category]?.[key] || 0;
+}
+
+function damageDisplay(formula, strength) {
+  const raw = String(formula || '').trim();
+  const lower = raw.toLowerCase();
+  if (!raw || lower === 'str') return `Str (${strength})`;
+  if (lower.startsWith('str')) {
+    const bonus = parseInt(lower.replace(/str\+?/, ''), 10) || 0;
+    return bonus ? `Str${signed(bonus)} (${strength + bonus})` : `Str (${strength})`;
+  }
+  return raw;
+}
+
+function poolDisplay(system, primary, secondary, accuracyMod = 0) {
+  const traits = [primary, secondary].filter(Boolean);
+  const parts = traits.map(path => traitLabel(path));
+  const total = traits.reduce((sum, path) => sum + traitValue(system, path), 0) + (Number(accuracyMod) || 0);
+  if (accuracyMod) parts.push(`Accuracy ${signed(accuracyMod)}`);
+  return `${parts.join(' + ')} (${total})`;
+}
 
 export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
@@ -69,6 +132,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ctx.system = sys;
     ctx.actor = actor;
     ctx.isVampire = actor.type === 'vampire';
+    ctx.targetingEnabled = actor.getFlag('vtm-v20', 'targetingEnabled') === true;
 
     ctx.attrGroups = [
       { label: game.i18n.localize('VTM.Physical'), traits: this._prep(VTM.attributes.physical, sys.attributes, 'attributes') },
@@ -97,7 +161,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         reqLabel = `${name} ${min}`;
         reqUnmet = val < min;
       }
-      return { _id: w._id, name: w.name, img: w.img, system: w.system, reqLabel, reqUnmet };
+      return { _id: w._id, name: w.name, img: w.img, system: w.system, ammoLabel: ammoLabel(w.system), reqLabel, reqUnmet };
     });
     ctx.armor = items.filter(i => i.type === 'armor').sort((a, b) => a.sort - b.sort);
     ctx.equipment = items.filter(i => i.type === 'equipment').sort((a, b) => a.sort - b.sort);
@@ -114,6 +178,38 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       damageType: 'bashing', damageFormula: 'Str',
       skill: 'abilities.brawl', isRanged: false,
     });
+    attacks.push({
+      id: 'kick', name: 'Kick',
+      img: 'systems/vtm-v20/VTM icons/Actions Icons/high-kick.png',
+      pool: `Dex + Brawl (${dex + (sys.abilities?.brawl || 0)})`,
+      damage: `Str+1 (${(sys.attributes?.strength || 0) + 1})`,
+      damageType: 'bashing', damageFormula: 'Str+1',
+      skill: 'abilities.brawl', isRanged: false, difficultyMod: 1, difficultyLabel: '+1',
+    });
+    for (const custom of (sys.customAttacks ?? [])) {
+      const primary = custom.primary || 'attributes.dexterity';
+      const secondary = custom.secondary || '';
+      const accuracyMod = Number(custom.accuracyMod) || 0;
+      const difficultyMod = Number(custom.difficultyMod) || 0;
+      attacks.push({
+        id: `custom-${custom.id}`,
+        customId: custom.id,
+        name: custom.name || 'Custom Maneuver',
+        img: custom.img || '',
+        icon: 'fa-hand-fist',
+        pool: poolDisplay(sys, primary, secondary, accuracyMod),
+        damage: damageDisplay(custom.damageFormula, sys.attributes?.strength || 0),
+        damageType: custom.damageType || 'bashing',
+        damageFormula: custom.damageFormula || 'Str',
+        poolTraits: [primary, secondary].filter(Boolean),
+        accuracyMod,
+        skill: secondary?.startsWith('abilities.') ? secondary : primary,
+        isRanged: false,
+        difficultyMod,
+        difficultyLabel: difficultyMod ? signed(difficultyMod) : '',
+        custom: true,
+      });
+    }
     for (const w of items.filter(i => i.type === 'weapon' && i.system.equipped)) {
       const isRanged = !!w.system.range;
       const skillKey = isRanged ? 'firearms' : 'melee';
@@ -132,7 +228,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         damageType: w.system.damageType || 'lethal',
         damageFormula: w.system.damage,
         skill: `abilities.${skillKey}`,
-        isRanged, range: w.system.range,
+        isRanged, range: w.system.range, capacity: w.system.capacity,
+        rate: w.system.rate, ammoLabel: ammoLabel(w.system),
       });
     }
     ctx.attacks = attacks;
@@ -457,15 +554,58 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         item.update({ 'system.equipped': !item.system.equipped });
       }));
 
-    el.querySelectorAll('.attack-btn').forEach(btn =>
-      btn.addEventListener('click', () => {
+    el.querySelectorAll('.attack-btn:not(.reload-btn)').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
         const atk = this._attacks?.find(a => a.id === btn.dataset.attackId);
-        if (atk) game.vtm.rollAttack(this.document, atk);
+        try {
+          if (!atk) return;
+          const targeting = this.document.getFlag('vtm-v20', 'targetingEnabled') === true
+            ? await this._targetingAttackDialog(atk)
+            : null;
+          if (targeting === false) return;
+          const spent = await this._spendAttackAmmo(atk);
+          if (spent) await game.vtm.rollAttack(this.document, atk, { targeting });
+        } catch (err) {
+          console.error('VtM V20 | Attack failed', err);
+          ui.notifications.error('Attack failed. Check the console for details.');
+        } finally {
+          btn.disabled = false;
+        }
       }));
+
+    el.querySelectorAll('.reload-btn').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const atk = this._attacks?.find(a => a.id === btn.dataset.attackId);
+        try {
+          if (atk) await this._reloadAttackWeapon(atk);
+        } finally {
+          btn.disabled = false;
+        }
+      }));
+
+    el.querySelector('.targeting-toggle')?.addEventListener('click', async ev => {
+      ev.preventDefault();
+      const enabled = this.document.getFlag('vtm-v20', 'targetingEnabled') === true;
+      await this.document.setFlag('vtm-v20', 'targetingEnabled', !enabled);
+    });
 
     this._setupPortrait(el);
 
     if (canEdit) {
+      el.querySelector('.attack-create')?.addEventListener('click', ev => {
+        ev.preventDefault();
+        this._createCustomAttackDialog();
+      });
+
+      el.querySelectorAll('.attack-delete').forEach(btn =>
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.customId;
+          const attacks = this._customAttackData().filter(a => a.id !== id);
+          await this.document.update({ 'system.customAttacks': attacks });
+        }));
+
       el.querySelectorAll('.item-create').forEach(btn =>
         btn.addEventListener('click', () => {
           const type = btn.dataset.type;
@@ -616,6 +756,105 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (this._rollQuickEl) { this._rollQuickEl.remove(); this._rollQuickEl = null; }
     for (const fn of this._bioSaveFns) fn();
     return super.close(options);
+  }
+
+  async _spendAttackAmmo(atk) {
+    if (!atk.isRanged || atk.id === 'unarmed') return true;
+
+    const item = this.document.items.get(atk.id);
+    if (!item || item.type !== 'weapon') return true;
+
+    const capacity = parseAmmoCapacity(item.system.capacity);
+    if (capacity === null) return true;
+
+    const current = ammoRemaining(item.system);
+    if (current <= 0) {
+      ui.notifications.warn(`${item.name} is out of ammunition.`);
+      return false;
+    }
+
+    await item.update({ 'system.ammo': String(current - 1) });
+    return true;
+  }
+
+  async _targetingAttackDialog(atk) {
+    const choices = {
+      medium: {
+        label: 'Medium',
+        hint: 'Limb, briefcase',
+        difficultyMod: 1,
+        damageMod: 0,
+      },
+      small: {
+        label: 'Small',
+        hint: 'Hand, head, cellphone',
+        difficultyMod: 2,
+        damageMod: 1,
+      },
+      precise: {
+        label: 'Precise',
+        hint: 'Eye, heart, lock',
+        difficultyMod: 3,
+        damageMod: 2,
+      },
+    };
+
+    const rows = Object.entries(choices).map(([key, choice]) => `
+      <label class="targeting-choice">
+        <input type="radio" name="targetSize" value="${key}" ${key === 'medium' ? 'checked' : ''} />
+        <span class="targeting-choice-main">${choice.label}</span>
+        <span class="targeting-choice-meta">Difficulty +${choice.difficultyMod}${choice.damageMod ? `, Damage +${choice.damageMod}` : ', no damage modifier'}</span>
+        <span class="targeting-choice-hint">${choice.hint}</span>
+      </label>
+    `).join('');
+
+    const result = await new Promise(resolve => {
+      new Dialog({
+        title: `${atk.name}: Targeting`,
+        content: `
+          <form class="vtm-roll-dialog targeting-dialog">
+            <p class="targeting-intro">Choose the target size for this attack.</p>
+            <div class="targeting-choices">${rows}</div>
+          </form>
+        `,
+        buttons: {
+          attack: {
+            icon: '<i class="fas fa-bullseye"></i>',
+            label: 'Attack',
+            callback: html => {
+              const form = html.find('form')[0];
+              const key = form?.querySelector('input[name="targetSize"]:checked')?.value || 'medium';
+              const choice = choices[key] ?? choices.medium;
+              resolve({ size: key, ...choice });
+            },
+          },
+          cancel: {
+            icon: '<i class="fas fa-times"></i>',
+            label: 'Cancel',
+            callback: () => resolve(false),
+          },
+        },
+        default: 'attack',
+        close: () => resolve(false),
+      }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-targeting-dialog'], width: 430 }).render(true);
+    });
+
+    return result;
+  }
+
+  async _reloadAttackWeapon(atk) {
+    if (!atk.isRanged || atk.id === 'unarmed') return;
+
+    const item = this.document.items.get(atk.id);
+    if (!item || item.type !== 'weapon') return;
+
+    const capacity = parseAmmoCapacity(item.system.capacity);
+    if (capacity === null) {
+      ui.notifications.warn(`${item.name} has no magazine capacity to reload.`);
+      return;
+    }
+
+    await item.update({ 'system.ammo': String(capacity) });
   }
 
 
@@ -1040,6 +1279,145 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
   }
 
+  _attackTraitOptions(selected = '', allowBlank = false) {
+    const sys = this.document.system;
+    const option = (value, label, valueText) =>
+      `<option value="${value}" ${value === selected ? 'selected' : ''}>${label} (${valueText})</option>`;
+    const group = (label, entries, root) => {
+      const options = entries
+        .map(key => option(`${root}.${key}`, game.i18n.localize(`VTM.${key.charAt(0).toUpperCase() + key.slice(1)}`), sys[root]?.[key] || 0))
+        .join('');
+      return `<optgroup label="${label}">${options}</optgroup>`;
+    };
+
+    const blank = allowBlank ? '<option value="">-- None --</option>' : '';
+    const attrs = [
+      group('Attributes: Physical', VTM.attributes.physical, 'attributes'),
+      group('Attributes: Social', VTM.attributes.social, 'attributes'),
+      group('Attributes: Mental', VTM.attributes.mental, 'attributes'),
+    ].join('');
+    const abilities = [
+      group('Abilities: Talents', VTM.abilities.talents, 'abilities'),
+      group('Abilities: Skills', VTM.abilities.skills, 'abilities'),
+      group('Abilities: Knowledges', VTM.abilities.knowledges, 'abilities'),
+    ].join('');
+    const virtues = sys.virtues ? group('Virtues', ['conscience', 'selfControl', 'courage'], 'virtues') : '';
+    const other = [
+      option('willpower', 'Willpower', sys.willpower?.max || 0),
+      option('humanity', sys.pathName || 'Humanity', sys.humanity || 0),
+    ].join('');
+
+    return `${blank}${attrs}${abilities}${virtues}<optgroup label="Other">${other}</optgroup>`;
+  }
+
+  async _createCustomAttackDialog() {
+    const damageTypeOptions = VTM.damageTypes
+      .map(type => `<option value="${type}" ${type === 'bashing' ? 'selected' : ''}>${type}</option>`)
+      .join('');
+    const content = `
+      <form class="vtm-roll-dialog custom-attack-dialog">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" name="name" value="New Maneuver" />
+        </div>
+        <div class="form-group">
+          <label>Icon</label>
+          <div class="custom-attack-icon-row">
+            <input type="text" name="img" placeholder="systems/vtm-v20/VTM icons/Actions Icons/high-kick.png" />
+            <button type="button" class="attack-icon-picker"><i class="fas fa-folder-open"></i></button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Primary Pool Trait</label>
+          <select name="primary">${this._attackTraitOptions('attributes.dexterity')}</select>
+        </div>
+        <div class="form-group">
+          <label>Secondary Pool Trait</label>
+          <select name="secondary">${this._attackTraitOptions('abilities.brawl', true)}</select>
+        </div>
+        <div class="form-group">
+          <label>Accuracy Modifier (dice)</label>
+          <input type="number" name="accuracyMod" value="0" step="1" />
+        </div>
+        <div class="form-group">
+          <label>Difficulty Modifier</label>
+          <input type="number" name="difficultyMod" value="0" step="1" />
+        </div>
+        <div class="form-group">
+          <label>Damage</label>
+          <div class="custom-attack-damage-row">
+            <select name="damageMode">
+              <option value="strength" selected>Strength +</option>
+              <option value="fixed">Fixed Number</option>
+            </select>
+            <input type="number" name="damageValue" value="0" step="1" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Damage Type</label>
+          <select name="damageType">${damageTypeOptions}</select>
+        </div>
+      </form>`;
+
+    new Dialog({
+      title: 'Create Attack / Maneuver',
+      content,
+      buttons: {
+        create: {
+          icon: '<i class="fas fa-plus"></i>',
+          label: 'Add',
+          callback: html => this._saveCustomAttack(html[0].querySelector('form')),
+        },
+      },
+      render: html => {
+        html.find('.attack-icon-picker').click(() => {
+          if (typeof FilePicker === 'undefined') return;
+          new FilePicker({
+            type: 'image',
+            current: html.find('[name="img"]').val(),
+            callback: path => html.find('[name="img"]').val(path),
+          }).render(true);
+        });
+      },
+      default: 'create',
+    }, { classes: ['vtm-v20', 'dialog', 'roll-dialog'], width: 460 }).render(true);
+  }
+
+  async _saveCustomAttack(form) {
+    const damageValue = parseInt(form.damageValue.value, 10) || 0;
+    const damageFormula = form.damageMode.value === 'strength'
+      ? (damageValue ? `Str${signed(damageValue)}` : 'Str')
+      : `${damageValue}`;
+    const attack = {
+      id: foundry.utils.randomID(),
+      name: form.name.value.trim() || 'Custom Maneuver',
+      img: form.img.value.trim(),
+      primary: form.primary.value || 'attributes.dexterity',
+      secondary: form.secondary.value || '',
+      accuracyMod: parseInt(form.accuracyMod.value, 10) || 0,
+      difficultyMod: parseInt(form.difficultyMod.value, 10) || 0,
+      damageFormula,
+      damageType: form.damageType.value || 'bashing',
+    };
+    const attacks = this._customAttackData();
+    attacks.push(attack);
+    await this.document.update({ 'system.customAttacks': attacks });
+  }
+
+  _customAttackData() {
+    return Array.from(this.document.system.customAttacks ?? []).map(attack => ({
+      id: attack.id || foundry.utils.randomID(),
+      name: attack.name || 'Custom Maneuver',
+      img: attack.img || '',
+      primary: attack.primary || 'attributes.dexterity',
+      secondary: attack.secondary || '',
+      accuracyMod: Number(attack.accuracyMod) || 0,
+      difficultyMod: Number(attack.difficultyMod) || 0,
+      damageFormula: attack.damageFormula || 'Str',
+      damageType: attack.damageType || 'bashing',
+    }));
+  }
+
   async _rollSoak() {
     const actor = this.document;
     const actorItems = Array.from(actor.items);
@@ -1054,8 +1432,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const parts = [`Stamina ${stamina}`];
     if (fortLevel) parts.push(`Fortitude ${fortLevel}`);
     if (armorRating) parts.push(`Armor ${armorRating}`);
-    const label = `Soak (${parts.join(' + ')})`;
     const difficulty = 6;
+    const label = `Soak (${parts.join(' + ')})`;
 
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
@@ -1221,6 +1599,35 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       portraitStyle = `object-position: calc(50% + ${(pFlags.offX * r).toFixed(1)}px) calc(50% + ${(pFlags.offY * r).toFixed(1)}px); transform: scale(${pFlags.scale});`;
     }
 
+    if (actor.type === 'mortal' && dmgType === 'lethal') {
+      await applyHealthDamage(actor, total, dmgType);
+      const cond = getCondition(actor);
+      const pen = actor.system.woundPenalty || 0;
+      const chatHtml = await renderTemplate('systems/vtm-v20/templates/damage-card.hbs', {
+        attackerName: 'Fall', attackerImg: actor.img,
+        attackerPortraitStyle: portraitStyle,
+        defenderName: actor.name, defenderImg: actor.img,
+        defenderPortraitStyle: portraitStyle,
+        weaponName: 'Fall', damageType: dmgType,
+        dmgPool: dice, dmgLabel: `${choice.height} ${choice.unit} fall`,
+        dmgDice: diceResults, dmgSuccesses: total,
+        soakPool: 0, soakLabel: 'Mortal cannot soak lethal damage',
+        soakDice: [], soakSuccesses: 0, soakSkipped: true,
+        netDamage: total, noDamage: total === 0,
+        damageAdjustment: null,
+        condition: cond, penalty: pen ? `${pen}` : null,
+      });
+
+      await showDice(roll, actor);
+      await ChatMessage.create({
+        user: game.user.id,
+        speaker: ChatMessage.getSpeaker({ actor }),
+        content: chatHtml,
+        type: CONST.CHAT_MESSAGE_STYLES.OTHER,
+      });
+      return;
+    }
+
     const chatHtml = await renderTemplate('systems/vtm-v20/templates/falling-card.hbs', {
       actorImg: actor.img, actorName: actor.name, portraitStyle,
       height: choice.height, unit: choice.unit, dmgType,
@@ -1244,6 +1651,43 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // Soak roll for falling damage, called from the chat button hook
   async _rollFallingSoak(fallData) {
     const actor = this.document;
+    if (actor.type === 'mortal' && String(fallData.dmgType || '').toLowerCase() === 'lethal') {
+      const net = Math.max(Number(fallData.dmgTotal) || 0, 0);
+      if (net > 0) await applyHealthDamage(actor, net, fallData.dmgType);
+
+      const cond = getCondition(actor);
+      const pen = actor.system.woundPenalty || 0;
+      const pFlags = actor.getFlag('vtm-v20', 'portrait') || {};
+      let portraitStyle = '';
+      if ((pFlags.scale ?? 1) > 1 || pFlags.offX || pFlags.offY) {
+        const r = 0.213 / (pFlags.scale ?? 1);
+        portraitStyle = `object-position: calc(50% + ${(pFlags.offX * r).toFixed(1)}px) calc(50% + ${(pFlags.offY * r).toFixed(1)}px); transform: scale(${pFlags.scale});`;
+      }
+
+      const chatHtml = await renderTemplate('systems/vtm-v20/templates/damage-card.hbs', {
+        attackerName: 'Fall', attackerImg: actor.img,
+        attackerPortraitStyle: portraitStyle,
+        defenderName: actor.name, defenderImg: actor.img,
+        defenderPortraitStyle: portraitStyle,
+        weaponName: 'Fall', damageType: fallData.dmgType,
+        dmgPool: fallData.dmgTotal, dmgLabel: `${fallData.dmgTotal} ${fallData.dmgType}`,
+        dmgDice: [], dmgSuccesses: fallData.dmgTotal,
+        soakPool: 0, soakLabel: 'Mortal cannot soak lethal damage',
+        soakDice: [], soakSuccesses: 0, soakSkipped: true,
+        netDamage: net, noDamage: net === 0,
+        damageAdjustment: null,
+        condition: cond, penalty: pen ? `${pen}` : null,
+      });
+
+      await ChatMessage.create({
+        user: game.user.id,
+        speaker: ChatMessage.getSpeaker({ actor }),
+        content: chatHtml,
+        type: CONST.CHAT_MESSAGE_STYLES.OTHER,
+      });
+      return;
+    }
+
     const stamina = actor.system.attributes?.stamina || 0;
     const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
     const fortLevel = fort?.system.level || 0;
@@ -1257,7 +1701,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await roll.evaluate();
     const { dice, total: soaked } = this._tallyDice(roll, 6);
 
-    const net = Math.max(fallData.dmgTotal - soaked, 0);
+    const rawNet = Math.max(fallData.dmgTotal - soaked, 0);
+    const net = finalDamageAfterSoak(actor, rawNet, fallData.dmgType);
     if (net > 0) await applyHealthDamage(actor, net, fallData.dmgType);
 
     const cond = getCondition(actor);
@@ -1285,6 +1730,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       soakPool: pool, soakLabel: soakParts.join(' + '),
       soakDice: dice, soakSuccesses: soaked,
       netDamage: net, noDamage: net === 0,
+      damageAdjustment: rawNet !== net ? `Vampire bashing damage halved: ${rawNet} to ${net}.` : null,
       condition: cond, penalty: pen ? `${pen}` : null,
     });
 
@@ -1357,8 +1803,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const running = choice.type === 'running';
     const pool = Math.max(str + (running ? ath : 0) + choice.mod + woundPen, 1);
-    const label = running ? 'Running Jump (Strength + Athletics)' : 'Standing Jump (Strength)';
-    const difficulty = choice.difficulty;
+    const labelBase = running ? 'Running Jump (Strength + Athletics)' : 'Standing Jump (Strength)';
+    const baseDifficulty = choice.difficulty;
+    const difficulty = blindedDifficulty(actor, baseDifficulty);
+    const label = difficulty > baseDifficulty ? `${labelBase} | blinded diff +2` : labelBase;
 
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
@@ -1396,7 +1844,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (!res) return;
 
     const pool = Math.max(dex + ath + res.mod + woundPen, 1);
-    const difficulty = res.difficulty;
+    const baseDifficulty = res.difficulty;
+    const difficulty = blindedDifficulty(actor, baseDifficulty);
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
     const { dice, total, outcome } = this._tallyDice(roll, difficulty);
@@ -1407,7 +1856,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     else extra = 'Slipped, hit the wall or fell';
 
     await this._emitRollCard(actor, {
-      roll, label: 'Catch a Ledge (Dexterity + Athletics)', pool, difficulty, dice, total, outcome, extra,
+      roll,
+      label: difficulty > baseDifficulty
+        ? 'Catch a Ledge (Dexterity + Athletics) | blinded diff +2'
+        : 'Catch a Ledge (Dexterity + Athletics)',
+      pool,
+      difficulty,
+      dice,
+      total,
+      outcome,
+      extra,
     });
   }
 

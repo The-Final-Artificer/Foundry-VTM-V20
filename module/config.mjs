@@ -105,5 +105,5 @@ VTM.bearingLabels = [
 VTM.bearingModifiers = { 10: -2, 9: -1, 8: -1, 7: 0, 6: 0, 5: 0, 4: 0, 3: 1, 2: 1, 1: 2, 0: null };
 
 VTM.meritTypes = ['physical', 'social', 'mental', 'supernatural'];
-VTM.damageTypes = ['bashing', 'lethal'];
+VTM.damageTypes = ['bashing', 'lethal', 'aggravated'];
 VTM.concealOptions = ['P', 'J', 'T', 'N'];
