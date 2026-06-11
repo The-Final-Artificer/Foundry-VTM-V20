@@ -1,0 +1,19 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Foundry runtime data (LevelDB compendium databases are rebuilt on load)
+packs/*/*.ldb
+packs/*/*.log
+packs/*/LOCK
+packs/*/CURRENT
+packs/*/MANIFEST-*
+packs/*/LOG
+packs/*/LOG.old

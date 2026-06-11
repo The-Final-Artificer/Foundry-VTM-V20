@@ -1,0 +1,17 @@
+{
+  "Actor": {
+    "types": ["vampire", "mortal"],
+    "vampire": {},
+    "mortal": {}
+  },
+  "Item": {
+    "types": ["discipline", "background", "merit", "weapon", "armor", "equipment", "container"],
+    "discipline": {},
+    "background": {},
+    "merit": {},
+    "weapon": {},
+    "armor": {},
+    "equipment": {},
+    "container": {}
+  }
+}

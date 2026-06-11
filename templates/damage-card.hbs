@@ -1,0 +1,59 @@
+<div class="vtm-roll vtm-combat-damage {{#if noDamage}}soaked{{else}}damage-dealt{{/if}}">
+  <div class="roll-header dual-portrait">
+    <div class="roll-portrait-wrap">
+      <img class="roll-portrait" src="{{attackerImg}}" style="{{attackerPortraitStyle}}" />
+    </div>
+    <div class="roll-info">
+      <span class="roll-actor">{{weaponName}} Damage</span>
+      <span class="roll-label">{{attackerName}} → {{defenderName}}</span>
+    </div>
+    <div class="roll-portrait-wrap">
+      <img class="roll-portrait" src="{{defenderImg}}" style="{{defenderPortraitStyle}}" />
+    </div>
+  </div>
+
+  <div class="combat-damage-section">
+    <div class="damage-row">
+      <span class="damage-header"><i class="fas fa-crosshairs"></i> Damage ({{dmgLabel}}), Pool {{dmgPool}}{{#if dmgDifficulty}}, Diff {{dmgDifficulty}}{{/if}}</span>
+      <div class="roll-dice">
+        {{#each dmgDice}}
+        <span class="die {{this.status}}">{{this.value}}</span>
+        {{/each}}
+      </div>
+      <span class="damage-subtotal">{{dmgSuccesses}} damage</span>
+    </div>
+
+    <div class="damage-row">
+      {{#if soakSkipped}}
+      <span class="damage-header"><i class="fas fa-shield-alt"></i> Soak ({{soakLabel}})</span>
+      <span class="damage-subtotal">No soak roll</span>
+      {{else}}
+      <span class="damage-header"><i class="fas fa-shield-alt"></i> Soak ({{soakLabel}}), Pool {{soakPool}}{{#if soakDifficulty}}, Diff {{soakDifficulty}}{{/if}}</span>
+      <div class="roll-dice">
+        {{#each soakDice}}
+        <span class="die {{this.status}}">{{this.value}}</span>
+        {{/each}}
+      </div>
+      <span class="damage-subtotal">{{soakSuccesses}} soaked</span>
+      {{/if}}
+    </div>
+  </div>
+
+  <div class="combat-summary">
+    {{#if damageAdjustment}}
+    <div class="combat-defended"><i class="fas fa-moon"></i> {{damageAdjustment}}</div>
+    {{/if}}
+    {{#if dazedNotice}}
+    <div class="combat-defended"><i class="fas fa-star"></i> {{dazedNotice}}</div>
+    {{/if}}
+    {{#if noDamage}}
+    <div class="combat-defended"><i class="fas fa-shield-alt"></i> {{#if damageAdjustment}}No damage applied.{{else}}All damage soaked!{{/if}}</div>
+    {{else}}
+    <div class="combat-hit">{{netDamage}} {{damageType}} damage to {{defenderName}}</div>
+    {{/if}}
+    <div class="combat-condition">
+      {{defenderName}}: <span class="condition-label">{{condition}}</span>
+      {{#if penalty}} <span class="condition-penalty">({{penalty}})</span>{{/if}}
+    </div>
+  </div>
+</div>

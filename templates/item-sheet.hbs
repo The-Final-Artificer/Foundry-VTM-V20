@@ -1,0 +1,225 @@
+<div class="sheet-inner">
+<header class="sheet-header">
+  <img src="{{item.img}}" />
+  <div class="header-fields">
+    <h1><input name="name" type="text" value="{{item.name}}" /></h1>
+    <span class="item-type">{{typeLabel}}</span>
+    {{#if isAuspex}}
+    <button type="button" class="aura-chart-btn"><i class="fas fa-eye"></i> Aura Chart</button>
+    {{/if}}
+  </div>
+</header>
+
+<div class="sheet-content">
+  {{#if (eq item.type "discipline")}}
+  <div class="form-group">
+    <label>Level</label>
+    <div class="dot-row" data-path="system.level">
+      {{{vtmDots system.level 5}}}
+    </div>
+  </div>
+
+  {{#if isGM}}
+  {{#if system.description}}
+  <div class="disc-description">{{{enrichedDescription}}}</div>
+  {{/if}}
+  {{/if}}
+
+  <div class="power-list">
+    {{#each powerLevels}}
+    <div class="power-level {{#unless this.name}}empty-power{{/unless}}">
+      <div class="power-header">
+        <span class="power-num">{{this.num}}</span>
+        <input type="text" name="system.powers.{{this.key}}.name" value="{{this.name}}" placeholder="Power Name" class="power-name-input" />
+        {{#if this.hasRoll}}
+        <button type="button" class="power-roll" data-level="{{this.key}}" title="Roll"><i class="fas fa-dice-d20"></i></button>
+        {{/if}}
+      </div>
+      <div class="power-meta">
+        <select name="system.powers.{{this.key}}.primary" class="power-trait">
+          <option value="">-- Primary --</option>
+          {{#each this.primaryOptions}}
+          <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+        <span class="power-plus">+</span>
+        <select name="system.powers.{{this.key}}.secondary" class="power-trait">
+          <option value="">-- Secondary --</option>
+          {{#each this.secondaryOptions}}
+          <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+        <label class="power-diff-label">Diff</label>
+        <input type="number" name="system.powers.{{this.key}}.difficulty" value="{{this.difficulty}}" min="2" max="10" class="power-diff" />
+        <input type="text" name="system.powers.{{this.key}}.cost" value="{{this.cost}}" placeholder="Cost" class="power-cost" />
+      </div>
+      <div class="power-desc">{{{this.desc}}}</div>
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if (eq item.type "background")}}
+  <div class="form-group">
+    <label>Rating</label>
+    <div class="dot-row" data-path="system.rating">
+      {{{vtmDots system.rating 5}}}
+    </div>
+  </div>
+
+  {{#if isGM}}
+  {{#if system.description}}
+  <div class="disc-description">{{{enrichedDescription}}}</div>
+  {{/if}}
+  {{/if}}
+
+  <div class="power-list">
+    {{#each bgLevels}}
+    <div class="power-level {{#unless this.name}}empty-power{{/unless}}">
+      <div class="power-header">
+        <span class="power-num">{{this.num}}</span>
+        <input type="text" name="system.levels.{{this.key}}.name" value="{{this.name}}" placeholder="Level Name" class="power-name-input" />
+      </div>
+      <div class="power-desc">{{{this.desc}}}</div>
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if (eq item.type "merit")}}
+  <div class="form-group">
+    <label>Cost</label>
+    <input type="number" name="system.cost" value="{{system.cost}}" min="-7" max="7" />
+  </div>
+  <div class="form-group">
+    <label>Type</label>
+    <select name="system.meritType">
+      {{#each config.meritTypes}}
+      <option value="{{this}}" {{#if (eq this ../system.meritType)}}selected{{/if}}>{{this}}</option>
+      {{/each}}
+    </select>
+  </div>
+  {{/if}}
+
+  {{#if (eq item.type "weapon")}}
+  <div class="form-group">
+    <label>Equipped</label>
+    <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} />
+  </div>
+  <div class="form-group">
+    <label>Damage</label>
+    <input type="text" name="system.damage" value="{{system.damage}}" />
+  </div>
+  <div class="form-group">
+    <label>Type</label>
+    <select name="system.damageType">
+      {{#each config.damageTypes}}
+      <option value="{{this}}" {{#if (eq this ../system.damageType)}}selected{{/if}}>{{this}}</option>
+      {{/each}}
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Conceal</label>
+    <input type="text" name="system.conceal" value="{{system.conceal}}" />
+  </div>
+  <div class="form-group">
+    <label>Range</label>
+    <input type="text" name="system.range" value="{{system.range}}" placeholder="—" />
+  </div>
+  <div class="form-group">
+    <label>Capacity</label>
+    <input type="text" name="system.capacity" value="{{system.capacity}}" placeholder="—" />
+  </div>
+  <div class="form-group">
+    <label>Ammo Left</label>
+    <input type="text" name="system.ammo" value="{{system.ammo}}" placeholder="full" />
+  </div>
+  <div class="form-group">
+    <label>Rate</label>
+    <input type="text" name="system.rate" value="{{system.rate}}" placeholder="â€”" />
+  </div>
+  <div class="form-group">
+    <label>Wield Req.</label>
+    <div class="req-fields">
+      <select name="system.requireTrait" class="req-trait">
+        {{#each requireTraitOptions}}
+        <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+      <input type="number" name="system.requireMin" value="{{system.requireMin}}" min="0" max="5" class="req-min" />
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if (eq item.type "armor")}}
+  <div class="form-group">
+    <label>Equipped</label>
+    <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} />
+  </div>
+  <div class="form-group">
+    <label>Rating</label>
+    <input type="number" name="system.rating" value="{{system.rating}}" min="0" max="5" />
+  </div>
+  <div class="form-group">
+    <label>Dex Penalty</label>
+    <input type="number" name="system.penalty" value="{{system.penalty}}" min="-5" max="0" />
+  </div>
+  {{#if hasEI}}
+  <div class="form-group">
+    <label>Bottom Wear</label>
+    <select name="system.bottomWear">
+      <option value="none" {{#if (eq system.bottomWear "none")}}selected{{/if}}>None</option>
+      <option value="shorts" {{#if (eq system.bottomWear "shorts")}}selected{{/if}}>Shorts</option>
+      <option value="tightPants" {{#if (eq system.bottomWear "tightPants")}}selected{{/if}}>Tight Pants</option>
+      <option value="pants" {{#if (eq system.bottomWear "pants")}}selected{{/if}}>Pants</option>
+      <option value="baggyPants" {{#if (eq system.bottomWear "baggyPants")}}selected{{/if}}>Baggy Pants</option>
+      <option value="tacticalPants" {{#if (eq system.bottomWear "tacticalPants")}}selected{{/if}}>Tactical Pants</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Top Wear Capacity</label>
+    <select name="system.topWear">
+      <option value="none" {{#if (eq system.topWear "none")}}selected{{/if}}>None</option>
+      <option value="pocket" {{#if (eq system.topWear "pocket")}}selected{{/if}}>Pocket</option>
+      <option value="jacket" {{#if (eq system.topWear "jacket")}}selected{{/if}}>Jacket</option>
+      <option value="bigJacket" {{#if (eq system.topWear "bigJacket")}}selected{{/if}}>Big Jacket</option>
+      <option value="trenchcoat" {{#if (eq system.topWear "trenchcoat")}}selected{{/if}}>Trench Coat</option>
+    </select>
+  </div>
+  {{/if}}
+  {{/if}}
+
+  {{#if (eq item.type "equipment")}}
+  <div class="form-group">
+    <label>Equipped</label>
+    <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} />
+  </div>
+  <div class="form-group">
+    <label>Quantity</label>
+    <input type="number" name="system.quantity" value="{{system.quantity}}" min="0" />
+  </div>
+  {{/if}}
+
+  {{#if (eq item.type "container")}}
+  <div class="form-group">
+    <label>Equipped</label>
+    <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} />
+  </div>
+  <div class="form-group">
+    <label>Capacity</label>
+    <input type="number" name="system.capacity" value="{{system.capacity}}" min="0" max="100" />
+  </div>
+  <div class="form-group">
+    <label>Dex Penalty</label>
+    <input type="number" name="system.penalty" value="{{system.penalty}}" min="-5" max="0" />
+  </div>
+  {{/if}}
+
+  {{#unless (or (eq item.type "discipline") (eq item.type "background"))}}
+  <label class="desc-label">Description</label>
+  <div class="desc-wrap">
+    <prose-mirror name="system.description" toggled value="{{ system.description }}" data-document-uuid="{{ item.uuid }}">{{{ enrichedDescription }}}</prose-mirror>
+  </div>
+  {{/unless}}
+</div>
+</div>

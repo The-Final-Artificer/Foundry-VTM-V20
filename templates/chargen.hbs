@@ -1,0 +1,393 @@
+<div class="chargen-wizard">
+
+  {{!-- Step indicator --}}
+  <div class="chargen-step-bar">
+    {{#each stepInfo}}
+    <div class="chargen-step-pip {{#if this.active}}active{{/if}} {{#if this.done}}done{{/if}}">
+      <span class="pip-num">{{this.num}}</span>
+      <span class="pip-label">{{this.name}}</span>
+    </div>
+    {{/each}}
+  </div>
+
+  <div class="chargen-content">
+
+    {{!-- ══════════ STEP 0: CONCEPT ══════════ --}}
+    {{#if (eq step 0)}}
+    <div class="chargen-step">
+      <h2>Character Concept</h2>
+      <p class="chargen-hint">Who were you in life? What drives you in death?</p>
+
+      <div class="chargen-form-grid">
+        <div class="field">
+          <label>Clan <span class="required">*</span></label>
+          <input type="text" name="clan" list="chargen-clans" value="{{d.clan}}" placeholder="Choose or type..." />
+          <datalist id="chargen-clans">
+            {{#each config.clans}}
+            <option value="{{this}}">{{this}}</option>
+            {{/each}}
+          </datalist>
+        </div>
+        <div class="field">
+          <label>Nature <span class="required">*</span></label>
+          <select name="nature">
+            <option value="">Choose...</option>
+            {{#each config.natures}}
+            <option value="{{this}}" {{#if (eq this ../d.nature)}}selected{{/if}}>{{this}}</option>
+            {{/each}}
+          </select>
+        </div>
+        <div class="field">
+          <label>Demeanor <span class="required">*</span></label>
+          <select name="demeanor">
+            <option value="">Choose...</option>
+            {{#each config.natures}}
+            <option value="{{this}}" {{#if (eq this ../d.demeanor)}}selected{{/if}}>{{this}}</option>
+            {{/each}}
+          </select>
+        </div>
+        <div class="field">
+          <label>Concept</label>
+          <input type="text" name="concept" value="{{d.concept}}" placeholder="e.g. Disillusioned Cop" />
+        </div>
+        <div class="field">
+          <label>Sire</label>
+          <input type="text" name="sire" value="{{d.sire}}" placeholder="Your sire's name" />
+        </div>
+      </div>
+    </div>
+    {{/if}}
+
+
+    {{!-- ══════════ STEP 1: ATTRIBUTES ══════════ --}}
+    {{#if (eq step 1)}}
+    <div class="chargen-step">
+      <h2>Attributes</h2>
+      <p class="chargen-hint">Prioritize your attribute categories, then distribute dots. Each attribute starts at 1.</p>
+
+      <div class="priority-section">
+        {{#each priorities}}
+        <div class="priority-row">
+          <label>{{this.label}}</label>
+          <select class="priority-select" data-group="{{this.key}}">
+            <option value="">Assign...</option>
+            {{#each this.options}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}} {{#if this.disabled}}disabled{{/if}}>
+              {{this.label}}
+            </option>
+            {{/each}}
+          </select>
+        </div>
+        {{/each}}
+      </div>
+
+      <div class="chargen-columns">
+        {{#each groups}}
+        <div class="chargen-group">
+          <h3>{{this.label}} <span class="pool-badge"><span class="pool-count">{{this.remaining}}</span> left</span></h3>
+          {{#each this.traits}}
+          <div class="chargen-trait">
+            <span class="trait-name">{{this.label}}</span>
+            <div class="dot-row chargen-dots" data-key="{{this.key}}" data-group="{{../key}}">
+              {{{vtmDots this.value 5}}}
+            </div>
+          </div>
+          {{/each}}
+        </div>
+        {{/each}}
+      </div>
+    </div>
+    {{/if}}
+
+
+    {{!-- ══════════ STEP 2: ABILITIES ══════════ --}}
+    {{#if (eq step 2)}}
+    <div class="chargen-step">
+      <h2>Abilities</h2>
+      <p class="chargen-hint">Prioritize your ability categories, then distribute dots. No ability above 3 during this step.</p>
+
+      <div class="priority-section">
+        {{#each priorities}}
+        <div class="priority-row">
+          <label>{{this.label}}</label>
+          <select class="priority-select" data-group="{{this.key}}">
+            <option value="">Assign...</option>
+            {{#each this.options}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}} {{#if this.disabled}}disabled{{/if}}>
+              {{this.label}}
+            </option>
+            {{/each}}
+          </select>
+        </div>
+        {{/each}}
+      </div>
+
+      <div class="chargen-columns">
+        {{#each groups}}
+        <div class="chargen-group">
+          <h3>{{this.label}} <span class="pool-badge"><span class="pool-count">{{this.remaining}}</span> left</span></h3>
+          {{#each this.traits}}
+          <div class="chargen-trait">
+            <span class="trait-name">{{this.label}}</span>
+            <div class="dot-row chargen-dots" data-key="{{this.key}}" data-group="{{../key}}">
+              {{{vtmDots this.value 5}}}
+            </div>
+          </div>
+          {{/each}}
+        </div>
+        {{/each}}
+      </div>
+    </div>
+    {{/if}}
+
+
+    {{!-- ══════════ STEP 3: ADVANTAGES ══════════ --}}
+    {{#if (eq step 3)}}
+    <div class="chargen-step">
+      <h2>Advantages</h2>
+      <p class="chargen-hint">Drag Disciplines and Backgrounds from the compendium sidebar, then rate your Virtues.</p>
+
+      <div class="chargen-adv-columns">
+
+        {{!-- Disciplines --}}
+        <div class="chargen-adv-section">
+          <h3>Disciplines <span class="pool-badge"><span class="disc-pool-count">{{discRemaining}}</span> left</span></h3>
+          {{#if clanDiscHint}}
+          <p class="clan-disc-hint"><i class="fas fa-info-circle"></i> {{d.clan}} typical: {{clanDiscHint}}</p>
+          {{/if}}
+          {{#each d.disc}}
+          <div class="disc-entry" data-idx="{{@index}}">
+            <span class="disc-name">{{this.name}}</span>
+            <div class="dot-row disc-dots">
+              {{{vtmDots this.dots 5}}}
+            </div>
+            <button type="button" class="disc-remove" data-idx="{{@index}}" title="Remove"><i class="fas fa-times"></i></button>
+          </div>
+          {{/each}}
+          <div class="chargen-drop-hint"><i class="fas fa-hand-pointer"></i> Drag disciplines here</div>
+        </div>
+
+        {{!-- Backgrounds --}}
+        <div class="chargen-adv-section">
+          <h3>Backgrounds <span class="pool-badge"><span class="bg-pool-count">{{bgRemaining}}</span> left</span></h3>
+          {{#each d.bg}}
+          <div class="bg-entry" data-idx="{{@index}}">
+            <span class="bg-name">{{this.name}}</span>
+            <div class="dot-row bg-dots">
+              {{{vtmDots this.dots 5}}}
+            </div>
+            <button type="button" class="bg-remove" data-idx="{{@index}}" title="Remove"><i class="fas fa-times"></i></button>
+          </div>
+          {{/each}}
+          <div class="chargen-drop-hint"><i class="fas fa-hand-pointer"></i> Drag backgrounds here</div>
+        </div>
+
+        {{!-- Virtues --}}
+        <div class="chargen-adv-section">
+          <h3>Virtues <span class="pool-badge"><span class="virtue-pool-count">{{virtueRemaining}}</span> left</span></h3>
+          <div class="chargen-trait">
+            <span class="trait-name">Conscience</span>
+            <div class="dot-row virtue-dots" data-key="conscience">
+              {{{vtmDots d.virtues.conscience 5}}}
+            </div>
+          </div>
+          <div class="chargen-trait">
+            <span class="trait-name">Self-Control</span>
+            <div class="dot-row virtue-dots" data-key="selfControl">
+              {{{vtmDots d.virtues.selfControl 5}}}
+            </div>
+          </div>
+          <div class="chargen-trait">
+            <span class="trait-name">Courage</span>
+            <div class="dot-row virtue-dots" data-key="courage">
+              {{{vtmDots d.virtues.courage 5}}}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {{/if}}
+
+
+    {{!-- ══════════ STEP 4: FINISHING TOUCHES ══════════ --}}
+    {{#if (eq step 4)}}
+    <div class="chargen-step chargen-finish-step">
+      <h2>Finishing Touches</h2>
+
+      <div class="fb-top-bar">
+        <div class="fb-info-row">
+          <div class="field fb-gen-field">
+            <label>Generation</label>
+            <input type="number" name="generation" value="{{d.generation}}" min="3" max="15" />
+          </div>
+          <div class="fb-auto-vals">
+            <span>Humanity <strong>{{humanity}}</strong></span>
+            <span>Willpower <strong>{{willpower}}</strong></span>
+            <span>Blood Pool <strong>{{bloodPool}}</strong></span>
+          </div>
+        </div>
+        <div class="fb-counter">
+          Freebie Points: <strong class="fb-remaining">{{freebiesLeft}}</strong> / 15
+        </div>
+      </div>
+
+      <div class="fb-grid">
+        {{!-- Attributes column --}}
+        <div class="fb-col">
+          <h3>Attributes <span class="fb-cost-tag">5 / dot</span></h3>
+          {{#each fbData.attrs}}
+          <h4>{{this.label}}</h4>
+          {{#each this.items}}
+          <div class="fb-row">
+            <span class="fb-label">{{this.label}}</span>
+            <span class="fb-val">{{this.total}}</span>
+            <div class="fb-btns">
+              <button type="button" class="fb-sub" data-path="{{this.path}}" {{#unless this.canSub}}disabled{{/unless}}><i class="fas fa-minus"></i></button>
+              <button type="button" class="fb-add" data-path="{{this.path}}" {{#unless this.canAdd}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
+            </div>
+            {{#if this.bonus}}<span class="fb-bonus">+{{this.bonus}}</span>{{/if}}
+          </div>
+          {{/each}}
+          {{/each}}
+        </div>
+
+        {{!-- Abilities column --}}
+        <div class="fb-col fb-col-tall">
+          <h3>Abilities <span class="fb-cost-tag">2 / dot</span></h3>
+          {{#each fbData.abils}}
+          <h4>{{this.label}}</h4>
+          {{#each this.items}}
+          <div class="fb-row {{#unless this.total}}fb-zero{{/unless}}">
+            <span class="fb-label">{{this.label}}</span>
+            <span class="fb-val">{{this.total}}</span>
+            <div class="fb-btns">
+              <button type="button" class="fb-sub" data-path="{{this.path}}" {{#unless this.canSub}}disabled{{/unless}}><i class="fas fa-minus"></i></button>
+              <button type="button" class="fb-add" data-path="{{this.path}}" {{#unless this.canAdd}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
+            </div>
+            {{#if this.bonus}}<span class="fb-bonus">+{{this.bonus}}</span>{{/if}}
+          </div>
+          {{/each}}
+          {{/each}}
+        </div>
+
+        {{!-- Right column: Disciplines, Backgrounds, Virtues, WP, Humanity --}}
+        <div class="fb-col">
+          {{#if fbData.discs.length}}
+          <h3>Disciplines <span class="fb-cost-tag">7 / dot</span></h3>
+          {{#each fbData.discs}}
+          <div class="fb-row">
+            <span class="fb-label">{{this.label}}</span>
+            <span class="fb-val">{{this.total}}</span>
+            <div class="fb-btns">
+              <button type="button" class="fb-sub" data-path="{{this.path}}" {{#unless this.canSub}}disabled{{/unless}}><i class="fas fa-minus"></i></button>
+              <button type="button" class="fb-add" data-path="{{this.path}}" {{#unless this.canAdd}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
+            </div>
+            {{#if this.bonus}}<span class="fb-bonus">+{{this.bonus}}</span>{{/if}}
+          </div>
+          {{/each}}
+          {{/if}}
+
+          {{#if fbData.bgs.length}}
+          <h3>Backgrounds <span class="fb-cost-tag">1 / dot</span></h3>
+          {{#each fbData.bgs}}
+          <div class="fb-row">
+            <span class="fb-label">{{this.label}}</span>
+            <span class="fb-val">{{this.total}}</span>
+            <div class="fb-btns">
+              <button type="button" class="fb-sub" data-path="{{this.path}}" {{#unless this.canSub}}disabled{{/unless}}><i class="fas fa-minus"></i></button>
+              <button type="button" class="fb-add" data-path="{{this.path}}" {{#unless this.canAdd}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
+            </div>
+            {{#if this.bonus}}<span class="fb-bonus">+{{this.bonus}}</span>{{/if}}
+          </div>
+          {{/each}}
+          {{/if}}
+
+          <h3>Virtues <span class="fb-cost-tag">2 / dot</span></h3>
+          {{#each fbData.virtues}}
+          <div class="fb-row">
+            <span class="fb-label">{{this.label}}</span>
+            <span class="fb-val">{{this.total}}</span>
+            <div class="fb-btns">
+              <button type="button" class="fb-sub" data-path="{{this.path}}" {{#unless this.canSub}}disabled{{/unless}}><i class="fas fa-minus"></i></button>
+              <button type="button" class="fb-add" data-path="{{this.path}}" {{#unless this.canAdd}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
+            </div>
+            {{#if this.bonus}}<span class="fb-bonus">+{{this.bonus}}</span>{{/if}}
+          </div>
+          {{/each}}
+
+          <h3>Other</h3>
+          <div class="fb-row">
+            <span class="fb-label">{{fbData.wp.label}}</span>
+            <span class="fb-val">{{fbData.wp.total}}</span>
+            <div class="fb-btns">
+              <button type="button" class="fb-sub" data-path="willpower" {{#unless fbData.wp.canSub}}disabled{{/unless}}><i class="fas fa-minus"></i></button>
+              <button type="button" class="fb-add" data-path="willpower" {{#unless fbData.wp.canAdd}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
+            </div>
+            {{#if fbData.wp.bonus}}<span class="fb-bonus">+{{fbData.wp.bonus}}</span>{{/if}}
+            <span class="fb-cost-inline">1/dot</span>
+          </div>
+          <div class="fb-row">
+            <span class="fb-label">{{fbData.hum.label}}</span>
+            <span class="fb-val">{{fbData.hum.total}}</span>
+            <div class="fb-btns">
+              <button type="button" class="fb-sub" data-path="humanity" {{#unless fbData.hum.canSub}}disabled{{/unless}}><i class="fas fa-minus"></i></button>
+              <button type="button" class="fb-add" data-path="humanity" {{#unless fbData.hum.canAdd}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
+            </div>
+            {{#if fbData.hum.bonus}}<span class="fb-bonus">+{{fbData.hum.bonus}}</span>{{/if}}
+            <span class="fb-cost-inline">2/dot</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="fb-mf-section">
+        <label class="fb-mf-toggle">
+          <input type="checkbox" name="useMeritsFlaws" {{#if d.useMeritsFlaws}}checked{{/if}} />
+          Include Merits & Flaws <span class="fb-cost-tag">max 7 pts each</span>
+        </label>
+        {{#if d.useMeritsFlaws}}
+        <div class="fb-mf-body">
+          <div class="fb-mf-columns">
+            <div class="fb-mf-col">
+              <h4>Merits <span class="mf-tally">{{meritTotal}} / 7</span></h4>
+              {{#each merits}}
+              <div class="mf-entry">
+                <span class="mf-name">{{this.name}}</span>
+                <span class="mf-cost">{{this.cost}} pt</span>
+                <button type="button" class="mf-remove" data-idx="{{this.idx}}"><i class="fas fa-times"></i></button>
+              </div>
+              {{/each}}
+            </div>
+            <div class="fb-mf-col">
+              <h4>Flaws <span class="mf-tally">{{flawTotal}} / 7</span></h4>
+              {{#each flaws}}
+              <div class="mf-entry">
+                <span class="mf-name">{{this.name}}</span>
+                <span class="mf-cost">{{this.absCost}} pt</span>
+                <button type="button" class="mf-remove" data-idx="{{this.idx}}"><i class="fas fa-times"></i></button>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+          <div class="chargen-drop-hint"><i class="fas fa-hand-pointer"></i> Drag merits & flaws here</div>
+        </div>
+        {{/if}}
+      </div>
+    </div>
+    {{/if}}
+
+  </div>
+
+  {{!-- Navigation --}}
+  <div class="chargen-nav">
+    {{#if (gt step 0)}}
+    <button type="button" class="chargen-back"><i class="fas fa-arrow-left"></i> Back</button>
+    {{/if}}
+    <div class="chargen-spacer"></div>
+    {{#if (eq step 4)}}
+    <button type="button" class="chargen-finish"><i class="fas fa-check"></i> Create Character</button>
+    {{else}}
+    <button type="button" class="chargen-next">Next <i class="fas fa-arrow-right"></i></button>
+    {{/if}}
+  </div>
+
+</div>

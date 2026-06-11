@@ -1,0 +1,56 @@
+<div class="vtm-roll vtm-combat {{#if noDice}}hit{{else}}{{outcome}}{{/if}}">
+  <div class="roll-header {{#if targetImg}}dual-portrait{{/if}}">
+    <div class="roll-portrait-wrap">
+      <img class="roll-portrait" src="{{actorImg}}" style="{{portraitStyle}}" />
+    </div>
+    <div class="roll-info">
+      <span class="roll-actor">{{actorName}}</span>
+      <span class="roll-label">{{label}}</span>
+    </div>
+    {{#if targetImg}}
+    <div class="roll-portrait-wrap">
+      <img class="roll-portrait" src="{{targetImg}}" style="{{targetPortraitStyle}}" />
+    </div>
+    {{/if}}
+  </div>
+
+  {{#unless noDice}}
+  <div class="roll-meta">
+    {{sublabel}} | Pool {{pool}}, Diff {{difficulty}}
+  </div>
+  <div class="roll-dice">
+    {{#each dice}}
+    <span class="die {{this.status}}">{{this.value}}</span>
+    {{/each}}
+  </div>
+  <div class="roll-result">
+    {{#if (eq outcome "botch")}}<span class="result-botch">BOTCH!</span>{{/if}}
+    {{#if (eq outcome "failure")}}<span class="result-fail">{{#if isAttack}}Miss!{{else}}Failure{{/if}}</span>{{/if}}
+    {{#if (eq outcome "success")}}<span class="result-success">{{total}} Success{{#if (gt total 1)}}es{{/if}}</span>{{/if}}
+  </div>
+  {{/unless}}
+
+  {{#if defendedLabel}}
+  <div class="combat-defended"><i class="fas fa-shield-alt"></i> {{defendedLabel}}</div>
+  {{/if}}
+
+  {{#if hitLabel}}
+  <div class="combat-hit"><i class="fas fa-crosshairs"></i> {{hitLabel}}</div>
+  {{/if}}
+
+  {{#if canDefend}}
+  <div class="combat-actions">
+    <button type="button" class="combat-defend-btn">
+      <i class="fas fa-shield-alt"></i> Defend ({{targetName}})
+    </button>
+  </div>
+  {{/if}}
+
+  {{#if showDamageBtn}}
+  <div class="combat-actions">
+    <button type="button" class="combat-damage-btn">
+      <i class="fas fa-skull-crossbones"></i> Roll Damage
+    </button>
+  </div>
+  {{/if}}
+</div>

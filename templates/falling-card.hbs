@@ -1,0 +1,33 @@
+<div class="vtm-roll vtm-combat damage-dealt">
+  <div class="roll-header">
+    <div class="roll-portrait-wrap">
+      <img class="roll-portrait" src="{{actorImg}}" style="{{portraitStyle}}" />
+    </div>
+    <div class="roll-info">
+      <span class="roll-actor">{{actorName}}</span>
+      <span class="roll-label">Falling Damage</span>
+    </div>
+  </div>
+
+  <div class="roll-meta">
+    {{height}} {{unit}} fall | {{dmgType}} | Pool {{pool}}
+  </div>
+  <div class="roll-dice">
+    {{#each dice}}
+    <span class="die {{this.status}}">{{this.value}}</span>
+    {{/each}}
+  </div>
+  <div class="roll-result">
+    <span class="result-success">{{total}} {{dmgType}} damage</span>
+  </div>
+
+  {{#if terminal}}
+  <div class="roll-extra">Terminal velocity. Armor functions at half rating.</div>
+  {{/if}}
+
+  <div class="combat-actions">
+    <button type="button" class="fall-soak-btn">
+      <i class="fas fa-shield-alt"></i> Soak ({{soakLabel}})
+    </button>
+  </div>
+</div>
