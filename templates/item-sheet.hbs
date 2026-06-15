@@ -1,6 +1,10 @@
 <div class="sheet-inner">
 <header class="sheet-header">
-  <img src="{{item.img}}" />
+  <div class="item-portrait">
+    <img src="{{item.img}}" />
+    {{#if isGM}}<button type="button" class="item-img-show" title="Show image to players"><i class="fas fa-eye"></i></button>{{/if}}
+    {{#if isEditable}}<button type="button" class="item-img-edit" title="Change image"><i class="fas fa-image"></i></button>{{/if}}
+  </div>
   <div class="header-fields">
     <h1><input name="name" type="text" value="{{item.name}}" /></h1>
     <span class="item-type">{{typeLabel}}</span>
@@ -67,11 +71,14 @@
     </div>
   </div>
 
-  {{#if isGM}}
-  {{#if system.description}}
-  <div class="disc-description">{{{enrichedDescription}}}</div>
-  {{/if}}
-  {{/if}}
+  <label class="desc-label">Description</label>
+  <div class="desc-wrap">
+    {{#if isEditable}}
+    <prose-mirror name="system.description" toggled value="{{ system.description }}" data-document-uuid="{{ item.uuid }}">{{{ enrichedDescription }}}</prose-mirror>
+    {{else}}
+    <div class="disc-description">{{{enrichedDescription}}}</div>
+    {{/if}}
+  </div>
 
   <div class="power-list">
     {{#each bgLevels}}
@@ -80,7 +87,13 @@
         <span class="power-num">{{this.num}}</span>
         <input type="text" name="system.levels.{{this.key}}.name" value="{{this.name}}" placeholder="Level Name" class="power-name-input" />
       </div>
-      <div class="power-desc">{{{this.desc}}}</div>
+      <div class="power-desc">
+        {{#if ../isEditable}}
+        <prose-mirror name="system.levels.{{this.key}}.desc" toggled value="{{this.desc}}" data-document-uuid="{{../item.uuid}}">{{{this.enrichedDesc}}}</prose-mirror>
+        {{else}}
+        {{{this.enrichedDesc}}}
+        {{/if}}
+      </div>
     </div>
     {{/each}}
   </div>

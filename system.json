@@ -2,23 +2,19 @@
   "id": "vtm-v20",
   "title": "Vampire: The Masquerade V20",
   "description": "A clean, modern system for Vampire: The Masquerade 20th Anniversary Edition.",
-  "version": "0.2.0",
-  "manifest": "https://raw.githubusercontent.com/The-Final-Artificer/Foundry-VTM-V20/main/system.json",
-  "download": "https://github.com/The-Final-Artificer/Foundry-VTM-V20/releases/download/v0.2.0/vtm-v20-0.2.0.zip",
+  "version": "0.1.0",
   "compatibility": {
     "minimum": "13",
     "verified": "13"
   },
-  "authors": [ { "name": "The Final Artificer" } ],
-  "esmodules": [ "vtm-v20.mjs" ],
-  "styles": [ "styles/vtm-v20.css" ],
-  "languages": [
-    {
-      "lang": "en",
-      "name": "English",
-      "path": "lang/en.json"
-    }
-  ],
+  "authors": [{ "name": "The Final Artificer" }],
+  "esmodules": ["vtm-v20.mjs"],
+  "styles": ["styles/vtm-v20.css"],
+  "languages": [{
+    "lang": "en",
+    "name": "English",
+    "path": "lang/en.json"
+  }],
   "packs": [
     {
       "name": "disciplines",

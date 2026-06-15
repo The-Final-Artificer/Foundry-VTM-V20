@@ -3,11 +3,13 @@ import { showDice } from './dice.mjs';
 import {
   BLINDED_STATUS_ID,
   DAZED_STATUS_ID,
+  INCAPACITATED_STATUS_ID,
   FULL_IMMOBILIZED_STATUS_ID,
   STRUGGLING_IMMOBILIZED_STATUS_ID,
   hasStatus,
   iterableValues,
 } from './status-effects.mjs';
+import { isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
 
 const TARGETING_ARMOR_REQUESTS = new Map();
 
@@ -155,13 +157,7 @@ function traitLabel(path) {
   return game.i18n.localize(`VTM.${key.charAt(0).toUpperCase() + key.slice(1)}`);
 }
 
-function traitValue(actor, path) {
-  if (!path) return 0;
-  if (path === 'willpower') return actor.system.willpower?.max || 0;
-  if (path === 'humanity') return actor.system.humanity || 0;
-  const [category, key] = path.split('.');
-  return actor.system[category]?.[key] || 0;
-}
+const traitValue = effectiveTraitValue;
 
 function woundImmune(path) {
   return path === 'willpower' || String(path || '').startsWith('virtues.');
@@ -326,7 +322,10 @@ function attackPool(actor, atk) {
     parts.push(`armor ${ap}`);
   }
 
-  return { pool: Math.max(total, 1), parts };
+  const autoSucc = usesStrengthTrait(...traits) ? potenceAutoSuccesses(actor) : 0;
+  if (autoSucc) parts.push(`Potence +${autoSucc} auto`);
+
+  return { pool: Math.max(total, 1), parts, autoSuccesses: autoSucc };
 }
 
 function dazeThreshold(actor) {
@@ -347,6 +346,37 @@ async function applyDazed(actor) {
     statuses: [DAZED_STATUS_ID],
     flags: { core: { statusId: DAZED_STATUS_ID } },
   }]);
+}
+
+function isIncapacitated(actor) {
+  return actor.system.health?.levels?.incapacitated > 0;
+}
+
+export async function checkIncapacitated(actor) {
+  if (isIncapacitated(actor)) await applyIncapacitated(actor);
+}
+
+async function applyIncapacitated(actor) {
+  if (hasStatus(INCAPACITATED_STATUS_ID, actor)) return;
+  const existing = CONFIG.statusEffects.find(e => e.id === INCAPACITATED_STATUS_ID);
+  const icon = existing?.img ?? existing?.icon ?? 'systems/vtm-v20/VTM icons/incapacitated.svg';
+  const name = existing?.name ?? 'Incapacitated';
+  await actor.createEmbeddedDocuments('ActiveEffect', [{
+    name, label: name, icon, img: icon,
+    origin: 'status',
+    statuses: [INCAPACITATED_STATUS_ID],
+    flags: { core: { statusId: INCAPACITATED_STATUS_ID } },
+  }]);
+
+  // Mark combatant as defeated so they're skipped in init/declaration/resolution
+  const combat = game.combat;
+  if (combat) {
+    const combatant = combat.combatants.find(c => c.actorId === actor.id);
+    if (combatant && !combatant.defeated) {
+      await combatant.update({ defeated: true });
+      ui.notifications.warn(`${actor.name} is incapacitated and out of combat.`);
+    }
+  }
 }
 
 // Mark a combat message as resolved. If we don't own the message, ask the GM to do it.
@@ -384,7 +414,8 @@ export async function rollAttack(attacker, atk, options = {}) {
   const atkPool = attackPool(attacker, atk);
   const blindTargetBonus = targetBlinded ? 2 : 0;
   const strugglingImmobilizedBonus = targetStrugglingImmobilized ? 2 : 0;
-  const pool = Math.max(atkPool.pool + blindTargetBonus + strugglingImmobilizedBonus, 1);
+  const computedPool = Math.max(atkPool.pool + blindTargetBonus + strugglingImmobilizedBonus, 1);
+  const pool = options.poolOverride ? Math.max(options.poolOverride, 1) : computedPool;
   const targetingDifficulty = targeting?.difficultyMod || 0;
   const baseDifficulty = Math.min(cover.difficulty + targetingDifficulty, 10);
   const difficulty = attackerBlinded ? Math.min(baseDifficulty + 2, 10) : baseDifficulty;
@@ -433,6 +464,11 @@ export async function rollAttack(attacker, atk, options = {}) {
   const roll = new Roll(`${pool}d10`);
   await roll.evaluate();
   const res = evalPool(roll, difficulty);
+  const atkAuto = atkPool.autoSuccesses || 0;
+  const atkTotal = res.total + atkAuto;
+  let atkOutcome = res.outcome;
+  if (atkTotal > 0 && atkOutcome !== 'success') atkOutcome = 'success';
+  else if (atkAuto > 0 && atkOutcome === 'botch') atkOutcome = 'failure';
 
   const parts = [...atkPool.parts];
   if (blindTargetBonus) parts.push(`target blinded +${blindTargetBonus}`);
@@ -444,7 +480,7 @@ export async function rollAttack(attacker, atk, options = {}) {
     ? `${parts.join(' + ')} | ${contextParts.join(' | ')}`
     : parts.join(' + ');
 
-  const canDef = res.outcome === 'success' && !!defender;
+  const canDef = atkOutcome === 'success' && !!defender;
   const html = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
     actorImg: attacker.img, actorName: attacker.name,
     portraitStyle: portraitStyle(attacker),
@@ -452,7 +488,8 @@ export async function rollAttack(attacker, atk, options = {}) {
     targetPortraitStyle: defender ? portraitStyle(defender) : '',
     label, sublabel,
     pool, difficulty, isAttack: true,
-    dice: res.dice, total: res.total, outcome: res.outcome,
+    dice: res.dice, total: atkTotal, outcome: atkOutcome,
+    autoSuccesses: atkAuto, diceTotal: res.total,
     canDefend: canDef, targetName: defender?.name,
   });
 
@@ -464,7 +501,7 @@ export async function rollAttack(attacker, atk, options = {}) {
       attackerTokenId: attackerToken?.id || null,
       defenderTokenId: target.id,
       defenderId: defender.id,
-      attackSuccesses: res.total,
+      attackSuccesses: atkTotal,
       weaponName: atk.name,
       damageFormula: atk.damageFormula,
       damageType: atk.damageType,
@@ -497,32 +534,290 @@ export async function rollDefense(msg) {
   if (!defender.isOwner && !game.user.isGM)
     return ui.notifications.warn("You don't control this character.");
 
-  // Build defense options (ranged attacks can only be dodged)
+  // Available defense types (ranged attacks can only be dodged)
   const types = { dodge: { label: 'Dodge', attr: 'dexterity', skill: 'athletics' } };
   if (!c.isRanged) {
     types.block = { label: 'Block', attr: 'dexterity', skill: 'brawl' };
     types.parry = { label: 'Parry', attr: 'dexterity', skill: 'melee' };
   }
 
-  const btnEntries = Object.entries(types).map(([key, d]) => {
-    const a = defender.system.attributes?.[d.attr] || 0;
-    const s = defender.system.abilities?.[d.skill] || 0;
-    const sl = game.i18n.localize(`VTM.${d.skill.charAt(0).toUpperCase() + d.skill.slice(1)}`);
-    return [key, `${d.label} (Dex + ${sl}) [${a + s}]`];
-  });
-  btnEntries.push(['none', 'No Defense']);
+  const combat = game.combat;
+  const combatant = combat?.combatants.find(cb => cb.actor?.id === defender.id);
+  const decl = combatant?.getFlag('vtm-v20', 'declaration');
+  const isFullDef = decl?.fullDefense;
+  const sheet = defender.sheet;
 
-  const choice = await new Promise(resolve => {
-    const btns = {};
-    for (const [k, lbl] of btnEntries)
-      btns[k] = { label: lbl, callback: () => resolve(k === 'none' ? null : k) };
-    new Dialog({
-      title: `${defender.name}: Choose Defense`,
-      content: `<p style="margin:8px 0;color:#ddd;">Defend against ${c.weaponName}?</p>`,
-      buttons: btns, default: 'dodge',
-      close: () => resolve(null),
-    }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-defense-dialog'], width: 400 }).render(true);
-  });
+  // Find declared defense actions that still have dice remaining
+  const declaredDefenses = [];
+  const abortableActions = [];
+  if (decl?.actions) {
+    const usedIndices = new Set();
+    if (sheet?._resExecuted) {
+      for (const i of sheet._resExecuted) usedIndices.add(i);
+    }
+    decl.actions.forEach((a, i) => {
+      if (a.defense && types[a.defense]) {
+        const alloc = a.alloc || 1;
+        const spent = sheet?._resDefenseSpent?.get(i) || 0;
+        const remaining = alloc - spent;
+        if (remaining > 0) {
+          declaredDefenses.push({ idx: i, defense: a.defense, alloc, spent, remaining });
+        }
+      } else if (!usedIndices.has(i) && (a.attackId || (!a.defense && !a.fullDefense))) {
+        let name = a.text || 'Action';
+        if (a.attackId && sheet?._getAttackById) {
+          const resolved = sheet._getAttackById(a.attackId);
+          if (resolved?.name) name = resolved.name;
+        }
+        abortableActions.push({ idx: i, name, alloc: a.alloc || 1 });
+      }
+    });
+  }
+
+  // Build the dialog buttons
+  let choice, pool;
+
+  if (isFullDef) {
+    // Full defense: pick any available defense type, pool = full trait pool minus cumulative penalty
+    const defCount = sheet?._resFullDefCount || 0;
+    const btnEntries = Object.entries(types).map(([key, d]) => {
+      const a = defender.system.attributes?.[d.attr] || 0;
+      const s = defender.system.abilities?.[d.skill] || 0;
+      const sl = game.i18n.localize(`VTM.${d.skill.charAt(0).toUpperCase() + d.skill.slice(1)}`);
+      const effectivePool = Math.max(a + s - defCount, 1);
+      return [key, `${d.label} (Dex + ${sl}) [${effectivePool} dice]`];
+    });
+    btnEntries.push(['none', 'No Defense']);
+
+    const result = await new Promise(resolve => {
+      const btns = {};
+      for (const [k, lbl] of btnEntries)
+        btns[k] = { label: lbl, callback: () => resolve(k === 'none' ? null : k) };
+      new Dialog({
+        title: `${defender.name}: Full Defense`,
+        content: `<p style="margin:8px 0;color:#ddd;">Defend against ${c.weaponName}?${defCount ? ` (defense #${defCount + 1}, -${defCount} dice)` : ''}</p>`,
+        buttons: btns, default: 'dodge',
+        close: () => resolve(null),
+      }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-defense-dialog'], width: 400 }).render(true);
+    });
+
+    choice = result;
+    if (choice) {
+      const def = types[choice];
+      const av = defender.system.attributes?.[def.attr] || 0;
+      const sv = defender.system.abilities?.[def.skill] || 0;
+      const wpen = defender.system.woundPenalty || 0;
+      const ap = Array.from(defender.items)
+        .filter(i => i.type === 'armor' && i.system.equipped)
+        .reduce((s, i) => s + (i.system.penalty || 0), 0);
+      pool = Math.max(av + sv + wpen + ap - defCount, 1);
+      if (sheet) sheet._resFullDefCount = defCount + 1;
+    }
+
+  } else if (declaredDefenses.length || abortableActions.length) {
+    // Has declared defenses or actions that can be aborted.
+    // Loop so that a failed/cancelled abort brings the player back to pick again.
+    const failedAborts = new Set();
+    let picking = true;
+    while (picking) {
+      picking = false;
+
+      const btnEntries = [];
+      for (const dd of declaredDefenses) {
+        const d = types[dd.defense];
+        btnEntries.push([`decl-${dd.idx}`, `${d.label} [${dd.remaining}/${dd.alloc} dice remaining]`]);
+      }
+      for (const ab of abortableActions) {
+        if (sheet?._resExecuted?.has(ab.idx)) continue;
+        if (failedAborts.has(ab.idx)) continue;
+        btnEntries.push([`abort-${ab.idx}`, `Abort "${ab.name}" to defend (WP roll)`]);
+      }
+      btnEntries.push(['none', 'No Defense']);
+
+      // Nothing left besides "No Defense", skip the dialog
+      if (btnEntries.length === 1) { choice = null; break; }
+
+      const result = await new Promise(resolve => {
+        const btns = {};
+        for (const [k, lbl] of btnEntries)
+          btns[k] = { label: lbl, callback: () => resolve(k) };
+        new Dialog({
+          title: `${defender.name}: Choose Defense`,
+          content: `<p style="margin:8px 0;color:#ddd;">Defend against ${c.weaponName}?</p>`,
+          buttons: btns, default: btnEntries[0]?.[0],
+          close: () => resolve('none'),
+        }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-defense-dialog'], width: 400 }).render(true);
+      });
+
+      if (result === 'none') {
+        choice = null;
+      } else if (result.startsWith('decl-')) {
+        const idx = parseInt(result.replace('decl-', ''));
+        const dd = declaredDefenses.find(d => d.idx === idx);
+        choice = dd.defense;
+
+        // Ask how many dice to spend from this defense's remaining pool
+        if (dd.remaining === 1) {
+          pool = 1;
+        } else {
+          pool = await new Promise(resolve => {
+            let html = `<div style="margin:8px 0;color:#ddd;">`;
+            html += `<p>How many dice to use? (${dd.remaining} remaining)</p>`;
+            html += `<input type="range" min="1" max="${dd.remaining}" value="${dd.remaining}" class="def-dice-slider" style="width:100%;" />`;
+            html += `<div style="text-align:center;font-size:18px;font-weight:bold;color:var(--vtm-gold,#c9a959);" class="def-dice-val">${dd.remaining}</div>`;
+            html += `</div>`;
+            new Dialog({
+              title: `${defender.name}: ${types[dd.defense].label} Dice`,
+              content: html,
+              buttons: { ok: { icon: '<i class="fas fa-dice-d20"></i>', label: 'Roll', callback: dlg => resolve(parseInt(dlg[0].querySelector('.def-dice-slider').value)) } },
+              default: 'ok',
+              render: dlg => {
+                const slider = dlg.find('.def-dice-slider');
+                const val = dlg.find('.def-dice-val');
+                slider.on('input', () => val.text(slider.val()));
+              },
+              close: () => resolve(dd.remaining),
+            }, { classes: ['vtm-v20', 'dialog'], width: 300 }).render(true);
+          });
+        }
+
+        if (sheet) {
+          const prev = sheet._resDefenseSpent.get(idx) || 0;
+          sheet._resDefenseSpent.set(idx, prev + pool);
+          sheet._resSpent.set(idx, (sheet._resSpent.get(idx) || 0) + pool);
+        }
+      } else if (result.startsWith('abort-')) {
+        const idx = parseInt(result.replace('abort-', ''));
+        const aborted = abortableActions.find(a => a.idx === idx);
+
+        const wpChoice = await new Promise(resolve => {
+          new Dialog({
+            title: `${defender.name}: Abort to Defense`,
+            content: `<p style="margin:8px 0;color:#ddd;">Aborting "${aborted.name}" requires a Willpower check.</p>`,
+            buttons: {
+              roll: { icon: '<i class="fas fa-dice-d20"></i>', label: 'Roll Willpower (diff 6)', callback: () => resolve('roll') },
+              spend: { icon: '<i class="fas fa-fire"></i>', label: 'Spend 1 Willpower', callback: () => resolve('spend') },
+              cancel: { label: 'Cancel', callback: () => resolve('cancel') },
+            },
+            default: 'roll',
+            close: () => resolve('cancel'),
+          }, { classes: ['vtm-v20', 'dialog'], width: 360 }).render(true);
+        });
+
+        if (wpChoice === 'cancel') { picking = true; continue; }
+
+        if (wpChoice === 'spend') {
+          const curWp = defender.system.willpower?.current ?? defender.system.willpower?.max ?? 0;
+          if (curWp < 1) {
+            ui.notifications.warn(`${defender.name} has no Willpower to spend.`);
+            picking = true;
+            continue;
+          }
+          await defender.update({ 'system.willpower.current': curWp - 1 });
+          ui.notifications.info(`${defender.name} spends 1 Willpower to abort to defense.`);
+        } else {
+          const wpMax = defender.system.willpower?.max || 1;
+          const wpRoll = new Roll(`${wpMax}d10`);
+          await wpRoll.evaluate();
+          const wpRes = evalPool(wpRoll, 6);
+          await showDice(wpRoll, defender);
+
+          const wpHtml = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
+            actorImg: defender.img, actorName: defender.name,
+            portraitStyle: portraitStyle(defender),
+            label: 'Willpower: Abort to Defense', sublabel: `Willpower ${wpMax}`,
+            pool: wpMax, difficulty: 6, isAttack: false,
+            dice: wpRes.dice, total: wpRes.total, outcome: wpRes.outcome,
+            defendedLabel: wpRes.outcome === 'success' ? `${defender.name} aborts to defense!` : null,
+            hitLabel: wpRes.outcome !== 'success' ? `Abort failed. ${defender.name} cannot defend.` : null,
+          });
+          await ChatMessage.create({
+            user: game.user.id,
+            speaker: ChatMessage.getSpeaker({ actor: defender }),
+            content: wpHtml, type: CONST.CHAT_MESSAGE_STYLES.OTHER,
+          });
+
+          if (wpRes.outcome !== 'success') {
+            // Failed: this abort is burned, loop back for remaining options
+            failedAborts.add(idx);
+            picking = true;
+            continue;
+          }
+        }
+
+        // Abort succeeded: compute actual defense pools from traits
+        const wpen = defender.system.woundPenalty || 0;
+        const abortAp = Array.from(defender.items)
+          .filter(i => i.type === 'armor' && i.system.equipped)
+          .reduce((s, i) => s + (i.system.penalty || 0), 0);
+        const dexVal = defender.system.attributes?.dexterity || 0;
+
+        const defBtns = Object.entries(types).map(([key, d]) => {
+          const sv = defender.system.abilities?.[d.skill] || 0;
+          const dp = Math.max(dexVal + sv + wpen + abortAp, 1);
+          const sl = game.i18n.localize(`VTM.${d.skill.charAt(0).toUpperCase() + d.skill.slice(1)}`);
+          return [key, `${d.label} (Dex + ${sl}) [${dp} dice]`, dp];
+        });
+
+        const picked = await new Promise(resolve => {
+          const btns = {};
+          for (const [k, lbl] of defBtns)
+            btns[k] = { label: lbl, callback: () => resolve(k) };
+          new Dialog({
+            title: `${defender.name}: Choose Defense Maneuver`,
+            content: `<p style="margin:8px 0;color:#ddd;">Pick your defensive maneuver:</p>`,
+            buttons: btns, default: 'dodge',
+            close: () => resolve('dodge'),
+          }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-defense-dialog'], width: 400 }).render(true);
+        });
+
+        choice = picked;
+        pool = defBtns.find(b => b[0] === picked)?.[2] || 1;
+
+        if (sheet) {
+          sheet._resExecuted.add(idx);
+          sheet._resSpent.set(idx, pool);
+        }
+      }
+    }
+
+  } else if (decl?.actions) {
+    // Has a declaration but no defenses and nothing to abort: no defense allowed
+    choice = null;
+
+  } else {
+    // No active declaration system: free-form choice (outside structured combat)
+    const btnEntries = Object.entries(types).map(([key, d]) => {
+      const a = defender.system.attributes?.[d.attr] || 0;
+      const s = defender.system.abilities?.[d.skill] || 0;
+      const sl = game.i18n.localize(`VTM.${d.skill.charAt(0).toUpperCase() + d.skill.slice(1)}`);
+      return [key, `${d.label} (Dex + ${sl}) [${a + s}]`];
+    });
+    btnEntries.push(['none', 'No Defense']);
+
+    choice = await new Promise(resolve => {
+      const btns = {};
+      for (const [k, lbl] of btnEntries)
+        btns[k] = { label: lbl, callback: () => resolve(k === 'none' ? null : k) };
+      new Dialog({
+        title: `${defender.name}: Choose Defense`,
+        content: `<p style="margin:8px 0;color:#ddd;">Defend against ${c.weaponName}?</p>`,
+        buttons: btns, default: 'dodge',
+        close: () => resolve(null),
+      }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-defense-dialog'], width: 400 }).render(true);
+    });
+
+    if (choice) {
+      const def = types[choice];
+      const av = defender.system.attributes?.[def.attr] || 0;
+      const sv = defender.system.abilities?.[def.skill] || 0;
+      const wpen = defender.system.woundPenalty || 0;
+      const ap = Array.from(defender.items)
+        .filter(i => i.type === 'armor' && i.system.equipped)
+        .reduce((s, i) => s + (i.system.penalty || 0), 0);
+      pool = Math.max(av + sv + wpen + ap, 1);
+    }
+  }
 
   // Disable the defend button on the original attack message
   await resolveMessage(msg);
@@ -555,15 +850,8 @@ export async function rollDefense(msg) {
     return;
   }
 
-  // Roll defense pool
+  // Roll defense with the determined pool
   const def = types[choice];
-  const av = defender.system.attributes?.[def.attr] || 0;
-  const sv = defender.system.abilities?.[def.skill] || 0;
-  const wp = defender.system.woundPenalty || 0;
-  const ap = Array.from(defender.items)
-    .filter(i => i.type === 'armor' && i.system.equipped)
-    .reduce((s, i) => s + (i.system.penalty || 0), 0);
-  const pool = Math.max(av + sv + wp + ap, 1);
   const difficulty = isBlinded(defenderToken, defender) ? 8 : 6;
 
   const roll = new Roll(`${pool}d10`);
@@ -575,10 +863,7 @@ export async function rollDefense(msg) {
   if (hit) base.netSuccesses = net;
 
   const sl = game.i18n.localize(`VTM.${def.skill.charAt(0).toUpperCase() + def.skill.slice(1)}`);
-  const parts = [`Dex ${av}`, `${sl} ${sv}`];
-  if (wp) parts.push(`wound ${wp}`);
-  if (ap) parts.push(`armor ${ap}`);
-  const sublabel = difficulty > 6 ? `${parts.join(' + ')} | blinded diff +2` : parts.join(' + ');
+  const sublabel = `${pool} dice${difficulty > 6 ? ' | blinded diff +2' : ''}`;
 
   const verbs = { dodge: 'dodges', block: 'blocks', parry: 'parries' };
 
@@ -601,6 +886,9 @@ export async function rollDefense(msg) {
     type: CONST.CHAT_MESSAGE_STYLES.OTHER,
     flags: hit ? { 'vtm-v20': { combat: base } } : {},
   });
+
+  // Re-render the sheet to update resolution state
+  if (sheet) sheet.render();
 }
 
 
@@ -618,12 +906,15 @@ export async function rollDamage(msg) {
   if (!attacker || !defender) return ui.notifications.error('Actor not found.');
 
   // Damage roll
-  const str = attacker.system.attributes?.strength || 0;
+  const str = effectiveStrength(attacker);
+  const dmgAuto = isStrengthDamageFormula(c.damageFormula) ? potenceAutoSuccesses(attacker) : 0;
   const targetingDamageMod = Math.max(Number(c.targetingDamageMod) || 0, 0);
   const dp = calcDmgPool(c.damageFormula, str, c.netSuccesses) + targetingDamageMod;
   const dmgRoll = new Roll(`${dp}d10`);
   await dmgRoll.evaluate();
   const dmg = evalPool(dmgRoll, 6);
+  const dmgDiceTotal = dmg.total;
+  const dmgTotal = dmgDiceTotal + dmgAuto;
   const dt = c.damageType || 'lethal';
   const damageType = String(dt).toLowerCase();
   const mortalLethalNoSoak = defender.type === 'mortal' && damageType === 'lethal';
@@ -645,28 +936,28 @@ export async function rollDamage(msg) {
     soak = evalPool(soakRoll, 6);
   }
 
-  // Apply net damage. Mortals do not soak lethal damage; vampires halve bashing damage after soak, rounded down.
-  const rawNet = Math.max(dmg.total - soak.total, 0);
+  const rawNet = Math.max(dmgTotal - soak.total, 0);
   const net = finalDamageAfterSoak(defender, rawNet, dt);
   if (net > 0) await applyHealthDamage(defender, net, dt);
+  await checkIncapacitated(defender);
   const threshold = dazeThreshold(defender);
   const dazed = rawNet > 0 && rawNet > threshold;
   if (dazed && !isDazed(defenderToken, defender)) await applyDazed(defender);
 
-  // Read condition AFTER damage is applied
   const cond = getCondition(defender);
   const pen = defender.system.woundPenalty || 0;
 
-  // Build labels for the card
   const f = (c.damageFormula || '').trim().toLowerCase();
   let dmgLabel;
   if (!f || f === 'str' || f.startsWith('str')) {
     const bonus = f.startsWith('str') ? (parseInt(f.replace(/str\+?/, '')) || 0) : 0;
-    dmgLabel = bonus ? `Str ${str} + ${bonus} + ${c.netSuccesses} net` : `Str ${str} + ${c.netSuccesses} net`;
+    dmgLabel = bonus ? `Str ${str} + ${bonus}` : `Str ${str}`;
+    dmgLabel += ` + ${c.netSuccesses} net`;
   } else {
     dmgLabel = `Base ${parseInt(f) || 0} + ${c.netSuccesses} net`;
   }
   if (targetingDamageMod) dmgLabel += ` + ${targetingDamageMod} targeted`;
+  if (dmgAuto) dmgLabel += ` + Potence ${dmgAuto} auto`;
   const soakParts = [`Sta ${sta}`];
   if (mortalLethalNoSoak) {
     soakParts.splice(0, soakParts.length, 'Mortal cannot soak lethal damage');
@@ -683,7 +974,8 @@ export async function rollDamage(msg) {
     defenderPortraitStyle: portraitStyle(defender),
     weaponName: c.weaponName, damageType: dt,
     dmgPool: dp, dmgLabel,
-    dmgDice: dmg.dice, dmgSuccesses: dmg.total,
+    dmgDice: dmg.dice, dmgSuccesses: dmgTotal,
+    dmgAutoSuccesses: dmgAuto, dmgDiceTotal,
     soakPool: sp, soakLabel: soakParts.join(' + '),
     soakDice: soak.dice, soakSuccesses: soak.total, soakSkipped: mortalLethalNoSoak,
     netDamage: net, noDamage: net === 0,

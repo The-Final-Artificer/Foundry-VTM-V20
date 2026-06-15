@@ -1,5 +1,6 @@
 export const BLINDED_STATUS_ID = 'vtm-blinded';
 export const DAZED_STATUS_ID = 'vtm-dazed';
+export const INCAPACITATED_STATUS_ID = 'vtm-incapacitated';
 export const STRUGGLING_IMMOBILIZED_STATUS_ID = 'vtm-immobilized-struggling';
 export const FULL_IMMOBILIZED_STATUS_ID = 'vtm-immobilized-full';
 

@@ -19,6 +19,7 @@
         <input name="name" type="text" value="{{actor.name}}" placeholder="Name" />
       </h1>
       {{#if isGM}}
+      <a class="show-portrait" title="Show portrait to players"><i class="fas fa-eye"></i></a>
       <a class="sheet-lock" title="{{#if lockState}}Unlock Sheet{{else}}Lock Sheet{{/if}}">
         <i class="fas {{#if lockState}}fa-lock{{else}}fa-lock-open{{/if}}"></i>
       </a>
@@ -200,8 +201,12 @@
             <div class="dot-row item-dots" data-item-id="{{this._id}}" data-field="system.level">
               {{{vtmDots this.system.level 5}}}
             </div>
+            {{#if this.activatable}}
+            <button type="button" class="discipline-activate {{#if this.active}}active{{/if}}" data-item-id="{{this._id}}" title="{{#if this.active}}Deactivate{{else}}Activate (1 blood){{/if}}">
+              <i class="fas fa-tint"></i>
+            </button>
+            {{/if}}
             <div class="item-controls">
-              <a class="item-edit" title="Rename"><i class="fas fa-edit"></i></a>
               <a class="item-delete" title="Delete"><i class="fas fa-trash"></i></a>
             </div>
           </div>
@@ -219,7 +224,6 @@
                 {{{vtmDots this.system.rating 5}}}
               </div>
               <div class="item-controls">
-                <a class="item-edit" title="Rename"><i class="fas fa-edit"></i></a>
                 <a class="item-delete" title="Delete"><i class="fas fa-trash"></i></a>
               </div>
             </div>
@@ -256,7 +260,6 @@
             <span class="item-name item-open">{{this.name}}</span>
             <span class="item-cost">({{this.system.cost}}pt)</span>
             <div class="item-controls">
-              <a class="item-edit"><i class="fas fa-edit"></i></a>
               <a class="item-delete"><i class="fas fa-trash"></i></a>
             </div>
           </div>
@@ -270,7 +273,6 @@
             <span class="item-name item-open">{{this.name}}</span>
             <span class="item-cost">({{abs this.system.cost}}pt)</span>
             <div class="item-controls">
-              <a class="item-edit"><i class="fas fa-edit"></i></a>
               <a class="item-delete"><i class="fas fa-trash"></i></a>
             </div>
           </div>
@@ -482,6 +484,7 @@
 
   {{!-- COMBAT --}}
   <div class="tab combat" data-group="primary" data-tab="combat">
+
     <div class="section-block">
       <div class="combat-attack-header">
         <h2>Available Attacks <a class="attack-create" title="Create attack or maneuver"><i class="fas fa-plus"></i></a></h2>
@@ -492,33 +495,101 @@
       </div>
       <div class="attack-list">
         {{#each attacks}}
-        <div class="attack-row" data-attack-id="{{this.id}}">
-          {{#if this.img}}<img class="attack-img" src="{{this.img}}" />
-          {{else}}<span class="attack-icon"><i class="fas {{this.icon}}"></i></span>{{/if}}
-          <span class="attack-name">{{this.name}}</span>
-          <span class="attack-stat">{{this.pool}}</span>
-          <span class="attack-dmg">Dmg: {{this.damage}} {{this.damageType}}</span>
-          {{#if this.difficultyLabel}}<span class="attack-range">Difficulty: {{this.difficultyLabel}}</span>{{/if}}
-          {{#if this.range}}<span class="attack-range">Range: {{this.range}} yds</span>{{/if}}
-          {{#if this.ammoLabel}}<span class="attack-range">Ammo: {{this.ammoLabel}}</span>{{/if}}
-          {{#if this.rate}}<span class="attack-range">Rate: {{this.rate}}</span>{{/if}}
-          <button type="button" class="attack-btn" data-attack-id="{{this.id}}">
-            <i class="fas fa-crosshairs"></i> Attack
-          </button>
-          {{#if this.isRanged}}
-          <button type="button" class="attack-btn reload-btn" data-attack-id="{{this.id}}">
-            <i class="fas fa-rotate-right"></i> Reload
-          </button>
+        <div class="attack-row {{#if this.img}}has-img{{/if}} {{#if this.declared}}declared{{/if}} {{#if ../resolving}}{{#unless this.declared}}res-dimmed{{/unless}}{{/if}} {{#if this.resExecuted}}res-done{{/if}}" data-attack-id="{{this.id}}">
+          {{#if this.img}}
+          <img class="attack-img" src="{{this.img}}" />
+          <div class="card-header">
+            <span class="attack-name">{{this.name}}</span>
+            {{#if this.custom}}
+            <button type="button" class="attack-delete" data-custom-id="{{this.customId}}" title="Delete maneuver">
+              <i class="fas fa-trash"></i>
+            </button>
+            {{/if}}
+          </div>
+          {{else}}
+          <div class="card-header">
+            <span class="attack-icon"><i class="fas {{this.icon}}"></i></span>
+            <span class="attack-name">{{this.name}}</span>
+            {{#if this.custom}}
+            <button type="button" class="attack-delete" data-custom-id="{{this.customId}}" title="Delete maneuver">
+              <i class="fas fa-trash"></i>
+            </button>
+            {{/if}}
+          </div>
           {{/if}}
-          {{#if this.custom}}
-          <button type="button" class="attack-delete" data-custom-id="{{this.customId}}" title="Delete maneuver">
-            <i class="fas fa-trash"></i>
-          </button>
-          {{/if}}
+          <div class="card-stats">
+            <span><b>Pool:</b> {{this.pool}}</span>
+            <span><b>Dmg:</b> {{this.damage}} {{this.damageType}}</span>
+            {{#if this.difficultyLabel}}<span><b>Difficulty:</b> {{this.difficultyLabel}}</span>{{/if}}
+            {{#if this.range}}<span><b>Range:</b> {{this.range}} yds</span>{{/if}}
+            {{#if this.ammoLabel}}<span><b>Ammo:</b> {{this.ammoLabel}}</span>{{/if}}
+            {{#if this.rate}}<span><b>Rate:</b> {{this.rate}}</span>{{/if}}
+          </div>
+          <div class="card-actions">
+            {{#if ../resolving}}
+              {{#if this.declared}}
+                {{#if this.resExecuted}}
+                <span class="res-done-label"><i class="fas fa-check"></i> Done</span>
+                {{/if}}
+              {{/if}}
+            {{/if}}
+            {{!-- declared actions visible in the declaration panel below --}}
+            {{#unless ../declFullDefense}}
+            <button type="button" class="attack-btn" data-attack-id="{{this.id}}">
+              <i class="fas fa-crosshairs"></i> Attack
+            </button>
+            {{#if this.isRanged}}
+            <button type="button" class="attack-btn reload-btn" data-attack-id="{{this.id}}">
+              <i class="fas fa-rotate-right"></i> Reload
+            </button>
+            {{/if}}
+            {{/unless}}
+          </div>
         </div>
         {{/each}}
       </div>
     </div>
+
+    <div class="section-block">
+      <h2>Available Defenses</h2>
+      <div class="attack-list">
+        {{#each defenses}}
+        <div class="attack-row defense-row {{#if this.declared}}declared{{/if}} {{#if ../resolving}}{{#unless this.declared}}res-dimmed{{/unless}}{{/if}} {{#if this.resExecuted}}res-done{{/if}}">
+          <div class="card-header">
+            <span class="attack-icon"><i class="fas {{this.icon}}"></i></span>
+            <span class="attack-name">{{this.name}}</span>
+          </div>
+          <div class="card-stats">
+            <span><b>Pool:</b> {{this.pool}}</span>
+            <span>{{this.poolLabel}}</span>
+          </div>
+          <div class="card-actions">
+            {{#if ../resolving}}
+              {{#if this.declared}}
+                {{#if this.resExecuted}}
+                <span class="res-done-label"><i class="fas fa-check"></i> Used</span>
+                {{else}}
+                <span class="res-ready-label"><i class="fas fa-shield-alt"></i> Ready</span>
+                {{/if}}
+              {{/if}}
+            {{/if}}
+            {{!-- declared defenses visible in the declaration panel below --}}
+            {{#unless ../declFullDefense}}
+            <button type="button" class="attack-btn defense-roll-btn" data-defense="{{this.defense}}" data-trait="{{this.trait}}" data-trait2="{{this.trait2}}" data-label="{{this.name}}">
+              <i class="fas fa-dice-d20"></i> {{#if ../declaring}}Defend{{else}}Roll{{/if}}
+            </button>
+            {{/unless}}
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      {{#if declaring}}
+      <button type="button" class="full-defense-btn {{#if declFullDefense}}active{{/if}}" data-action="declFullDefense">
+        <i class="fas fa-shield-alt"></i> Entire Turn Defense
+      </button>
+      {{/if}}
+    </div>
+
     <div class="combat-help">
       Target a token, then click Attack. If the attack hits, the defender can choose how to react from the chat.
     </div>

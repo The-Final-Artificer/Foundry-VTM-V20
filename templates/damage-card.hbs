@@ -20,7 +20,7 @@
         <span class="die {{this.status}}">{{this.value}}</span>
         {{/each}}
       </div>
-      <span class="damage-subtotal">{{dmgSuccesses}} damage</span>
+      <span class="damage-subtotal">{{#if dmgAutoSuccesses}}{{dmgDiceTotal}} + {{dmgAutoSuccesses}} Potence = {{/if}}{{dmgSuccesses}} damage</span>
     </div>
 
     <div class="damage-row">

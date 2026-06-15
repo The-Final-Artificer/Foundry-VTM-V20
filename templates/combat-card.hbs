@@ -26,7 +26,7 @@
   <div class="roll-result">
     {{#if (eq outcome "botch")}}<span class="result-botch">BOTCH!</span>{{/if}}
     {{#if (eq outcome "failure")}}<span class="result-fail">{{#if isAttack}}Miss!{{else}}Failure{{/if}}</span>{{/if}}
-    {{#if (eq outcome "success")}}<span class="result-success">{{total}} Success{{#if (gt total 1)}}es{{/if}}</span>{{/if}}
+    {{#if (eq outcome "success")}}<span class="result-success">{{#if autoSuccesses}}{{diceTotal}} + {{autoSuccesses}} Potence = {{/if}}{{total}} Success{{#if (gt total 1)}}es{{/if}}</span>{{/if}}
   </div>
   {{/unless}}
 

@@ -1,0 +1,83 @@
+<div class="declaration-content">
+  <div class="decl-header">
+    <img src="{{actorImg}}" class="decl-portrait" />
+    <div class="decl-info">
+      <h2>{{actorName}}</h2>
+      <span class="decl-phase-label">Declaration Phase</span>
+    </div>
+    <button type="button" data-action="openSheet" class="decl-open-sheet" title="Open Character Sheet">
+      <i class="fas fa-address-card"></i>
+    </button>
+  </div>
+
+  <div class="decl-section">
+    <label>Describe your intent</label>
+    <textarea name="declaration-text" placeholder="What do you want to do this turn?"></textarea>
+  </div>
+
+  <div class="decl-section">
+    <label>Available Attacks</label>
+    <div class="decl-attack-list">
+      {{#each attacks}}
+      <div class="decl-attack-row">
+        <span class="decl-attack-name">{{this.name}}</span>
+        <span class="decl-attack-pool">{{this.poolLabel}}</span>
+        <button type="button" class="decl-quick-add" data-attack-id="{{this.id}}" title="Add this action">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+  <div class="decl-section">
+    <label>Available Defenses</label>
+    <div class="decl-attack-list">
+      {{#each defenses}}
+      <div class="decl-attack-row decl-defense-row">
+        <span class="decl-attack-name"><i class="fas fa-shield-alt"></i> {{this.name}}</span>
+        <span class="decl-attack-pool">{{this.poolLabel}}</span>
+        <button type="button" class="decl-quick-add decl-add-defense" data-defense="{{this.defense}}" title="Add defense" {{#if ../hasDefense}}disabled{{/if}}>
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+  {{#if actionCount}}
+  <div class="decl-section">
+    <label>Declared Actions ({{actionCount}})</label>
+    <div class="decl-actions">
+      {{#each actions}}
+      <div class="decl-action-entry {{#if this.isDefense}}defense{{/if}}">
+        <span class="decl-action-num">{{#if this.isDefense}}<i class="fas fa-shield-alt"></i>{{else}}{{math this.index "+" 1}}{{/if}}</span>
+        <span class="decl-action-name">{{this.attackName}}</span>
+        <span class="decl-action-pool">{{this.poolLabel}}</span>
+        <button type="button" class="decl-remove" data-action="removeAction" data-index="{{this.index}}" title="Remove">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      {{/each}}
+    </div>
+
+    {{#if showSplit}}
+    <div class="decl-split-info">
+      <i class="fas fa-info-circle"></i>
+      Multiple actions: dice pool is <b>{{lowestPool}}</b> (lowest pool{{#if woundPenalty}}, wound {{woundPenalty}}{{/if}}), split freely among {{actionCount}} actions.
+    </div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  <div class="decl-buttons">
+    {{#if capturing}}
+    <button type="button" data-action="cancelCapture" class="decl-btn capturing">
+      <i class="fas fa-crosshairs"></i> Roll any trait to capture it...
+    </button>
+    {{else}}
+    <button type="button" data-action="addAction" class="decl-btn"><i class="fas fa-plus"></i> Add Custom Action</button>
+    {{/if}}
+    <button type="button" data-action="confirmDeclaration" class="decl-btn confirm"><i class="fas fa-check"></i> Confirm Declaration</button>
+  </div>
+</div>

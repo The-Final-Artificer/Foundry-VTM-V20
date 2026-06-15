@@ -70,6 +70,12 @@
     <span class="wound-pen-val">{{armorPen}}</span>
   </div>
   {{/if}}
+  {{#if potenceAuto}}
+  <div class="form-group wound-pen-row potence-row">
+    <label>Potence (auto-successes)</label>
+    <span class="wound-pen-val">+{{potenceAuto}}</span>
+  </div>
+  {{/if}}
 
   <div class="form-group">
     <label>Difficulty</label>

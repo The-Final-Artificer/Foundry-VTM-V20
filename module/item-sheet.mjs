@@ -38,17 +38,24 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     ctx.system = item.system;
     ctx.config = CONFIG.VTM;
     ctx.isGM = game.user.isGM;
+    ctx.isEditable = this.isEditable;
     ctx.typeLabel = game.i18n.localize(`TYPES.Item.${item.type}`);
     ctx.hasEI = game.modules.get('enhanced-inventory')?.active ?? false;
 
     if (item.type === 'background') {
       const maxVisible = (item.parent && ctx.system.rating > 0)
         ? ctx.system.rating : 5;
-      ctx.bgLevels = [1, 2, 3, 4, 5].filter(n => n <= maxVisible).map(n => {
+      ctx.bgLevels = await Promise.all([1, 2, 3, 4, 5].filter(n => n <= maxVisible).map(async n => {
         const key = `lvl${n}`;
         const lvl = ctx.system.levels[key];
-        return { num: n, key, name: lvl.name, desc: lvl.desc };
-      });
+        return {
+          num: n,
+          key,
+          name: lvl.name,
+          desc: lvl.desc,
+          enrichedDesc: await TextEditor.enrichHTML(lvl.desc || '', { relativeTo: item }),
+        };
+      }));
     }
 
     ctx.isAuspex = item.type === 'discipline'
@@ -110,24 +117,29 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     super._onRender(context, options);
     const el = this.element;
 
-    // Image: click for lightbox, right-click for file picker
+    // Image: click for lightbox, edit button for file picker
     const img = el.querySelector('.sheet-header img');
     if (img) {
       img.addEventListener('click', ev => {
         ev.preventDefault();
         this._openLightbox(this.document.img);
       });
-      if (this.isEditable) {
-        img.addEventListener('contextmenu', ev => {
-          ev.preventDefault();
-          new FilePicker({
-            type: 'image',
-            current: this.document.img,
-            callback: path => this.document.update({ img: path })
-          }).browse();
-        });
-      }
     }
+    el.querySelector('.item-img-show')?.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const src = this.document.img;
+      const name = this.document.name;
+      game.vtm.openLightbox(src, name);
+      game.socket.emit('system.vtm-v20', { action: 'showPortrait', src, name });
+    });
+    el.querySelector('.item-img-edit')?.addEventListener('click', ev => {
+      ev.stopPropagation();
+      new FilePicker({
+        type: 'image',
+        current: this.document.img,
+        callback: path => this.document.update({ img: path })
+      }).browse();
+    });
 
     if (!this.isEditable) return;
 

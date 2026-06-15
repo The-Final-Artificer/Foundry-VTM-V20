@@ -6,11 +6,13 @@ import { VampireSheet } from './module/vampire-sheet.mjs';
 import { VtmItemSheet } from './module/item-sheet.mjs';
 import { rollDicePool } from './module/dice.mjs';
 import { rollAttack, bindCombatButtons, bindCombatSocketHandlers } from './module/combat.mjs';
+import { registerInitiativeHooks, bindInitiativeSocketHandlers, renderInitiativeTracker } from './module/initiative.mjs';
 import { populateCompendiums, registerCompendiumSettings } from './module/compendiums.mjs';
 import { ChargenWizard } from './module/chargen.mjs';
 import {
   BLINDED_STATUS_ID,
   DAZED_STATUS_ID,
+  INCAPACITATED_STATUS_ID,
   FULL_IMMOBILIZED_STATUS_ID,
   STRUGGLING_IMMOBILIZED_STATUS_ID,
   iterableValues,
@@ -61,6 +63,15 @@ const OTHER_STATUS_EFFECTS = [
     img: 'systems/vtm-v20/VTM icons/star-swirl.svg',
     origin: 'status',
     statuses: [DAZED_STATUS_ID],
+  },
+  {
+    id: INCAPACITATED_STATUS_ID,
+    name: 'Incapacitated',
+    label: 'Incapacitated',
+    icon: 'systems/vtm-v20/VTM icons/incapacitated.svg',
+    img: 'systems/vtm-v20/VTM icons/incapacitated.svg',
+    origin: 'status',
+    statuses: [INCAPACITATED_STATUS_ID],
   },
   {
     id: STRUGGLING_IMMOBILIZED_STATUS_ID,
@@ -157,11 +168,41 @@ async function enforceExclusiveImmobilizationStatus(effect) {
   if (toDelete.length) await parent.deleteEmbeddedDocuments('ActiveEffect', toDelete);
 }
 
+function openLightbox(src, title) {
+  if (document.querySelector('.vtm-lightbox')) return; // one at a time
+  const overlay = document.createElement('div');
+  overlay.classList.add('vtm-lightbox');
+
+  const pic = document.createElement('img');
+  pic.src = src;
+  if (title) pic.alt = title;
+  overlay.appendChild(pic);
+
+  let zoom = 1;
+  overlay.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    zoom = Math.min(Math.max(zoom + (ev.deltaY < 0 ? 0.15 : -0.15), 0.3), 5);
+    pic.style.transform = `scale(${zoom})`;
+  }, { passive: false });
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('active'));
+  pic.addEventListener('transitionend', () => overlay.classList.add('zooming'), { once: true });
+
+  overlay.addEventListener('click', () => {
+    overlay.classList.remove('zooming');
+    pic.style.transform = 'scale(0.3)';
+    overlay.classList.remove('active');
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+  });
+}
+
 Hooks.once('init', () => {
   console.log('VtM V20 | Initializing');
 
-  game.vtm = { rollDicePool, rollAttack, ChargenWizard };
+  game.vtm = { rollDicePool, rollAttack, ChargenWizard, openLightbox };
   CONFIG.VTM = VTM;
+  registerInitiativeHooks();
   registerCoverStatusEffects();
 
   CONFIG.Actor.dataModels.vampire = VampireData;
@@ -215,6 +256,14 @@ Hooks.once('init', () => {
   Handlebars.registerHelper('eq', (a, b) => a === b);
   Handlebars.registerHelper('gt', (a, b) => a > b);
   Handlebars.registerHelper('abs', v => Math.abs(v));
+  Handlebars.registerHelper('math', (a, op, b) => {
+    a = Number(a); b = Number(b);
+    if (op === '+') return a + b;
+    if (op === '-') return a - b;
+    if (op === '*') return a * b;
+    if (op === '/') return a / b;
+    return a;
+  });
 
   loadTemplates([
     'systems/vtm-v20/templates/vampire-sheet.hbs',
@@ -231,6 +280,7 @@ Hooks.once('init', () => {
 Hooks.once('ready', () => {
   populateCompendiums();
   bindCombatSocketHandlers();
+  bindInitiativeSocketHandlers();
 
   // GM-side handler for cross-permission operations (e.g. player marking an attack message resolved)
   game.socket.on('system.vtm-v20', async ({ action, msgId }) => {
@@ -240,6 +290,70 @@ Hooks.once('ready', () => {
       if (msg) await msg.update({ 'flags.vtm-v20.combat.resolved': true });
     }
   });
+
+  // Show portrait to all players when GM broadcasts it
+  game.socket.on('system.vtm-v20', ({ action, src, name }) => {
+    if (action === 'showPortrait') openLightbox(src, name);
+  });
+});
+
+// When a combat encounter ends, clear all combat UI on every combatant's sheet.
+// Actor sheets are singletons: the instance persists even when the window is closed.
+// We need to reach those closed sheets too, not just the ones currently rendered.
+Hooks.on('deleteCombat', (combat) => {
+  const sheets = new Set();
+
+  // Grab every combatant's sheet (covers closed windows)
+  for (const c of combat.combatants) {
+    const s = c.actor?.sheet;
+    if (s instanceof VampireSheet) sheets.add(s);
+  }
+
+  // Also sweep rendered sheets in case they weren't combatants
+  const apps = foundry.applications?.instances;
+  if (apps) {
+    for (const app of apps.values()) {
+      if (app instanceof VampireSheet && (app._declCombat || app._resCombat)) {
+        sheets.add(app);
+      }
+    }
+  }
+
+  for (const sheet of sheets) {
+    sheet._declCombat = null;
+    sheet._declCombatant = null;
+    sheet._declActions = [];
+    sheet._declFullDefense = false;
+    sheet._declCapturing = false;
+    sheet._resCombat = null;
+    sheet._resCombatant = null;
+    sheet._resExecuted = new Set();
+    sheet._resSpent = new Map();
+    sheet._resDefenseSpent = new Map();
+    sheet._resFullDefCount = 0;
+    sheet._resTurnDone = false;
+    if (sheet.rendered) sheet.render();
+  }
+  game.vtm._captureAction = null;
+
+  // Clear discipline activations when combat ends
+  for (const c of combat.combatants) {
+    const active = c.actor?.getFlag('vtm-v20', 'activeDisciplines');
+    if (active?.length) c.actor.unsetFlag('vtm-v20', 'activeDisciplines');
+  }
+});
+
+// When the active resolver or declarer changes, re-render all combat sheets
+// so "Not your turn" buttons update correctly
+Hooks.on('updateCombat', (combat, changes) => {
+  const vtmFlags = changes?.flags?.['vtm-v20'];
+  if (!vtmFlags?.currentResolver && !vtmFlags?.currentDeclarer) return;
+  const apps = foundry.applications?.instances;
+  if (!apps) return;
+  for (const app of apps.values()) {
+    if (!(app instanceof VampireSheet)) continue;
+    if (app._resCombat || app._declCombat) app.render();
+  }
 });
 
 Hooks.on('createActiveEffect', effect => {
@@ -266,6 +380,8 @@ Hooks.on('renderSettings', (app, html) => {
   `;
   el.appendChild(notice);
 });
+
+Hooks.on('renderCombatTracker', (app, html) => renderInitiativeTracker(app, html));
 
 Hooks.on('renderChatMessage', (msg, html) => bindCombatButtons(msg, html));
 

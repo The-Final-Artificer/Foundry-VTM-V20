@@ -1,0 +1,53 @@
+<div class="resolution-content">
+  <div class="decl-header">
+    <img src="{{actorImg}}" class="decl-portrait" />
+    <div class="decl-info">
+      <h2>{{actorName}}</h2>
+      <span class="decl-phase-label">Resolution Phase</span>
+    </div>
+  </div>
+
+  {{#if declarationText}}
+  <div class="res-intent">
+    <i class="fas fa-quote-left"></i> {{declarationText}}
+  </div>
+  {{/if}}
+
+  {{#if multiAction}}
+  <div class="res-pool-info">
+    Dice Pool: <b>{{totalPool}}</b> — allocate among your actions (min 1 each)
+    <span class="alloc-total"></span>
+  </div>
+  {{/if}}
+
+  <div class="res-actions">
+    {{#each actions}}
+    <div class="res-action-row {{#if this.executed}}executed{{/if}} {{#if this.isDefense}}defense{{/if}}">
+      <span class="res-action-num">{{#if this.isDefense}}<i class="fas fa-shield-alt"></i>{{else}}{{math this.index "+" 1}}{{/if}}</span>
+      <span class="res-action-name">{{this.name}}</span>
+      {{#if ../multiAction}}
+      <input type="number" name="alloc-{{this.index}}" class="alloc-input" value="1" min="1" max="{{../totalPool}}" {{#if this.executed}}disabled{{/if}} />
+      {{/if}}
+      {{#unless this.executed}}
+        {{#if this.isDefense}}
+        <span class="res-defense-ready"><i class="fas fa-shield-alt"></i> Ready</span>
+        {{else}}
+        <button type="button" data-action="executeAction" data-index="{{this.index}}" class="res-execute-btn">
+          <i class="fas fa-dice-d20"></i> Roll
+        </button>
+        {{/if}}
+      {{else}}
+      <span class="res-done-label"><i class="fas fa-check"></i> Done</span>
+      {{/unless}}
+    </div>
+    {{/each}}
+  </div>
+
+  <div class="decl-buttons">
+    {{#if allExecuted}}
+    <button type="button" data-action="finishTurn" class="decl-btn confirm"><i class="fas fa-flag-checkered"></i> End Turn</button>
+    {{else}}
+    <button type="button" data-action="finishTurn" class="decl-btn"><i class="fas fa-forward"></i> Skip Remaining</button>
+    {{/if}}
+  </div>
+</div>
