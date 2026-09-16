@@ -2,13 +2,14 @@
   "id": "vtm-v20",
   "title": "Vampire: The Masquerade V20",
   "description": "A clean, modern system for Vampire: The Masquerade 20th Anniversary Edition.",
-  "version": "0.1.0",
-  "manifest": "https://raw.githubusercontent.com/The-Final-Artificer/Foundry-VTM-V20/main/system.json",
-  "download": "https://github.com/The-Final-Artificer/Foundry-VTM-V20/archive/refs/heads/main.zip",
+  "version": "1.0.0",
   "compatibility": {
     "minimum": "13",
-    "verified": "13"
+    "verified": "14"
   },
+  "url": "https://github.com/The-Final-Artificer/Foundry-VTM-V20",
+  "manifest": "https://github.com/The-Final-Artificer/Foundry-VTM-V20/releases/latest/download/system.json",
+  "download": "https://github.com/The-Final-Artificer/Foundry-VTM-V20/releases/download/v1.0.0/vtm-v20.zip",
   "authors": [{ "name": "The Final Artificer" }],
   "esmodules": ["vtm-v20.mjs"],
   "styles": ["styles/vtm-v20.css"],
@@ -24,7 +25,7 @@
       "system": "vtm-v20",
       "path": "packs/disciplines",
       "type": "Item",
-      "banner": "systems/vtm-v20/Compendium header images/Disciplines header.png"
+      "banner": "systems/vtm-v20/Compendium header images/Disciplines.png"
     },
     {
       "name": "backgrounds",
@@ -49,6 +50,22 @@
       "path": "packs/armor",
       "type": "Item",
       "banner": "systems/vtm-v20/Compendium header images/Armor header.png"
+    },
+    {
+      "name": "paths",
+      "label": "Paths",
+      "system": "vtm-v20",
+      "path": "packs/paths",
+      "type": "Item",
+      "banner": "systems/vtm-v20/Compendium header images/Paths.png"
+    },
+    {
+      "name": "rituals",
+      "label": "Rituals",
+      "system": "vtm-v20",
+      "path": "packs/rituals",
+      "type": "Item",
+      "banner": "systems/vtm-v20/Compendium header images/Rituals.png"
     },
     {
       "name": "merits",

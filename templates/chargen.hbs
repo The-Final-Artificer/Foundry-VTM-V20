@@ -186,13 +186,19 @@
         <div class="chargen-adv-section">
           <h3>Virtues <span class="pool-badge"><span class="virtue-pool-count">{{virtueRemaining}}</span> left</span></h3>
           <div class="chargen-trait">
-            <span class="trait-name">Conscience</span>
+            <select class="virtue-name-select" data-key="conscience">
+              <option value="Conscience" {{#if (eq virtueLabels.conscience "Conscience")}}selected{{/if}}>Conscience</option>
+              <option value="Conviction" {{#if (eq virtueLabels.conscience "Conviction")}}selected{{/if}}>Conviction</option>
+            </select>
             <div class="dot-row virtue-dots" data-key="conscience">
               {{{vtmDots d.virtues.conscience 5}}}
             </div>
           </div>
           <div class="chargen-trait">
-            <span class="trait-name">Self-Control</span>
+            <select class="virtue-name-select" data-key="selfControl">
+              <option value="Self-Control" {{#if (eq virtueLabels.selfControl "Self-Control")}}selected{{/if}}>Self-Control</option>
+              <option value="Instinct" {{#if (eq virtueLabels.selfControl "Instinct")}}selected{{/if}}>Instinct</option>
+            </select>
             <div class="dot-row virtue-dots" data-key="selfControl">
               {{{vtmDots d.virtues.selfControl 5}}}
             </div>

@@ -61,6 +61,7 @@ export class ChargenWizard {
       disc: [],
       bg: [],
       virtues: { conscience: 1, selfControl: 1, courage: 1 },
+      virtueLabels: { conscience: 'Conscience', selfControl: 'Self-Control' },
       generation: 13,
       fb: {},
       useMeritsFlaws: false,
@@ -94,6 +95,7 @@ export class ChargenWizard {
       ctx.discRemaining = this._itemPool('disc');
       ctx.bgRemaining = this._itemPool('bg');
       ctx.virtueRemaining = this._virtuePool();
+      ctx.virtueLabels = d.virtueLabels;
       const clanDisc = VTM.clanDisciplines[d.clan];
       ctx.clanDiscHint = clanDisc?.length ? clanDisc.join(', ') : null;
     }
@@ -237,8 +239,8 @@ export class ChargenWizard {
       bgs: this.d.bg.map((x, i) =>
         mk(`bg.${i}`, x.name, x.dots, 5, FB_COST.background)),
       virtues: [
-        mk('virtues.conscience', 'Conscience', this.d.virtues.conscience, 5, FB_COST.virtue),
-        mk('virtues.selfControl', 'Self-Control', this.d.virtues.selfControl, 5, FB_COST.virtue),
+        mk('virtues.conscience', this.d.virtueLabels.conscience, this.d.virtues.conscience, 5, FB_COST.virtue),
+        mk('virtues.selfControl', this.d.virtueLabels.selfControl, this.d.virtues.selfControl, 5, FB_COST.virtue),
         mk('virtues.courage', 'Courage', this.d.virtues.courage, 5, FB_COST.virtue),
       ],
       wp: mk('willpower', 'Willpower',
@@ -490,6 +492,12 @@ export class ChargenWizard {
       dot.addEventListener('click', ev => this._advDotClick(ev, 'bg', BG_POOL));
     });
 
+    el.querySelectorAll('.virtue-name-select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        this.d.virtueLabels[sel.dataset.key] = sel.value;
+      });
+    });
+
     el.querySelectorAll('.virtue-dots .dot').forEach(dot => {
       dot.addEventListener('click', () => {
         const key = dot.closest('.virtue-dots').dataset.key;
@@ -690,14 +698,18 @@ export class ChargenWizard {
     const gen = VTM.generationTable[d.generation];
     if (gen) update['system.blood.value'] = gen.maxBlood;
 
+    if (d.virtueLabels.conscience !== 'Conscience' || d.virtueLabels.selfControl !== 'Self-Control') {
+      update['flags.vtm-v20.virtueLabels'] = { ...d.virtueLabels };
+    }
+
     await this.actor.update(update);
 
     // Build items from compendium UUIDs when available
     const items = [];
     for (let i = 0; i < d.disc.length; i++) {
       const x = d.disc[i];
-      if (!x.name || x.dots <= 0) continue;
       const totalDots = x.dots + (fb[`disc.${i}`] || 0);
+      if (!x.name || totalDots <= 0) continue;
       if (x.uuid) {
         try {
           const src = await fromUuid(x.uuid);
@@ -721,8 +733,8 @@ export class ChargenWizard {
     }
     for (let i = 0; i < d.bg.length; i++) {
       const x = d.bg[i];
-      if (!x.name || x.dots <= 0) continue;
       const totalDots = x.dots + (fb[`bg.${i}`] || 0);
+      if (!x.name || totalDots <= 0) continue;
       if (x.uuid) {
         try {
           const src = await fromUuid(x.uuid);

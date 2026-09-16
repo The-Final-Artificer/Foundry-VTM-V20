@@ -1,340 +1,323 @@
-// Trait dot-level descriptions for character sheet tooltips
+// Dot-level trait descriptions shown in the sheet tooltips.
 
 export const TRAIT_DESCRIPTIONS = {
-  // ── Physical Attributes ──
-  'attributes.strength': [
-    'Poor: You can manage light lifting and not much else.',
-    'Average: A reasonably fit adult. You hold your own.',
-    'Good: You regularly impress people at the gym.',
-    'Exceptional: Competitive strongman territory.',
-    'Outstanding: You bend metal and break bones without trying.',
+  "attributes.strength": [
+    "Poor: You can manage light lifting and not much else.",
+    "Average: A reasonably fit adult. You hold your own.",
+    "Good: You regularly impress people at the gym.",
+    "Exceptional: Competitive strongman territory.",
+    "Outstanding: You bend metal and break bones without trying."
   ],
-  'attributes.dexterity': [
-    'Poor: Clumsy. You trip on flat ground.',
-    'Average: Nothing special, but you can catch a ball.',
-    'Good: Noticeable coordination and grace.',
-    'Exceptional: Acrobat-level agility.',
-    'Outstanding: Your reflexes border on supernatural.',
+  "attributes.dexterity": [
+    "Poor: Clumsy. You trip on flat ground.",
+    "Average: Nothing special, but you can catch a ball.",
+    "Good: Noticeable coordination and grace.",
+    "Exceptional: Acrobat-level agility.",
+    "Outstanding: Your reflexes border on supernatural."
   ],
-  'attributes.stamina': [
-    'Poor: A stiff breeze knocks the wind out of you.',
-    'Average: You can take a hit and keep going.',
-    'Good: Rarely sick, solid endurance.',
-    'Exceptional: Marathon runners envy you.',
-    'Outstanding: You shrug off punishment that would floor anyone else.',
+  "attributes.stamina": [
+    "Poor: A stiff breeze knocks the wind out of you.",
+    "Average: You can take a hit and keep going.",
+    "Good: Rarely sick, solid endurance.",
+    "Exceptional: Marathon runners envy you.",
+    "Outstanding: You shrug off punishment that would floor anyone else."
   ],
-
-  // ── Social Attributes ──
-  'attributes.charisma': [
-    'Poor: People tend to avoid conversation with you.',
-    'Average: Likable enough. You have a few friends.',
-    'Good: People naturally trust and listen to you.',
-    'Exceptional: Magnetic personality. You draw crowds.',
-    'Outstanding: You could rally a movement with a speech.',
+  "attributes.charisma": [
+    "Poor: People tend to avoid conversation with you.",
+    "Average: Likable enough. You have a few friends.",
+    "Good: People naturally trust and listen to you.",
+    "Exceptional: Magnetic personality. You draw crowds.",
+    "Outstanding: You could rally a movement with a speech."
   ],
-  'attributes.manipulation': [
-    'Poor: You can barely talk your way out of a parking ticket.',
-    'Average: You get by with the usual white lies.',
-    'Good: You always seem to get the better end of a deal.',
-    'Exceptional: Politician or con artist material.',
-    'Outstanding: You could convince someone the sun is harmless.',
+  "attributes.manipulation": [
+    "Poor: You can barely talk your way out of a parking ticket.",
+    "Average: You get by with the usual white lies.",
+    "Good: You always seem to get the better end of a deal.",
+    "Exceptional: Politician or con artist material.",
+    "Outstanding: You could convince someone the sun is harmless."
   ],
-  'attributes.appearance': [
-    'Poor: People look away. Something about you puts them off.',
-    'Average: You blend into any crowd without issue.',
-    'Good: Attractive. Strangers buy you drinks.',
-    'Exceptional: Stunning. People go out of their way to talk to you.',
-    'Outstanding: Unforgettable. Heads turn wherever you go.',
+  "attributes.appearance": [
+    "Poor: People look away. Something about you puts them off.",
+    "Average: You blend into any crowd without issue.",
+    "Good: Attractive. Strangers buy you drinks.",
+    "Exceptional: Stunning. People go out of their way to talk to you.",
+    "Outstanding: Unforgettable. Heads turn wherever you go."
   ],
-
-  // ── Mental Attributes ──
-  'attributes.perception': [
-    'Poor: Oblivious. Things happen around you that you simply miss.',
-    'Average: You notice what most people notice.',
-    'Good: You pick up on subtle details others overlook.',
-    'Exceptional: Almost nothing slips past you.',
-    'Outstanding: Your senses rival those of a trained predator.',
+  "attributes.perception": [
+    "Poor: Oblivious. Things happen around you that you simply miss.",
+    "Average: You notice what most people notice.",
+    "Good: You pick up on subtle details others overlook.",
+    "Exceptional: Almost nothing slips past you.",
+    "Outstanding: Your senses rival those of a trained predator."
   ],
-  'attributes.intelligence': [
-    'Poor: You struggle with anything abstract.',
-    'Average: Reasonably sharp. You can follow complex arguments.',
-    'Good: Clever and well-read. You connect dots quickly.',
-    'Exceptional: Genuinely brilliant. You solve problems others can\'t frame.',
-    'Outstanding: Certified genius-level intellect.',
+  "attributes.intelligence": [
+    "Poor: You struggle with anything abstract.",
+    "Average: Reasonably sharp. You can follow complex arguments.",
+    "Good: Clever and well-read. You connect dots quickly.",
+    "Exceptional: Genuinely brilliant. You solve problems others can't frame.",
+    "Outstanding: Certified genius-level intellect."
   ],
-  'attributes.wits': [
-    'Poor: You freeze up when surprised.',
-    'Average: You can think on your feet in normal situations.',
-    'Good: Quick comebacks, fast decisions under pressure.',
-    'Exceptional: You always have the right response at the right time.',
-    'Outstanding: You react almost before things happen.',
+  "attributes.wits": [
+    "Poor: You freeze up when surprised.",
+    "Average: You can think on your feet in normal situations.",
+    "Good: Quick comebacks, fast decisions under pressure.",
+    "Exceptional: You always have the right response at the right time.",
+    "Outstanding: You react almost before things happen."
   ],
-
-  // ── Talents ──
-  'abilities.alertness': [
-    'Novice: You pay a little more attention than most.',
-    'Practiced: You habitually scan your surroundings.',
-    'Competent: Very little escapes your notice.',
-    'Expert: You catch details that trained professionals miss.',
-    'Master: Your awareness borders on a sixth sense.',
+  "abilities.alertness": [
+    "Novice: You pay a little more attention than most.",
+    "Practiced: You habitually scan your surroundings.",
+    "Competent: Very little escapes your notice.",
+    "Expert: You catch details that trained professionals miss.",
+    "Master: Your awareness borders on a sixth sense."
   ],
-  'abilities.athletics': [
-    'Novice: Weekend jogger.',
-    'Practiced: High school varsity level.',
-    'Competent: Dedicated amateur competitor.',
-    'Expert: Professional athlete caliber.',
-    'Master: World-class. Medal contender.',
+  "abilities.athletics": [
+    "Novice: Weekend jogger.",
+    "Practiced: High school varsity level.",
+    "Competent: Dedicated amateur competitor.",
+    "Expert: Professional athlete caliber.",
+    "Master: World-class. Medal contender."
   ],
-  'abilities.awareness': [
-    'Novice: You get a bad feeling now and then.',
-    'Practiced: You sometimes sense when something is off about a place.',
-    'Competent: You can walk into a room and tell something is wrong.',
-    'Expert: You can pick out the unnatural in a crowd.',
-    'Master: You instinctively know when something isn\'t human.',
+  "abilities.awareness": [
+    "Novice: You get a bad feeling now and then.",
+    "Practiced: You sometimes sense when something is off about a place.",
+    "Competent: You can walk into a room and tell something is wrong.",
+    "Expert: You can pick out the unnatural in a crowd.",
+    "Master: You instinctively know when something isn't human."
   ],
-  'abilities.brawl': [
-    'Novice: You\'ve thrown a punch or two.',
-    'Practiced: You can handle yourself in a bar fight.',
-    'Competent: You fight regularly and usually win.',
-    'Expert: Competitive fighter. People avoid provoking you.',
-    'Master: Your fists are as deadly as most weapons.',
+  "abilities.brawl": [
+    "Novice: You've thrown a punch or two.",
+    "Practiced: You can handle yourself in a bar fight.",
+    "Competent: You fight regularly and usually win.",
+    "Expert: Competitive fighter. People avoid provoking you.",
+    "Master: Your fists are as deadly as most weapons."
   ],
-  'abilities.empathy': [
-    'Novice: You can tell when a friend is upset.',
-    'Practiced: You read people better than most.',
-    'Competent: You have sharp insight into what drives people.',
-    'Expert: Lies and hidden agendas rarely fool you.',
-    'Master: You understand people better than they understand themselves.',
+  "abilities.empathy": [
+    "Novice: You can tell when a friend is upset.",
+    "Practiced: You read people better than most.",
+    "Competent: You have sharp insight into what drives people.",
+    "Expert: Lies and hidden agendas rarely fool you.",
+    "Master: You understand people better than they understand themselves."
   ],
-  'abilities.expression': [
-    'Novice: You can write a decent letter or give a short speech.',
-    'Practiced: You could lead a debate team.',
-    'Competent: Published writer or compelling public speaker.',
-    'Expert: Award-winning talent in your medium.',
-    'Master: A voice that shapes opinions and moves hearts.',
+  "abilities.expression": [
+    "Novice: You can write a decent letter or give a short speech.",
+    "Practiced: You could lead a debate team.",
+    "Competent: Published writer or compelling public speaker.",
+    "Expert: Award-winning talent in your medium.",
+    "Master: A voice that shapes opinions and moves hearts."
   ],
-  'abilities.intimidation': [
-    'Novice: You can bully someone smaller than you.',
-    'Practiced: Your hard stare makes people uncomfortable.',
-    'Competent: You command fear with your presence alone.',
-    'Expert: Even confident people back down around you.',
-    'Master: Hardened criminals think twice before crossing you.',
+  "abilities.intimidation": [
+    "Novice: You can bully someone smaller than you.",
+    "Practiced: Your hard stare makes people uncomfortable.",
+    "Competent: You command fear with your presence alone.",
+    "Expert: Even confident people back down around you.",
+    "Master: Hardened criminals think twice before crossing you."
   ],
-  'abilities.leadership': [
-    'Novice: You can organize a small group when needed.',
-    'Practiced: People follow your suggestions naturally.',
-    'Competent: You run organizations effectively.',
-    'Expert: Born leader. People rally behind you in a crisis.',
-    'Master: You could govern with authority and loyalty.',
+  "abilities.leadership": [
+    "Novice: You can organize a small group when needed.",
+    "Practiced: People follow your suggestions naturally.",
+    "Competent: You run organizations effectively.",
+    "Expert: Born leader. People rally behind you in a crisis.",
+    "Master: You could govern with authority and loyalty."
   ],
-  'abilities.streetwise': [
-    'Novice: You know who to ask for basic information.',
-    'Practiced: You\'re a known face in the right circles.',
-    'Competent: You could run your own crew.',
-    'Expert: The underground holds few surprises for you.',
-    'Master: If it happened on the street, you already know about it.',
+  "abilities.streetwise": [
+    "Novice: You know who to ask for basic information.",
+    "Practiced: You're a known face in the right circles.",
+    "Competent: You could run your own crew.",
+    "Expert: The underground holds few surprises for you.",
+    "Master: If it happened on the street, you already know about it."
   ],
-  'abilities.subterfuge': [
-    'Novice: You can keep a straight face when lying.',
-    'Practiced: You weave convincing half-truths without effort.',
-    'Competent: Professional-grade deception.',
-    'Expert: You live behind masks and nobody suspects.',
-    'Master: You could betray your closest ally and they\'d thank you for it.',
+  "abilities.subterfuge": [
+    "Novice: You can keep a straight face when lying.",
+    "Practiced: You weave convincing half-truths without effort.",
+    "Competent: Professional-grade deception.",
+    "Expert: You live behind masks and nobody suspects.",
+    "Master: You could betray your closest ally and they'd thank you for it."
   ],
-
-  // ── Skills ──
-  'abilities.animalKen': [
-    'Novice: You can calm a nervous pet.',
-    'Practiced: You can train a dog with basic commands.',
-    'Competent: You work confidently with most domesticated animals.',
-    'Expert: You can handle and train exotic or dangerous animals.',
-    'Master: Even wild predators respond to your presence.',
+  "abilities.animalKen": [
+    "Novice: You can calm a nervous pet.",
+    "Practiced: You can train a dog with basic commands.",
+    "Competent: You work confidently with most domesticated animals.",
+    "Expert: You can handle and train exotic or dangerous animals.",
+    "Master: Even wild predators respond to your presence."
   ],
-  'abilities.crafts': [
-    'Novice: You can handle basic repairs and simple projects.',
-    'Practiced: You\'re developing a recognizable personal style.',
-    'Competent: You could make a living from your craft.',
-    'Expert: Your work is sought after by serious collectors.',
-    'Master: A true artisan. Your skill is virtually unmatched.',
+  "abilities.crafts": [
+    "Novice: You can handle basic repairs and simple projects.",
+    "Practiced: You're developing a recognizable personal style.",
+    "Competent: You could make a living from your craft.",
+    "Expert: Your work is sought after by serious collectors.",
+    "Master: A true artisan. Your skill is virtually unmatched."
   ],
-  'abilities.drive': [
-    'Novice: You can handle an automatic in normal traffic.',
-    'Practiced: Comfortable with manual transmission and highways.',
-    'Competent: Professional driver. Trucks, vans, anything standard.',
-    'Expert: Stunt driver or pursuit specialist.',
-    'Master: You can push any vehicle to its absolute limit.',
+  "abilities.drive": [
+    "Novice: You can handle an automatic in normal traffic.",
+    "Practiced: Comfortable with manual transmission and highways.",
+    "Competent: Professional driver. Trucks, vans, anything standard.",
+    "Expert: Stunt driver or pursuit specialist.",
+    "Master: You can push any vehicle to its absolute limit."
   ],
-  'abilities.etiquette': [
-    'Novice: You know when to shut up and which fork to use.',
-    'Practiced: Comfortable at formal events.',
-    'Competent: You navigate high society with ease.',
-    'Expert: Royalty would find your manners impeccable.',
-    'Master: You set the standard others aspire to.',
+  "abilities.etiquette": [
+    "Novice: You know when to shut up and which fork to use.",
+    "Practiced: Comfortable at formal events.",
+    "Competent: You navigate high society with ease.",
+    "Expert: Royalty would find your manners impeccable.",
+    "Master: You set the standard others aspire to."
   ],
-  'abilities.firearms': [
-    'Novice: You can load, point, and shoot.',
-    'Practiced: Regular range time has paid off.',
-    'Competent: You\'ve been in real firefights and walked away.',
-    'Expert: Professional marksman.',
-    'Master: You can place a round exactly where you want it, every time.',
+  "abilities.firearms": [
+    "Novice: You can load, point, and shoot.",
+    "Practiced: Regular range time has paid off.",
+    "Competent: You've been in real firefights and walked away.",
+    "Expert: Professional marksman.",
+    "Master: You can place a round exactly where you want it, every time."
   ],
-  'abilities.larceny': [
-    'Novice: You can pick a simple lock or shoplift.',
-    'Practiced: You can run a decent con.',
-    'Competent: Breaking and entering is routine for you.',
-    'Expert: You can forge documents and bypass security systems.',
-    'Master: No vault or safe is beyond your skills.',
+  "abilities.larceny": [
+    "Novice: You can pick a simple lock or shoplift.",
+    "Practiced: You can run a decent con.",
+    "Competent: Breaking and entering is routine for you.",
+    "Expert: You can forge documents and bypass security systems.",
+    "Master: No vault or safe is beyond your skills."
   ],
-  'abilities.melee': [
-    'Novice: You know which end of the knife to hold.',
-    'Practiced: You\'ve trained or fought enough to be competent.',
-    'Competent: Skilled fencer or experienced street fighter.',
-    'Expert: A dangerous opponent with any bladed weapon.',
-    'Master: Your blade work is the stuff of legends.',
+  "abilities.melee": [
+    "Novice: You know which end of the knife to hold.",
+    "Practiced: You've trained or fought enough to be competent.",
+    "Competent: Skilled fencer or experienced street fighter.",
+    "Expert: A dangerous opponent with any bladed weapon.",
+    "Master: Your blade work is the stuff of legends."
   ],
-  'abilities.performance': [
-    'Novice: You can carry a tune or hold a crowd briefly.',
-    'Practiced: You book small gigs and get positive reactions.',
-    'Competent: A working professional with real talent.',
-    'Expert: You could headline a major venue.',
-    'Master: A virtuoso. Your art moves people to tears.',
+  "abilities.performance": [
+    "Novice: You can carry a tune or hold a crowd briefly.",
+    "Practiced: You book small gigs and get positive reactions.",
+    "Competent: A working professional with real talent.",
+    "Expert: You could headline a major venue.",
+    "Master: A virtuoso. Your art moves people to tears."
   ],
-  'abilities.stealth': [
-    'Novice: You can hide in a dark room.',
-    'Practiced: You can tail someone down a city street.',
-    'Competent: Sneaking past guards is routine.',
-    'Expert: You move silently across any terrain.',
-    'Master: You are practically invisible when you want to be.',
+  "abilities.stealth": [
+    "Novice: You can hide in a dark room.",
+    "Practiced: You can tail someone down a city street.",
+    "Competent: Sneaking past guards is routine.",
+    "Expert: You move silently across any terrain.",
+    "Master: You are practically invisible when you want to be."
   ],
-  'abilities.survival': [
-    'Novice: You can camp overnight without dying.',
-    'Practiced: You\'ve spent real time in the wilderness.',
-    'Competent: You can identify edible plants and find shelter anywhere.',
-    'Expert: You thrive for months in harsh environments.',
-    'Master: Drop you anywhere on earth and you\'ll be fine.',
+  "abilities.survival": [
+    "Novice: You can camp overnight without dying.",
+    "Practiced: You've spent real time in the wilderness.",
+    "Competent: You can identify edible plants and find shelter anywhere.",
+    "Expert: You thrive for months in harsh environments.",
+    "Master: Drop you anywhere on earth and you'll be fine."
   ],
-
-  // ── Knowledges ──
-  'abilities.academics': [
-    'Student: You have a decent general education.',
-    'College: You can discuss history, literature, and culture with confidence.',
-    'Masters: Your expertise could be published in journals.',
-    'Doctorate: A recognized authority in your field.',
-    'Scholar: One of the foremost minds of your generation.',
+  "abilities.academics": [
+    "Student: You have a decent general education.",
+    "College: You can discuss history, literature, and culture with confidence.",
+    "Masters: Your expertise could be published in journals.",
+    "Doctorate: A recognized authority in your field.",
+    "Scholar: One of the foremost minds of your generation."
   ],
-  'abilities.computer': [
-    'Student: You can navigate a modern OS and use common apps.',
-    'College: Comfortable with networking, troubleshooting, and the internet.',
-    'Masters: You can work a command line and write scripts.',
-    'Doctorate: A skilled professional who could consult for major firms.',
-    'Scholar: You understand systems at the architectural level.',
+  "abilities.computer": [
+    "Student: You can navigate a modern OS and use common apps.",
+    "College: Comfortable with networking, troubleshooting, and the internet.",
+    "Masters: You can work a command line and write scripts.",
+    "Doctorate: A skilled professional who could consult for major firms.",
+    "Scholar: You understand systems at the architectural level."
   ],
-  'abilities.finance': [
-    'Student: You understand basic budgeting and accounting.',
-    'College: You can manage books and make sound investments.',
-    'Masters: Stockbroker or financial advisor material.',
-    'Doctorate: Major players follow your financial analysis.',
-    'Scholar: You can turn pocket change into a fortune.',
+  "abilities.finance": [
+    "Student: You understand basic budgeting and accounting.",
+    "College: You can manage books and make sound investments.",
+    "Masters: Stockbroker or financial advisor material.",
+    "Doctorate: Major players follow your financial analysis.",
+    "Scholar: You can turn pocket change into a fortune."
   ],
-  'abilities.investigation': [
-    'Student: You can search the internet for clues effectively.',
-    'College: Trained observer. You notice what others miss.',
-    'Masters: Experienced private investigator.',
-    'Doctorate: Federal-level detective work.',
-    'Scholar: If there\'s a clue to find, you will find it.',
+  "abilities.investigation": [
+    "Student: You can search the internet for clues effectively.",
+    "College: Trained observer. You notice what others miss.",
+    "Masters: Experienced private investigator.",
+    "Doctorate: Federal-level detective work.",
+    "Scholar: If there's a clue to find, you will find it."
   ],
-  'abilities.law': [
-    'Student: You know your basic rights and legal terminology.',
-    'College: You\'ve studied law formally or passed the bar.',
-    'Masters: A practicing attorney who wins cases.',
-    'Doctorate: Senior partner at a major firm.',
-    'Scholar: You find loopholes in ironclad contracts.',
+  "abilities.law": [
+    "Student: You know your basic rights and legal terminology.",
+    "College: You've studied law formally or passed the bar.",
+    "Masters: A practicing attorney who wins cases.",
+    "Doctorate: Senior partner at a major firm.",
+    "Scholar: You find loopholes in ironclad contracts."
   ],
-  'abilities.medicine': [
-    'Student: Basic first aid and CPR.',
-    'College: Paramedic or pre-med training.',
-    'Masters: Licensed physician.',
-    'Doctorate: Surgeon or specialist.',
-    'Scholar: A pioneer in your medical field.',
+  "abilities.medicine": [
+    "Student: Basic first aid and CPR.",
+    "College: Paramedic or pre-med training.",
+    "Masters: Licensed physician.",
+    "Doctorate: Surgeon or specialist.",
+    "Scholar: A pioneer in your medical field."
   ],
-  'abilities.occult': [
-    'Student: You\'ve read some books on the strange and unusual.',
-    'College: You\'ve encountered enough to know some of it is real.',
-    'Masters: You can separate genuine lore from popular nonsense.',
-    'Doctorate: You recognize authentic sources and their implications.',
-    'Scholar: You understand the fundamental truths of the hidden world.',
+  "abilities.occult": [
+    "Student: You've read some books on the strange and unusual.",
+    "College: You've encountered enough to know some of it is real.",
+    "Masters: You can separate genuine lore from popular nonsense.",
+    "Doctorate: You recognize authentic sources and their implications.",
+    "Scholar: You understand the fundamental truths of the hidden world."
   ],
-  'abilities.politics': [
-    'Student: You follow the news and know how to vote.',
-    'College: You understand how bureaucracies and power structures work.',
-    'Masters: Campaign strategist or media commentator.',
-    'Doctorate: You hold real political influence.',
-    'Scholar: You shape policy from behind the scenes.',
+  "abilities.politics": [
+    "Student: You follow the news and know how to vote.",
+    "College: You understand how bureaucracies and power structures work.",
+    "Masters: Campaign strategist or media commentator.",
+    "Doctorate: You hold real political influence.",
+    "Scholar: You shape policy from behind the scenes."
   ],
-  'abilities.science': [
-    'Student: Solid grasp of high school science.',
-    'College: Familiar with major theories across disciplines.',
-    'Masters: You could teach at the university level.',
-    'Doctorate: You advance the boundaries of knowledge in your field.',
-    'Scholar: A groundbreaking researcher with global recognition.',
+  "abilities.science": [
+    "Student: Solid grasp of high school science.",
+    "College: Familiar with major theories across disciplines.",
+    "Masters: You could teach at the university level.",
+    "Doctorate: You advance the boundaries of knowledge in your field.",
+    "Scholar: A groundbreaking researcher with global recognition."
   ],
-  'abilities.technology': [
-    'Student: You can perform basic repairs and modifications.',
-    'College: You could work in assembly, repair, or IT support.',
-    'Masters: You design new systems from technical requirements.',
-    'Doctorate: You solve problems others consider impossible.',
-    'Scholar: A visionary who shapes how people interact with technology.',
+  "abilities.technology": [
+    "Student: You can perform basic repairs and modifications.",
+    "College: You could work in assembly, repair, or IT support.",
+    "Masters: You design new systems from technical requirements.",
+    "Doctorate: You solve problems others consider impossible.",
+    "Scholar: A visionary who shapes how people interact with technology."
   ],
-
-  // ── Virtues ──
-  'virtues.conscience': [
-    'Uncaring',
-    'Normal',
-    'Ethical',
-    'Righteous',
-    'Remorseful',
+  "virtues.conscience": [
+    "You feel remorse only for the gravest wrongs, and rarely for long.",
+    "Serious misdeeds leave a mark on you, though lesser sins slide by.",
+    "An ordinary moral compass: wrongdoing weighs on you as it does on most people.",
+    "Your ethics run deep, and violating them haunts you.",
+    "Your principles are unshakable; even small cruelties gnaw at you."
   ],
-  'virtues.selfControl': [
-    'Unstable',
-    'Normal',
-    'Temperate',
-    'Hardened',
-    'Total self-mastery',
+  "virtues.selfControl": [
+    "The Beast is barely leashed; provocation finds you eager.",
+    "You keep composure in calm moments, but real temptation cuts deep.",
+    "Ordinary discipline: you resist most urges, though hunger tests you.",
+    "Cold-blooded restraint; few provocations ever reach you.",
+    "Near-total mastery of your impulses, even while starving."
   ],
-  'virtues.courage': [
-    'Timid',
-    'Normal',
-    'Bold',
-    'Resolute',
-    'Heroic',
+  "virtues.courage": [
+    "You break and run at the first real threat.",
+    "You hold your ground until the danger turns serious.",
+    "Steady nerves: you face what frightens you about as well as anyone.",
+    "Fear rarely moves you; flame and sunrise give you pause, not panic.",
+    "You would stare down the Final Death itself without flinching."
   ],
-
-  // ── Willpower (1-10 scale) ──
-  willpower: [
-    'Spineless',
-    'Weak',
-    'Unassertive',
-    'Diffident',
-    'Certain',
-    'Confident',
-    'Determined',
-    'Controlled',
-    'Iron-willed',
-    'Unshakable',
+  "willpower": [
+    "A stiff breeze changes your mind.",
+    "Weak-willed; you fold under any sustained pressure.",
+    "Unassertive; you drift toward the path of least resistance.",
+    "Diffident, though you dig in when it truly matters.",
+    "Certain of yourself; everyday pressure rolls off.",
+    "Confident and genuinely hard to sway.",
+    "Determined; obstacles just become fuel.",
+    "Controlled; your focus rarely cracks.",
+    "Iron-willed; almost nothing moves you off course.",
+    "Unbreakable; your resolve borders on the frightening."
   ],
-
-  // ── Humanity (0-10 scale, index = rating) ──
-  humanity: [
-    'Monstrous',
-    'Horrific',
-    'Bestial',
-    'Cold',
-    'Unfeeling',
-    'Distant',
-    'Removed',
-    'Normal',
-    'Caring',
-    'Compassionate',
-    'Saintly',
-  ],
+  "humanity": [
+    "Nothing human remains; the Beast wears the body now.",
+    "Monstrous; wanton destruction barely registers as an event.",
+    "You cause pain casually and feel almost nothing doing it.",
+    "Cruelty is a tool like any other; only true atrocity stirs anything in you.",
+    "Callous: theft, arson, and worse are acceptable costs of doing business.",
+    "Cold pragmatism; you destroy when it is useful and rest easily after.",
+    "Fraying but functional; the suffering of others troubles you less each year.",
+    "The everyday morality of the mortal world: harm bothers you, though you bend rules.",
+    "Kindly; you go out of your way to avoid causing pain.",
+    "Compassion governs you; even harsh words feel like violence.",
+    "Saintly; you would not harm a fly and struggle to believe others do."
+  ]
 };

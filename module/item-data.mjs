@@ -65,6 +65,7 @@ export class MeritData extends foundry.abstract.TypeDataModel {
 export class WeaponData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
+      weight: new f.NumberField({ required: true, nullable: false, initial: 0, min: 0 }),
       damage: str('0'),
       damageType: str('lethal'),
       difficulty: int(6, 1, 10),
@@ -73,6 +74,15 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
       capacity: str(''),
       ammo: str(''),
       rate: str(''),
+      // '' = judge by rate (10+ can full auto), 'yes'/'no' = the two liars
+      // in the compendium (USAS-12 hoses at rate 6, the 93R is burst-only)
+      fullAuto: str(''),
+      hands: int(1, 1, 2),
+      // bullets bruise Kindred: firearm damage downgrades to bashing on
+      // vampires unless the shot is aimed at the head
+      firearm: new f.BooleanField({ initial: false }),
+      // set automatically: the second one-handed weapon equipped rides here
+      offHand: new f.BooleanField({ initial: false }),
       requireTrait: str(''),
       requireMin: int(0, 0, 5),
       equipped: new f.BooleanField({ initial: false }),
@@ -84,6 +94,7 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
 export class ArmorData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
+      weight: new f.NumberField({ required: true, nullable: false, initial: 0, min: 0 }),
       rating: int(0, 0, 5),
       penalty: new f.NumberField({ required: true, nullable: false, initial: 0, min: -5, max: 0, integer: true }),
       equipped: new f.BooleanField({ initial: false }),
@@ -97,8 +108,44 @@ export class ArmorData extends foundry.abstract.TypeDataModel {
 export class EquipmentData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
+      weight: new f.NumberField({ required: true, nullable: false, initial: 0, min: 0 }),
       quantity: int(1, 0, 999),
       equipped: new f.BooleanField({ initial: false }),
+      description: new f.HTMLField({ initial: '' }),
+    };
+  }
+}
+
+export class PathData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    const power = () => new f.SchemaField({
+      name: str(''),
+      desc: str(''),
+      primary: str(''),
+      secondary: str(''),
+      difficulty: int(6, 2, 10),
+      cost: str(''),
+    });
+    return {
+      level: int(0, 0, 10),
+      category: str('thaumaturgical'),
+      description: new f.HTMLField({ initial: '' }),
+      powers: new f.SchemaField({
+        lvl1: power(),
+        lvl2: power(),
+        lvl3: power(),
+        lvl4: power(),
+        lvl5: power(),
+      }),
+    };
+  }
+}
+
+export class RitualData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    return {
+      level: int(1, 1, 5),
+      ritualType: str('thaumaturgical'),
       description: new f.HTMLField({ initial: '' }),
     };
   }
@@ -107,6 +154,7 @@ export class EquipmentData extends foundry.abstract.TypeDataModel {
 export class ContainerData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
+      weight: new f.NumberField({ required: true, nullable: false, initial: 0, min: 0 }),
       capacity: int(0, 0, 100),
       penalty: new f.NumberField({ required: true, nullable: false, initial: 0, min: -5, max: 0, integer: true }),
       equipped: new f.BooleanField({ initial: false }),

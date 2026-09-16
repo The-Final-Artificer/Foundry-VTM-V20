@@ -5,13 +5,15 @@
     "mortal": {}
   },
   "Item": {
-    "types": ["discipline", "background", "merit", "weapon", "armor", "equipment", "container"],
+    "types": ["discipline", "background", "merit", "weapon", "armor", "equipment", "container", "path", "ritual"],
     "discipline": {},
     "background": {},
     "merit": {},
     "weapon": {},
     "armor": {},
     "equipment": {},
-    "container": {}
+    "container": {},
+    "path": {},
+    "ritual": {}
   }
 }

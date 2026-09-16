@@ -3,6 +3,17 @@ export const DAZED_STATUS_ID = 'vtm-dazed';
 export const INCAPACITATED_STATUS_ID = 'vtm-incapacitated';
 export const STRUGGLING_IMMOBILIZED_STATUS_ID = 'vtm-immobilized-struggling';
 export const FULL_IMMOBILIZED_STATUS_ID = 'vtm-immobilized-full';
+export const CLINCHED_STATUS_ID = 'vtm-clinched';
+
+// V14 only draws token icons for effects that ask for it (HUD toggles get this
+// via fromStatusEffect); V13 has no such field and draws status effects anyway.
+export function statusIconVisibility() {
+  return CONST.ACTIVE_EFFECT_SHOW_ICON ? { showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON.ALWAYS } : {};
+}
+export const PRONE_STATUS_ID = 'vtm-prone';
+export const KNOCKDOWN_STATUS_ID = 'vtm-knockdown';
+export const FRENZY_STATUS_ID = 'vtm-frenzy';
+export const ROTSCHRECK_STATUS_ID = 'vtm-rotschreck';
 
 export function iterableValues(value) {
   if (!value) return [];

@@ -227,7 +227,7 @@ export class DeclarationApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await ChatMessage.create({
       content: `<div class="vtm-roll"><div class="roll-info" style="padding:6px 0"><span class="roll-actor">${this.combatant.name} declares:</span></div><div class="roll-meta">${intent}</div></div>`,
       speaker: ChatMessage.getSpeaker({ actor }),
-      type: CONST.CHAT_MESSAGE_STYLES.OTHER,
+      style: CONST.CHAT_MESSAGE_STYLES.OTHER,
     });
 
     game.vtm._captureAction = null;

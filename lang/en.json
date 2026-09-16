@@ -8,6 +8,8 @@
   "TYPES.Item.equipment": "Equipment",
   "TYPES.Item.armor": "Attire",
   "TYPES.Item.container": "Container",
+  "TYPES.Item.path": "Path",
+  "TYPES.Item.ritual": "Ritual",
 
   "VTM.SheetVampire": "VtM V20 Sheet",
   "VTM.SheetItem": "VtM V20 Item",

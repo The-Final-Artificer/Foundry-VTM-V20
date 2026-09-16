@@ -1,3 +1,5 @@
+import { computeMovement } from './movement.mjs';
+
 const f = foundry.data.fields;
 
 function int(initial, min = 0, max = 10) {
@@ -91,6 +93,9 @@ export class MortalData extends foundry.abstract.TypeDataModel {
         break;
       }
     }
+    this.rawWoundPenalty = this.woundPenalty;
+    if (this.parent?.getFlag('vtm-v20', 'wpIgnoreWounds')) this.woundPenalty = 0;
 
+    if (this.parent) this.movement = computeMovement(this.parent);
   }
 }

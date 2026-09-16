@@ -46,10 +46,42 @@
     {{#if dazedNotice}}
     <div class="combat-defended"><i class="fas fa-star"></i> {{dazedNotice}}</div>
     {{/if}}
+    {{#if quillsNotice}}
+    <div class="combat-hit"><i class="fas fa-bone"></i> {{quillsNotice}}</div>
+    {{/if}}
+    {{#if armorDestroyedNotice}}
+    <div class="combat-hit"><i class="fas fa-shield-alt"></i> {{armorDestroyedNotice}}</div>
+    {{/if}}
+    {{#if firearmNote}}
+    <div class="combat-hit"><i class="fas fa-crosshairs"></i> {{firearmNote}}</div>
+    {{/if}}
+    {{#if disarmMode}}
+    {{#if disarmSuccess}}
+    <div class="combat-hit"><i class="fas fa-hand-scissors"></i> {{defenderName}} is disarmed! ({{dmgSuccesses}} successes vs Strength {{disarmStr}})</div>
+    {{else}}
+    <div class="combat-defended"><i class="fas fa-shield-alt"></i> The strike glances off without disarming ({{dmgSuccesses}} successes vs Strength {{disarmStr}}). No damage dealt.</div>
+    {{/if}}
+    {{else}}
+    {{#if kissMode}}
+    {{#if kissPenetrated}}
+    <div class="combat-hit"><i class="fas fa-tint"></i> The bite penetrates! The Kiss takes hold of {{defenderName}}.</div>
+    {{#if kissCanResist}}
+    <div class="combat-actions">
+      <button type="button" class="kiss-resist-btn"><i class="fas fa-fist-raised"></i> Resist the Kiss</button>
+    </div>
+    {{else}}
+    <div class="combat-defended"><i class="fas fa-heart"></i> Mortals cannot resist the Kiss.</div>
+    {{/if}}
+    {{else}}
+    <div class="combat-defended"><i class="fas fa-shield-alt"></i> The bite failed to penetrate.</div>
+    {{/if}}
+    {{else}}
     {{#if noDamage}}
     <div class="combat-defended"><i class="fas fa-shield-alt"></i> {{#if damageAdjustment}}No damage applied.{{else}}All damage soaked!{{/if}}</div>
     {{else}}
     <div class="combat-hit">{{netDamage}} {{damageType}} damage to {{defenderName}}</div>
+    {{/if}}
+    {{/if}}
     {{/if}}
     <div class="combat-condition">
       {{defenderName}}: <span class="condition-label">{{condition}}</span>

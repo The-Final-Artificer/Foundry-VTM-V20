@@ -1,0 +1,107 @@
+<div class="atm">
+  <nav class="atm-nav">
+    <div class="atm-cats">
+      {{#each categories}}
+      <button type="button" class="atm-cat {{#if active}}active{{/if}}" data-action="pickCategory" data-cat="{{name}}">
+        <span class="atm-cat-name">{{name}}</span>
+        <span class="atm-cat-count {{#if filled}}some{{/if}}">{{filled}}/{{total}}</span>
+      </button>
+      {{/each}}
+    </div>
+    <div class="atm-tools">
+      {{#if needsRebuild}}
+      <p class="atm-rebuild-note hot">Applied text is waiting. Rebuild now to push it into the compendiums.</p>
+      <button type="button" class="atm-rebuild-hot" data-action="rebuild"><i class="fas fa-sync"></i> Rebuild Compendiums</button>
+      {{else}}
+      <p class="atm-rebuild-note">After applying pasted text, rebuild so the compendium entries pick it up.</p>
+      <button type="button" data-action="rebuild"><i class="fas fa-sync"></i> Rebuild Compendiums</button>
+      {{/if}}
+      <button type="button" data-action="exportJson"><i class="fas fa-file-export"></i> Export</button>
+      <button type="button" data-action="importJson"><i class="fas fa-file-import"></i> Import</button>
+    </div>
+  </nav>
+
+  <section class="atm-body">
+    <div class="atm-modes">
+      <button type="button" class="{{#if pasteMode}}active{{/if}}" data-action="setMode" data-mode="paste"><i class="fas fa-paste"></i> Paste &amp; Parse</button>
+      <button type="button" class="{{#unless pasteMode}}active{{/unless}}" data-action="setMode" data-mode="browse"><i class="fas fa-list"></i> Browse Slots</button>
+    </div>
+
+    {{#if pasteMode}}
+    <p class="atm-hint">Paste a chapter or section straight from your own copy of the book. The parser recognizes backgrounds, archetypes, disciplines with their paths and rituals (keep the section headers in the paste), merits and flaws, and attribute or ability ladders, cleans out page headers, and files every piece into its slot. Nothing is stored until you apply it.</p>
+    <textarea class="atm-paste" placeholder="Paste book text here...">{{pasteValue}}</textarea>
+    <div class="atm-actions">
+      <button type="button" class="atm-primary" data-action="parse"><i class="fas fa-magic"></i> Parse</button>
+      {{#if results}}<button type="button" data-action="clearResults">Clear results</button>{{/if}}
+    </div>
+
+    {{#if results}}
+    <div class="atm-summary">
+      <span class="chip ok">{{results.okCount}} clean</span>
+      {{#if results.warnCount}}<span class="chip warn">{{results.warnCount}} check these</span>{{/if}}
+      {{#if missing}}<span class="chip miss">{{missing.length}} not found</span>{{/if}}
+      {{#if results.skipped.length}}<span class="chip skip">{{results.skipped.length}} skipped</span>{{/if}}
+    </div>
+
+    <div class="atm-results">
+      {{#each results.rows}}
+      <details class="atm-row {{#if warn}}warn{{/if}}">
+        <summary>
+          <input type="checkbox" class="atm-row-check" data-idx="{{idx}}" {{#if checked}}checked{{/if}}>
+          <span class="atm-row-label">{{label}}</span>
+          <span class="atm-row-meta">{{chars}} chars{{#if notes}} &middot; {{notes}}{{/if}}</span>
+        </summary>
+        <textarea class="atm-row-text" data-idx="{{idx}}">{{text}}</textarea>
+      </details>
+      {{/each}}
+    </div>
+
+    {{#if missing}}
+    <details class="atm-extra">
+      <summary>Not found in this paste ({{missing.length}})</summary>
+      <ul>{{#each missing}}<li>{{this}}</li>{{/each}}</ul>
+    </details>
+    {{/if}}
+    {{#if results.skipped.length}}
+    <details class="atm-extra">
+      <summary>Skipped, no slot in the system ({{results.skipped.length}})</summary>
+      <ul>{{#each results.skipped}}<li>{{name}} ({{reason}})</li>{{/each}}</ul>
+    </details>
+    {{/if}}
+    {{#if results.leftovers.length}}
+    <details class="atm-extra">
+      <summary>Leftovers bin ({{results.leftovers.length}})</summary>
+      {{#each results.leftovers}}
+      <details class="atm-leftover"><summary>{{title}}</summary><pre>{{text}}</pre></details>
+      {{/each}}
+    </details>
+    {{/if}}
+
+    <div class="atm-actions">
+      <button type="button" class="atm-primary" data-action="apply"><i class="fas fa-check"></i> Apply selected</button>
+    </div>
+    {{/if}}
+
+    {{else}}
+    <div class="atm-browse-head">
+      <span class="atm-browse-title">{{category}}</span>
+      <button type="button" class="atm-danger" data-action="resetCategory"><i class="fas fa-undo"></i> Reset category to shipped text</button>
+    </div>
+    <div class="atm-slots">
+      {{#each browseSlots}}
+      <details class="atm-slot {{#if has}}has{{/if}}">
+        <summary>
+          <span class="atm-slot-state">{{#if has}}<i class="fas fa-book"></i>{{else}}<i class="fas fa-robot"></i>{{/if}}</span>
+          <span class="atm-row-label">{{label}}</span>
+        </summary>
+        <textarea class="atm-slot-text" data-key="{{key}}" placeholder="Paste the text for this entry alone...">{{value}}</textarea>
+        <div class="atm-slot-actions">
+          <button type="button" data-action="saveSlot" data-key="{{key}}">Save</button>
+          {{#if has}}<button type="button" data-action="clearSlot" data-key="{{key}}">Use shipped text</button>{{/if}}
+        </div>
+      </details>
+      {{/each}}
+    </div>
+    {{/if}}
+  </section>
+</div>

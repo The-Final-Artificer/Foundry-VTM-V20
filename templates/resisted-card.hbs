@@ -1,0 +1,44 @@
+<div class="vtm-roll vtm-combat-damage {{#if escaped}}damage-dealt{{else}}soaked{{/if}}">
+  <div class="roll-header dual-portrait">
+    <div class="roll-portrait-wrap">
+      <img class="roll-portrait" src="{{escaperImg}}" style="{{escaperPortraitStyle}}" />
+    </div>
+    <div class="roll-info">
+      <span class="roll-actor">{{title}}</span>
+      <span class="roll-label">{{escaperName}} vs {{holderName}}</span>
+    </div>
+    <div class="roll-portrait-wrap">
+      <img class="roll-portrait" src="{{holderImg}}" style="{{holderPortraitStyle}}" />
+    </div>
+  </div>
+
+  <div class="combat-damage-section">
+    <div class="damage-row">
+      <span class="damage-header"><i class="fas fa-person-running"></i> {{escaperName}} ({{escLabel}}), Pool {{escPool}}, Diff {{escDiff}}</span>
+      <div class="roll-dice">
+        {{#each escDice}}
+        <span class="die {{this.status}}">{{this.value}}</span>
+        {{/each}}
+      </div>
+      <span class="damage-subtotal">{{#if escAuto}}{{escDiceTotal}} + {{escAuto}} auto = {{/if}}{{escTotal}} successes</span>
+    </div>
+
+    <div class="damage-row">
+      <span class="damage-header"><i class="fas fa-hand-back-fist"></i> {{holderName}} ({{holdLabel}}), Pool {{holdPool}}, Diff {{holdDiff}}</span>
+      <div class="roll-dice">
+        {{#each holdDice}}
+        <span class="die {{this.status}}">{{this.value}}</span>
+        {{/each}}
+      </div>
+      <span class="damage-subtotal">{{#if holdAuto}}{{holdDiceTotal}} + {{holdAuto}} auto = {{/if}}{{holdTotal}} successes</span>
+    </div>
+  </div>
+
+  <div class="combat-summary">
+    {{#if escaped}}
+    <div class="combat-hit">{{escaperName}} breaks free! ({{net}} net)</div>
+    {{else}}
+    <div class="combat-defended"><i class="fas fa-link"></i> {{escaperName}} fails to break free. {{continueText}}</div>
+    {{/if}}
+  </div>
+</div>

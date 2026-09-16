@@ -16,7 +16,7 @@
 
   {{#unless noDice}}
   <div class="roll-meta">
-    {{sublabel}} | Pool {{pool}}, Diff {{difficulty}}
+    {{sublabel}} | Pool {{pool}}{{#if poolNote}} ({{poolNote}}){{/if}}, Diff {{difficulty}}
   </div>
   <div class="roll-dice">
     {{#each dice}}
@@ -26,7 +26,7 @@
   <div class="roll-result">
     {{#if (eq outcome "botch")}}<span class="result-botch">BOTCH!</span>{{/if}}
     {{#if (eq outcome "failure")}}<span class="result-fail">{{#if isAttack}}Miss!{{else}}Failure{{/if}}</span>{{/if}}
-    {{#if (eq outcome "success")}}<span class="result-success">{{#if autoSuccesses}}{{diceTotal}} + {{autoSuccesses}} Potence = {{/if}}{{total}} Success{{#if (gt total 1)}}es{{/if}}</span>{{/if}}
+    {{#if (eq outcome "success")}}<span class="result-success">{{#if autoSuccesses}}{{diceTotal}} + {{autoLabel}} = {{/if}}{{total}} Success{{#if (gt total 1)}}es{{/if}}</span>{{/if}}
   </div>
   {{/unless}}
 
@@ -49,7 +49,7 @@
   {{#if showDamageBtn}}
   <div class="combat-actions">
     <button type="button" class="combat-damage-btn">
-      <i class="fas fa-skull-crossbones"></i> Roll Damage
+      <i class="fas fa-skull-crossbones"></i> {{#if damageBtnLabel}}{{damageBtnLabel}}{{else}}Roll Damage{{/if}}
     </button>
   </div>
   {{/if}}

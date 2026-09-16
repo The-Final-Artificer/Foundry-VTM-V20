@@ -44,7 +44,7 @@ VTM.generationTable = {
   4:  { maxBlood: 50,  bloodPerTurn: 10, traitMax: 9 },
   5:  { maxBlood: 40,  bloodPerTurn: 8,  traitMax: 8 },
   6:  { maxBlood: 30,  bloodPerTurn: 6,  traitMax: 7 },
-  7:  { maxBlood: 20,  bloodPerTurn: 5,  traitMax: 6 },
+  7:  { maxBlood: 20,  bloodPerTurn: 4,  traitMax: 6 },
   8:  { maxBlood: 15,  bloodPerTurn: 3,  traitMax: 5 },
   9:  { maxBlood: 14,  bloodPerTurn: 2,  traitMax: 5 },
   10: { maxBlood: 13,  bloodPerTurn: 1,  traitMax: 5 },
@@ -68,7 +68,7 @@ VTM.healthLevels = [
 VTM.natures = [
   'Architect', 'Autocrat', 'Bon Vivant', 'Bravo', 'Capitalist',
   'Caregiver', 'Celebrant', 'Chameleon', 'Child', 'Competitor',
-  'Conformist', 'Conniver', 'Curmudgeon', 'Dabbler', 'Deviant',
+  'Conformist', 'Conniver', 'Creep Show', 'Curmudgeon', 'Dabbler', 'Deviant',
   'Director', 'Enigma', 'Eye of the Storm', 'Fanatic', 'Gallant',
   'Guru', 'Idealist', 'Judge', 'Loner', 'Martyr', 'Masochist',
   'Monster', 'Pedagogue', 'Penitent', 'Perfectionist', 'Rebel',
@@ -104,6 +104,8 @@ VTM.bearingLabels = [
 // Difficulty modifier by path/humanity rating
 VTM.bearingModifiers = { 10: -2, 9: -1, 8: -1, 7: 0, 6: 0, 5: 0, 4: 0, 3: 1, 2: 1, 1: 2, 0: null };
 
+VTM.pathCategories = ['thaumaturgical', 'necromantic'];
+VTM.ritualTypes = ['thaumaturgical', 'necromantic'];
 VTM.meritTypes = ['physical', 'social', 'mental', 'supernatural'];
 VTM.damageTypes = ['bashing', 'lethal', 'aggravated'];
 VTM.concealOptions = ['P', 'J', 'T', 'N'];

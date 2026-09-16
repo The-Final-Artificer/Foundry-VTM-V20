@@ -51,8 +51,13 @@ export function effectiveTraitValue(actor, path) {
   if (path === 'attributes.strength' && !isDisciplineActive(actor, 'potence')) {
     val += potenceLevel(actor);
   }
-  if (path === 'attributes.dexterity') {
+  // Extra Actions redirects the dots into speed: no passive dice while active
+  if (path === 'attributes.dexterity' && !actor.getFlag?.('vtm-v20', 'celerityActions')) {
     val += celerityLevel(actor);
+  }
+  const attr = path.split('.').pop();
+  if (['strength', 'dexterity', 'stamina'].includes(attr)) {
+    val += (actor.getFlag('vtm-v20', 'bloodBuffs')?.[attr] || 0);
   }
   return val;
 }

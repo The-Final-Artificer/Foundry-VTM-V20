@@ -23,6 +23,13 @@
         <option value="{{this.key}}" {{#if (eq this.key ../trait)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
         {{/each}}
       </optgroup>
+      {{#if bgOpts.length}}
+      <optgroup label="Backgrounds">
+        {{#each bgOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+      {{/if}}
     </select>
   </div>
 
@@ -50,6 +57,13 @@
         <option value="{{this.key}}" {{#if (eq this.key ../trait2)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
         {{/each}}
       </optgroup>
+      {{#if bgOpts.length}}
+      <optgroup label="Backgrounds">
+        {{#each bgOpts}}
+        <option value="{{this.key}}" {{#if (eq this.key ../trait2)}}selected{{/if}}>{{this.label}} ({{this.value}})</option>
+        {{/each}}
+      </optgroup>
+      {{/if}}
     </select>
   </div>
 
@@ -68,6 +82,12 @@
   <div class="form-group wound-pen-row armor-pen-row">
     <label>Armor Penalty (Dex)</label>
     <span class="wound-pen-val">{{armorPen}}</span>
+  </div>
+  {{/if}}
+  {{#if shadowPlayPool}}
+  <div class="form-group wound-pen-row potence-row">
+    <label>Shadow Play (Stealth/Intimidation)</label>
+    <span class="wound-pen-val">+{{shadowPlayPool}}</span>
   </div>
   {{/if}}
   {{#if potenceAuto}}
@@ -90,9 +110,29 @@
       <button type="button" class="diff-btn {{#if (eq difficulty 9)}}active{{/if}}" data-diff="9">9</button>
       <button type="button" class="diff-btn {{#if (eq difficulty 10)}}active{{/if}}" data-diff="10">10</button>
     </div>
+    {{#if encumbered}}
+    <div class="difficulty-pen-row encumbrance-diff-row">
+      <span class="wound-pen-val">+1 encumbered (physical action)</span>
+    </div>
+    {{/if}}
+    {{#if unbalanced}}
+    <div class="difficulty-pen-row">
+      <span class="wound-pen-val">+1 unbalanced (tackled last round)</span>
+    </div>
+    {{/if}}
     {{#if blindedPenalty}}
     <div class="difficulty-pen-row blinded-pen-row">
       <span class="wound-pen-val">+{{blindedPenalty}} because of blinded condition</span>
+    </div>
+    {{/if}}
+    {{#if wolfPerceptionBonus}}
+    <div class="difficulty-pen-row wolf-form-row">
+      <span class="wound-pen-val">{{wolfPerceptionBonus}} Wolf Form (heightened senses)</span>
+    </div>
+    {{/if}}
+    {{#if batPerceptionBonus}}
+    <div class="difficulty-pen-row wolf-form-row">
+      <span class="wound-pen-val">{{batPerceptionBonus}} Bat Form (acute hearing)</span>
     </div>
     {{/if}}
   </div>

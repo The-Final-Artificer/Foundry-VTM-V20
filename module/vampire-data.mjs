@@ -1,3 +1,6 @@
+import { computeMovement } from './movement.mjs';
+import { FRENZY_STATUS_ID, ROTSCHRECK_STATUS_ID } from './status-effects.mjs';
+
 const f = foundry.data.fields;
 
 function int(initial, min = 0, max = 10) {
@@ -24,11 +27,12 @@ export class VampireData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
       player: str(), chronicle: str(), nature: str(), demeanor: str(),
+      apparentAge: str(), trueAge: str(),
       concept: str(), clan: str(), generation: int(13, 3, 15), sire: str(),
 
       attributes: new f.SchemaField({
         strength: int(1), dexterity: int(1), stamina: int(1),
-        charisma: int(1), manipulation: int(1), appearance: int(1),
+        charisma: int(1), manipulation: int(1), appearance: int(0, 0),
         perception: int(1), intelligence: int(1), wits: int(1),
       }),
 
@@ -98,6 +102,9 @@ export class VampireData extends foundry.abstract.TypeDataModel {
       if (this.blood.value > this.blood.max) this.blood.value = this.blood.max;
     }
 
+    // Nosferatu always have Appearance 0
+    if (this.clan?.toLowerCase() === 'nosferatu') this.attributes.appearance = 0;
+
     const levels = Object.values(this.health.levels);
     this.health.value = levels.filter(v => v === 0).length;
     this.health.max = levels.length;
@@ -111,6 +118,11 @@ export class VampireData extends foundry.abstract.TypeDataModel {
         break;
       }
     }
+    this.rawWoundPenalty = this.woundPenalty;
+    if (this.parent?.getFlag('vtm-v20', 'wpIgnoreWounds')) this.woundPenalty = 0;
+    // The Beast feels no pain: frenzy and the Red Fear ignore wound penalties
+    if (this.parent?.statuses?.has(FRENZY_STATUS_ID) || this.parent?.statuses?.has(ROTSCHRECK_STATUS_ID)) this.woundPenalty = 0;
 
+    if (this.parent) this.movement = computeMovement(this.parent);
   }
 }

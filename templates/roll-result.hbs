@@ -9,7 +9,7 @@
     </div>
   </div>
   <div class="roll-meta">
-    Pool {{pool}} | Difficulty {{difficulty}}{{#if specialty}} | Specialty{{/if}}
+    Pool {{pool}}{{#if poolNote}} ({{poolNote}}){{/if}} | Difficulty {{difficulty}}{{#if specialty}} | Specialty{{/if}}
   </div>
   <div class="roll-dice">
     {{#each dice}}
@@ -21,7 +21,7 @@
     {{#if (eq outcome "failure")}}<span class="result-fail">Failure</span>{{/if}}
     {{#if (eq outcome "success")}}
       <span class="result-success">
-        {{#if autoSuccesses}}{{diceTotal}} + {{autoSuccesses}} Potence = {{/if}}{{total}} Success{{#if (gt total 1)}}es{{/if}}
+        {{#if autoSuccesses}}{{diceTotal}} + {{autoLabel}} = {{/if}}{{total}} Success{{#if (gt total 1)}}es{{/if}}
       </span>
     {{/if}}
   </div>
