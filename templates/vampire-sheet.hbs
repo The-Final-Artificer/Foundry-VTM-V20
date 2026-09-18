@@ -131,8 +131,8 @@
 
 {{#if frenzied}}
 <div class="frenzy-banner">
-  <span class="frenzy-title"><i class="fas {{frenzyIcon}}"></i> {{frenzyName}}</span>
-  <span class="frenzy-effects">No wound penalties. Dominate against you at +2 difficulty, resisting it at -2. No Willpower rolls needed. Immune to R&ouml;tschreck.</span>
+  <span class="frenzy-title"><span class="frenzy-icon-wrap"><span class="frenzy-banner-icon" style="-webkit-mask-image: url('{{frenzyIcon}}'); mask-image: url('{{frenzyIcon}}');"></span></span> {{frenzyName}}</span>
+  <span class="frenzy-effects">No wound penalties. Dominate against you at +2 difficulty, resisting it at -2. No Willpower rolls needed. Immune to R&ouml;tschreck.{{#if brujahFrenzyNote}} <b>Brujah:</b> may NEVER spend Willpower to avoid frenzy, but may spend 1 Willpower to end the frenzy.{{/if}}</span>
   {{#if frenzyInstinct}}
   <button type="button" class="ride-wave-btn"><i class="fas fa-water"></i> Ride the Wave</button>
   {{/if}}
@@ -173,7 +173,7 @@
             <span class="trait-label rollable" data-roll="{{this.rollKey}}" data-label="{{this.label}}">{{this.label}}{{#if this.specialties.length}}<span class="trait-spec"> ({{join this.specialties ", "}})</span>{{/if}}</span>
             {{#if this.canSpecialize}}<button type="button" class="spec-edit" title="Edit specialties"><i class="fas fa-pen-fancy"></i></button>{{/if}}
             <div class="dot-row" data-path="{{this.path}}">
-              {{{vtmDots this.value 5}}}
+              {{{vtmDots this.value @root.traitMax}}}
             </div>
           </div>
           {{/each}}
@@ -193,7 +193,7 @@
             <span class="trait-label rollable" data-roll="{{this.rollKey}}" data-label="{{this.label}}">{{this.label}}{{#if this.specialties.length}}<span class="trait-spec"> ({{join this.specialties ", "}})</span>{{/if}}</span>
             {{#if this.canSpecialize}}<button type="button" class="spec-edit" title="Edit specialties"><i class="fas fa-pen-fancy"></i></button>{{/if}}
             <div class="dot-row" data-path="{{this.path}}">
-              {{{vtmDots this.value 5}}}
+              {{{vtmDots this.value @root.traitMax}}}
             </div>
           </div>
           {{/each}}
@@ -215,7 +215,7 @@
             <img class="item-img" src="{{this.img}}" width="25" height="25" />
             <span class="item-name item-open">{{this.name}}</span>
             <div class="dot-row item-dots" data-item-id="{{this._id}}" data-field="system.level">
-              {{{vtmDots this.system.level 5}}}
+              {{{vtmDots this.system.level @root.traitMax}}}
             </div>
             {{#if this.activatable}}
             <button type="button" class="discipline-activate {{#if this.active}}active{{/if}}" data-item-id="{{this._id}}" title="{{#if this.active}}Deactivate{{else}}Activate (1 blood){{/if}}">
@@ -237,7 +237,7 @@
             <div class="item" data-item-id="{{this._id}}">
               <span class="item-name item-open">{{this.name}}</span>
               <div class="dot-row item-dots" data-item-id="{{this._id}}" data-field="system.rating">
-                {{{vtmDots this.system.rating 5}}}
+                {{{vtmDots this.system.rating @root.traitMax}}}
               </div>
               {{#if this.system.rating}}
               <button type="button" class="bg-roll" data-item-id="{{this._id}}" data-name="{{this.name}}" title="Roll {{this.name}}">
@@ -314,7 +314,7 @@
               <img class="item-img" src="{{this.img}}" width="25" height="25" />
               <span class="item-name item-open">{{this.name}}</span>
               <div class="dot-row item-dots" data-item-id="{{this._id}}" data-field="system.level">
-                {{{vtmDots this.system.level 5}}}
+                {{{vtmDots this.system.level @root.traitMax}}}
               </div>
               <div class="item-controls">
                 <a class="item-delete" title="Delete"><i class="fas fa-trash"></i></a>

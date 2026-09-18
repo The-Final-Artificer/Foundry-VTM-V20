@@ -205,13 +205,14 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         ? ctx.system.level : 5;
       const disc = item.name.toLowerCase();
 
-      ctx.powerLevels = [1, 2, 3, 4, 5].filter(n => n <= maxVisible).map(n => {
+      ctx.powerLevels = await Promise.all([1, 2, 3, 4, 5].filter(n => n <= maxVisible).map(async n => {
         const key = `lvl${n}`;
         const power = ctx.system.powers[key];
         const needsActivate = (disc === 'vicissitude' && key === 'lvl3');
         return {
           num: n, key,
           name: power.name, desc: power.desc,
+          enrichedDesc: await TextEditor.enrichHTML(power.desc || '', { relativeTo: item }),
           difficulty: power.difficulty, cost: power.cost,
           primary: power.primary, secondary: power.secondary,
           hasRoll: !!power.primary,
@@ -219,7 +220,7 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           primaryOptions: traitOpts.map(o => ({ ...o, selected: o.key === power.primary })),
           secondaryOptions: traitOpts.map(o => ({ ...o, selected: o.key === power.secondary })),
         };
-      });
+      }));
     }
 
     if (item.type === 'weapon') {
@@ -238,6 +239,8 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     }
 
     ctx.enrichedDescription = await TextEditor.enrichHTML(item.system.description || '', { relativeTo: item });
+    // Dot cap follows the owner's generation; unowned items show the mortal cap
+    ctx.traitMax = item.parent?.system?.traitMax || 5;
     return ctx;
   }
 
@@ -372,9 +375,9 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           if (!ok) return;
           const origApp = actor.system.attributes.appearance;
           await actor.setFlag('vtm-v20', 'skinOfTheAdder', { appearance: origApp });
-          if (origApp > 1) await actor.update({ 'system.attributes.appearance': 1 });
+          await actor.update({ 'system.attributes.appearance': 1 });
           await markActive('serpentis');
-          await whisperActivation(actor, pName, 'Soak difficulty 5, Appearance set to 1.', power.cost);
+          await whisperActivation(actor, pName, 'Soak difficulty 5, bite +1 damage, Appearance set to 1.', power.cost);
           return;
         }
 

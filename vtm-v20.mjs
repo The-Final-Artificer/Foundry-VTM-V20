@@ -11,6 +11,7 @@ import { populateCompendiums, registerCompendiumSettings, WEAPONS } from './modu
 import { registerAuthenticSettings } from './module/authentic-store.mjs';
 import { AuthenticTextManager } from './module/authentic-manager.mjs';
 import { ChargenWizard } from './module/chargen.mjs';
+import { countDamage, rebuildTrack } from './module/health-track.mjs';
 import {
   BLINDED_STATUS_ID,
   CLINCHED_STATUS_ID,
@@ -622,6 +623,25 @@ Hooks.on('updateCombat', (combat, changes) => {
 Hooks.on('createActiveEffect', effect => {
   enforceExclusiveCoverStatus(effect);
   enforceExclusiveImmobilizationStatus(effect);
+});
+
+// Huge Size grants an extra Bruised health level
+function isHugeSize(item) {
+  return item.type === 'merit' && /huge size/i.test(item.name) && item.parent?.system?.health;
+}
+
+Hooks.on('createItem', async (item, options, userId) => {
+  if (userId !== game.user.id || !isHugeSize(item)) return;
+  const actor = item.parent;
+  const count = actor.system.health.extra?.length ?? 0;
+  await actor.update(rebuildTrack(actor.system, countDamage(actor.system), count + 1));
+});
+
+Hooks.on('deleteItem', async (item, options, userId) => {
+  if (userId !== game.user.id || !isHugeSize(item)) return;
+  const actor = item.parent;
+  const count = actor.system.health.extra?.length ?? 0;
+  if (count > 0) await actor.update(rebuildTrack(actor.system, countDamage(actor.system), count - 1));
 });
 
 Hooks.on('updateActiveEffect', effect => {

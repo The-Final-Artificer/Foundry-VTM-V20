@@ -804,6 +804,13 @@ textarea#chat-message {
   display: inline-block;
 }
 
+/* Generation 3 shows 10 dots per trait; nudge them down so rows still fit */
+.vtm-v20 .trait-row .dot-row:has(.dot:nth-child(10)) .dot,
+.vtm-v20 .item-dots:has(.dot:nth-child(10)) .dot {
+  width: 13px;
+  height: 13px;
+}
+
 .vtm-v20 .dot.filled {
   background: var(--vtm-red);
   border-color: var(--vtm-red);
@@ -1480,12 +1487,37 @@ textarea#chat-message {
   animation: frenzy-pulse 1.6s ease-in-out infinite;
 }
 .vtm-v20 .frenzy-banner .frenzy-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 800;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--vtm-red);
   text-shadow: 0 0 8px var(--vtm-red-glow);
   white-space: nowrap;
+}
+/* The status SVG as a mask so the icon takes the banner's red. The mask-image
+   itself is set inline on the element: a relative url() routed through a CSS
+   variable resolves against this stylesheet's folder and 404s, and a missing
+   mask image blanks the element. Glow lives on the wrapper because filter +
+   mask on one element clips the shadow. */
+.vtm-v20 .frenzy-banner .frenzy-icon-wrap {
+  display: inline-flex;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0 6px var(--vtm-red-glow));
+}
+.vtm-v20 .frenzy-banner .frenzy-banner-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  background: var(--vtm-red);
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
 }
 .vtm-v20 .frenzy-banner .frenzy-effects {
   flex: 1;
@@ -1643,10 +1675,9 @@ textarea#chat-message {
 }
 
 .vtm-v20 .exp-fields .field {
-  flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 6px;
 }
 
 .vtm-v20 .exp-fields label {
@@ -1661,8 +1692,8 @@ textarea#chat-message {
   border: 1px solid var(--vtm-border);
   border-radius: 3px;
   color: var(--vtm-text-bright);
-  padding: 4px 6px;
-  width: 100%;
+  padding: 3px 6px;
+  width: 64px;
   font-weight: 700;
   text-align: center;
 }
@@ -2963,6 +2994,35 @@ textarea#chat-message {
 .vtm-v20.sheet.item .power-desc b {
   color: var(--vtm-gold);
   letter-spacing: 0.5px;
+}
+
+/* Description editors size to their content, no inner scrollbars. Core lays
+   prose-mirror out as a fixed box whose .editor-content is absolutely
+   positioned (out of flow), so the box never grows with the text. Static
+   positioning puts the text back in flow and the block wraps it. */
+.vtm-v20.sheet.item .disc-description prose-mirror,
+.vtm-v20.sheet.item .power-desc prose-mirror {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+.vtm-v20.sheet.item .disc-description prose-mirror .editor-container,
+.vtm-v20.sheet.item .power-desc prose-mirror .editor-container {
+  overflow: visible;
+}
+.vtm-v20.sheet.item .disc-description prose-mirror .editor-content,
+.vtm-v20.sheet.item .power-desc prose-mirror .editor-content {
+  position: static;
+  overflow: visible;
+  padding-right: 0;
+}
+
+/* An open editor still needs room to click into */
+.vtm-v20.sheet.item .disc-description prose-mirror .editor-content[contenteditable=""],
+.vtm-v20.sheet.item .power-desc prose-mirror .editor-content[contenteditable=""],
+.vtm-v20.sheet.item .disc-description prose-mirror .editor-content[contenteditable="true"],
+.vtm-v20.sheet.item .power-desc prose-mirror .editor-content[contenteditable="true"] {
+  min-height: 120px;
 }
 
 /* Name row (char name + lock) */

@@ -73,8 +73,10 @@ export class VampireData extends foundry.abstract.TypeDataModel {
           wounded: int(0, 0, 3), mauled: int(0, 0, 3), crippled: int(0, 0, 3),
           incapacitated: int(0, 0, 3),
         }),
-        value: int(7, 0, 7),
-        max: int(7, 0, 7),
+        // Extra bruised boxes (Huge Size, GM additions), one damage value each
+        extra: new f.ArrayField(int(0, 0, 3), { required: true, nullable: false, initial: [] }),
+        value: int(7, 0, 20),
+        max: int(7, 0, 20),
       }),
 
       experience: new f.SchemaField({
@@ -105,7 +107,7 @@ export class VampireData extends foundry.abstract.TypeDataModel {
     // Nosferatu always have Appearance 0
     if (this.clan?.toLowerCase() === 'nosferatu') this.attributes.appearance = 0;
 
-    const levels = Object.values(this.health.levels);
+    const levels = [...Object.values(this.health.levels), ...(this.health.extra ?? [])];
     this.health.value = levels.filter(v => v === 0).length;
     this.health.max = levels.length;
 

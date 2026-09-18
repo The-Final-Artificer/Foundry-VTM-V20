@@ -14,6 +14,7 @@ import {
   iterableValues,
 } from './status-effects.mjs';
 import { disciplineLevel, isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
+import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
 
 const TARGETING_ARMOR_REQUESTS = new Map();
 
@@ -1911,17 +1912,9 @@ export async function rollDamage(msg) {
 // ── Health Damage Application ───────────────────────────────────────
 
 export async function applyHealthDamage(actor, amount, type) {
-  const levels = foundry.utils.deepClone(actor.system.health.levels);
-  const keys = ['bruised', 'hurt', 'injured', 'wounded', 'mauled', 'crippled', 'incapacitated'];
-  const cap = keys.length;
-
-  // Count what's already on the track
-  let bash = 0, leth = 0, agg = 0;
-  for (const k of keys) {
-    if (levels[k] === 1) bash++;
-    else if (levels[k] === 2) leth++;
-    else if (levels[k] === 3) agg++;
-  }
+  const sys = actor.system;
+  const cap = trackSize(sys);
+  let { bash, leth, agg } = countDamage(sys);
 
   // Add new damage: fill empty slots first, overflow upgrades lower types
   const filled = agg + leth + bash;
@@ -1944,13 +1937,7 @@ export async function applyHealthDamage(actor, amount, type) {
   }
 
   // Rebuild track with V20 ordering: agg on top, then lethal, then bashing
-  let idx = 0;
-  for (let i = 0; i < agg && idx < cap; i++) levels[keys[idx++]] = 3;
-  for (let i = 0; i < leth && idx < cap; i++) levels[keys[idx++]] = 2;
-  for (let i = 0; i < bash && idx < cap; i++) levels[keys[idx++]] = 1;
-  while (idx < cap) levels[keys[idx++]] = 0;
-
-  await actor.update({ 'system.health.levels': levels });
+  await actor.update(rebuildTrack(sys, { bash, leth, agg }));
 }
 
 

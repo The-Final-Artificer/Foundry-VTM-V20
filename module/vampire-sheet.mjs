@@ -9,6 +9,7 @@ import { archetypeAuthentic, traitAuthentic } from './authentic-store.mjs';
 import { disciplineLevel, isDisciplineActive, potenceLevel, potenceAutoSuccesses, celerityLevel, effectiveTraitValue, effectiveStrength, usesStrengthTrait } from './discipline-effects.mjs';
 import { exportSheet } from './sheet-export.mjs';
 import { computeCarry } from './movement.mjs';
+import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ActorSheetV2 } = foundry.applications.sheets;
@@ -100,6 +101,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       controls: [
         { icon: "fas fa-magic", label: "Chargen", action: "toggleChargen" },
         { icon: "fas fa-file-export", label: "Export Sheet", action: "exportSheet" },
+        { icon: "fas fa-heart-circle-plus", label: "Health Levels", action: "manageHealth" },
       ]
     },
     form: { submitOnChange: true },
@@ -123,8 +125,14 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       resDeferredNow: VampireSheet.#onResDeferredNow,
       toggleCompact: VampireSheet.#onToggleCompact,
       exportSheet: VampireSheet.#onExportSheet,
+      manageHealth: VampireSheet.#onManageHealth,
     }
   };
+
+  _getHeaderControls() {
+    const controls = super._getHeaderControls();
+    return game.user.isGM ? controls : controls.filter(c => c.action !== 'manageHealth');
+  }
 
   static PARTS = {
     sheet: { template: "systems/vtm-v20/templates/vampire-sheet.hbs" }
@@ -354,12 +362,14 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       note: 'Both combatants save Dex + Athletics (diff 7) or are knocked down',
     });
     if (actor.type === 'vampire') {
+      // Skin of the Adder sharpens the fangs: +1 bite damage while active
+      const biteDmg = actor.getFlag('vtm-v20', 'skinOfTheAdder') ? 'Str+2' : 'Str+1';
       attacks.push({
         id: 'bite', name: 'Bite',
         img: 'systems/vtm-v20/VTM icons/fangs.svg',
         pool: `Dex + Brawl + 1 (${dex + (sys.abilities?.brawl || 0) + 1})`,
-        damage: damageDisplay('Str+1', strVal, potAuto),
-        damageType: 'aggravated', damageFormula: 'Str+1',
+        damage: damageDisplay(biteDmg, strVal, potAuto),
+        damageType: 'aggravated', damageFormula: biteDmg,
         skill: 'abilities.brawl', isRanged: false,
         accuracyMod: 1, bite: true,
         note: 'Only in a clinch, hold, or tackle',
@@ -714,6 +724,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       damageLabel: ['', '/', 'X', '*'][sys.health.levels[h.key]],
       cssClass: ['', 'bashing', 'lethal', 'aggravated'][sys.health.levels[h.key]]
     }));
+    // Extra bruised boxes (Huge Size, GM additions) slot in right after Bruised
+    const extraRows = (sys.health.extra ?? []).map((v, i) => ({
+      key: `extra-${i}`,
+      label: game.i18n.localize('VTM.HealthBruised'),
+      penalty: 0, desc: healthDescs.bruised,
+      damage: v,
+      damageLabel: ['', '/', 'X', '*'][v],
+      cssClass: ['', 'bashing', 'lethal', 'aggravated'][v]
+    }));
+    ctx.healthTrack.splice(1, 0, ...extraRows);
     if (actor.type === 'vampire') {
       ctx.healthTrack.push({ key: 'torpor', label: 'Torpor', penalty: null, desc: healthDescs.torpor, infoOnly: true });
     }
@@ -748,7 +768,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const inRotschreck = hasStatus(ROTSCHRECK_STATUS_ID, actor);
     ctx.frenzied = this.document.type === 'vampire' && (inFrenzy || inRotschreck);
     ctx.frenzyName = inFrenzy ? 'Frenzy' : 'R\u00f6tschreck';
-    ctx.frenzyIcon = inFrenzy ? 'fa-paw' : 'fa-running';
+    // Same art as the token status effect
+    const statusImg = id => CONFIG.statusEffects?.find(e => e.id === id)?.img;
+    ctx.frenzyIcon = inFrenzy ? statusImg(FRENZY_STATUS_ID) : statusImg(ROTSCHRECK_STATUS_ID);
+    ctx.brujahFrenzyNote = inFrenzy && /brujah/i.test(sys.clan || '');
     ctx.frenzyInstinct = this.document.type === 'vampire' && inFrenzy
       && /instinct/i.test(actor.getFlag('vtm-v20', 'virtueLabels')?.selfControl || '');
     ctx.woundsIgnored = !!actor.getFlag('vtm-v20', 'wpIgnoreWounds');
@@ -802,7 +825,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (actor.getFlag('vtm-v20', 'horridReality'))
       fx.push({ name: 'Horrid Reality', icon: 'fa-brain', desc: 'Horrid Reality Injury attack available (Man + Sub vs Perc + SC, no soak)' });
     if (actor.getFlag('vtm-v20', 'skinOfTheAdder'))
-      fx.push({ name: 'Skin of the Adder', icon: 'fa-shield-alt', desc: 'Soak diff 5, can soak agg (claws/fangs), bite +1 die, Appearance 1' });
+      fx.push({ name: 'Skin of the Adder', icon: 'fa-shield-alt', desc: 'Soak diff 5, can soak agg (claws/fangs), bite +1 damage, Appearance 1' });
     if (actor.items.find(i => i.type === 'weapon' && i.name === 'Feral Claws'))
       fx.push({ name: 'Feral Claws', icon: 'fa-hand-rock', desc: 'Str+1 aggravated, climbing diff -2' });
     if (actor.items.find(i => i.type === 'weapon' && i.name === 'Bone Spikes'))
@@ -1019,6 +1042,13 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     el.querySelectorAll('.health-box').forEach(box =>
       box.addEventListener('click', () => {
         const level = box.dataset.level;
+        if (level.startsWith('extra-')) {
+          const idx = parseInt(level.slice(6), 10);
+          const extra = [...(this.document.system.health.extra ?? [])];
+          extra[idx] = ((extra[idx] || 0) + 1) % 4;
+          this.document.update({ 'system.health.extra': extra });
+          return;
+        }
         const cur = this.document.system.health.levels[level];
         this.document.update({ [`system.health.levels.${level}`]: (cur + 1) % 4 });
       }));
@@ -1671,6 +1701,32 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static #onExportSheet() {
     if (this._chargen) return;
     exportSheet(this);
+  }
+
+  static async #onManageHealth() {
+    if (!game.user.isGM) return;
+    const actor = this.document;
+    const sys = actor.system;
+    const count = sys.health.extra?.length ?? 0;
+
+    const choice = await foundry.applications.api.DialogV2.wait({
+      window: { title: `${actor.name}: Health Levels` },
+      content: `<p>Current track: <strong>${7 + count}</strong> levels (${count} extra Bruised).</p>
+        <p style="font-size: 12px; opacity: 0.8;">Added levels are always of the Bruised variant.</p>`,
+      buttons: [
+        { action: 'add', label: 'Add Level', icon: 'fas fa-plus' },
+        { action: 'remove', label: 'Remove Level', icon: 'fas fa-minus' },
+        { action: 'close', label: 'Close', default: true },
+      ],
+      rejectClose: false,
+    });
+
+    if (choice === 'add') {
+      await actor.update(rebuildTrack(sys, countDamage(sys), count + 1));
+    } else if (choice === 'remove') {
+      if (!count) return ui.notifications.warn('No extra health levels to remove.');
+      await actor.update(rebuildTrack(sys, countDamage(sys), count - 1));
+    }
   }
 
   static #onToggleCompact() {
@@ -3846,23 +3902,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         } else if (result?.outcome === 'botch') {
           const totalLoss = amount + 1;
           const newBlood = Math.max(0, (sys.blood?.value || 0) - totalLoss);
-          const levels = foundry.utils.deepClone(sys.health.levels);
-          const hpKeys = ['bruised', 'hurt', 'injured', 'wounded', 'mauled', 'crippled', 'incapacitated'];
-          let bash = 0, leth = 0, agg = 0;
-          for (const k of hpKeys) {
-            if (levels[k] === 1) bash++;
-            else if (levels[k] === 2) leth++;
-            else if (levels[k] === 3) agg++;
-          }
-          bash++;
-          const total = agg + leth + bash;
-          if (total > 7) bash = Math.max(0, 7 - agg - leth);
-          let hi = 0;
-          for (let i = 0; i < agg; i++) levels[hpKeys[hi++]] = 3;
-          for (let i = 0; i < leth; i++) levels[hpKeys[hi++]] = 2;
-          for (let i = 0; i < bash; i++) levels[hpKeys[hi++]] = 1;
-          while (hi < hpKeys.length) levels[hpKeys[hi++]] = 0;
-          await actor.update({ 'system.health.levels': levels, 'system.blood.value': newBlood });
+          const counts = countDamage(sys);
+          const cap = trackSize(sys);
+          counts.bash++;
+          if (counts.agg + counts.leth + counts.bash > cap) counts.bash = Math.max(0, cap - counts.agg - counts.leth);
+          await actor.update({ ...rebuildTrack(sys, counts), 'system.blood.value': newBlood });
 
           await ChatMessage.create({
             speaker: ChatMessage.getSpeaker({ actor }),
@@ -4345,16 +4389,17 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const total = base + buff;
 
       if (buff > 0) {
+        const tMax = sys.traitMax || 5;
         let dots = '';
-        if (total <= 5) {
-          for (let i = 1; i <= 5; i++) {
+        if (total <= tMax) {
+          for (let i = 1; i <= tMax; i++) {
             if (i <= base) dots += `<span class="dot filled" data-value="${i}"></span>`;
             else if (i <= total) dots += `<span class="dot blood-buff" data-value="${i}"></span>`;
             else dots += `<span class="dot empty" data-value="${i}"></span>`;
           }
         } else {
-          const overflow = total - 5;
-          for (let i = 1; i <= 5; i++) {
+          const overflow = total - tMax;
+          for (let i = 1; i <= tMax; i++) {
             if (i <= overflow) dots += `<span class="dot blood-buff" data-value="${i}"></span>`;
             else dots += `<span class="dot empty" data-value="${i}"></span>`;
           }
@@ -5053,8 +5098,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const blood = sys.blood?.value || 0;
     const perTurn = sys.bloodPerTurn || 1;
 
-    const keys = ['bruised', 'hurt', 'injured', 'wounded', 'mauled', 'crippled', 'incapacitated'];
-    const normal = keys.reduce((n, k) => n + (sys.health.levels[k] === 1 || sys.health.levels[k] === 2 ? 1 : 0), 0);
+    const dmg = countDamage(sys);
+    const normal = dmg.bash + dmg.leth;
 
     if (!normal) return ui.notifications.info('No bashing or lethal damage to heal.');
     if (!blood) return ui.notifications.warn(`${actor.name} has no blood to spend.`);
@@ -5104,8 +5149,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const blood = sys.blood?.value || 0;
     const perTurn = sys.bloodPerTurn || 1;
 
-    const keys = ['bruised', 'hurt', 'injured', 'wounded', 'mauled', 'crippled', 'incapacitated'];
-    const normal = keys.reduce((n, k) => n + (sys.health.levels[k] === 1 || sys.health.levels[k] === 2 ? 1 : 0), 0);
+    const dmg = countDamage(sys);
+    const normal = dmg.bash + dmg.leth;
 
     if (!normal) return ui.notifications.info('No bashing or lethal damage to heal.');
     if (!blood) return ui.notifications.warn(`${actor.name} has no blood to spend.`);
@@ -5146,22 +5191,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     } else if (result?.outcome === 'botch') {
       const totalLoss = amount + 1;
       const newBlood = Math.max(0, blood - totalLoss);
-      const levels = foundry.utils.deepClone(sys.health.levels);
-      let bash = 0, leth = 0, agg = 0;
-      for (const k of keys) {
-        if (levels[k] === 1) bash++;
-        else if (levels[k] === 2) leth++;
-        else if (levels[k] === 3) agg++;
-      }
-      bash++;
-      const total = agg + leth + bash;
-      if (total > 7) bash = Math.max(0, 7 - agg - leth);
-      let hi = 0;
-      for (let i = 0; i < agg; i++) levels[keys[hi++]] = 3;
-      for (let i = 0; i < leth; i++) levels[keys[hi++]] = 2;
-      for (let i = 0; i < bash; i++) levels[keys[hi++]] = 1;
-      while (hi < keys.length) levels[keys[hi++]] = 0;
-      await actor.update({ 'system.health.levels': levels, 'system.blood.value': newBlood });
+      const counts = countDamage(sys);
+      const cap = trackSize(sys);
+      counts.bash++;
+      if (counts.agg + counts.leth + counts.bash > cap) counts.bash = Math.max(0, cap - counts.agg - counts.leth);
+      await actor.update({ ...rebuildTrack(sys, counts), 'system.blood.value': newBlood });
       if (inCombat) this._resBloodSpent += totalLoss;
 
       await ChatMessage.create({
@@ -5184,15 +5218,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // Remove `amount` normal levels (lethal first, then bashing) and spend the blood
   async _applyHeal(amount) {
     const actor = this.document;
-    const levels = foundry.utils.deepClone(actor.system.health.levels);
-    const keys = ['bruised', 'hurt', 'injured', 'wounded', 'mauled', 'crippled', 'incapacitated'];
-
-    let bash = 0, leth = 0, agg = 0;
-    for (const k of keys) {
-      if (levels[k] === 1) bash++;
-      else if (levels[k] === 2) leth++;
-      else if (levels[k] === 3) agg++;
-    }
+    let { bash, leth, agg } = countDamage(actor.system);
 
     let healed = 0;
     for (let i = 0; i < amount; i++) {
@@ -5202,15 +5228,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       healed++;
     }
 
-    // Rebuild track: agg on top, then lethal, then bashing, rest empty
-    let idx = 0;
-    for (let i = 0; i < agg; i++) levels[keys[idx++]] = 3;
-    for (let i = 0; i < leth; i++) levels[keys[idx++]] = 2;
-    for (let i = 0; i < bash; i++) levels[keys[idx++]] = 1;
-    while (idx < keys.length) levels[keys[idx++]] = 0;
-
     const newBlood = Math.max(0, (actor.system.blood.value || 0) - healed);
-    await actor.update({ 'system.health.levels': levels, 'system.blood.value': newBlood });
+    await actor.update({
+      ...rebuildTrack(actor.system, { bash, leth, agg }),
+      'system.blood.value': newBlood,
+    });
     return healed;
   }
 
@@ -5602,13 +5624,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const actor = this.document;
     const vFlags = actor.getFlag('vtm-v20', 'virtueLabels');
     const label = vFlags?.selfControl || 'Instinct';
+    // Stored frenzyDiff already carries the Brujah +2 from the entry roll
+    const brujah = /brujah/i.test(actor.system.clan || '');
     let difficulty = Number(actor.getFlag('vtm-v20', 'frenzyDiff')) || 0;
     if (!difficulty) {
-      difficulty = await new Promise(resolve => {
+      const base = await new Promise(resolve => {
         new Dialog({
           title: `${actor.name}: Ride the Wave`,
           content: `<div style="margin:6px 0;color:#ddd;">
             <p>No stored frenzy difficulty. Use the one that provoked this frenzy.</p>
+            ${brujah ? `<p style="color:#c41e3a;"><b>Brujah:</b> +2 difficulty (clan weakness), added automatically.</p>` : ''}
             <input type="number" name="wave-diff" value="6" min="2" max="10" style="width:100%;" />
           </div>`,
           buttons: {
@@ -5621,7 +5646,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           close: () => resolve(0),
         }, { classes: ['vtm-v20', 'dialog'], width: 380 }).render(true);
       });
-      if (!difficulty) return;
+      if (!base) return;
+      difficulty = brujah ? Math.min(base + 2, 10) : base;
     }
 
     let pool = actor.system.virtues?.selfControl || 0;
@@ -5637,7 +5663,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       : total > 0 ? 'Rides the wave: this action is taken consciously.'
       : 'The Beast does as it pleases.';
     await this._emitRollCard(actor, {
-      roll, label: `Ride the Wave (${label}${capped ? ', capped by blood' : ''})`,
+      roll, label: `Ride the Wave (${label}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`,
       pool, difficulty, dice, total, outcome, extra,
     });
   }
@@ -5652,6 +5678,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const vFlags = actor.getFlag('vtm-v20', 'virtueLabels');
     const scLabel = vFlags?.selfControl || game.i18n.localize('VTM.SelfControl');
     const progress = Number(actor.getFlag('vtm-v20', 'frenzyResist')) || 0;
+    // Brujah rage runs hotter: +2 difficulty to resist or guide frenzy
+    const brujah = /brujah/i.test(actor.system.clan || '');
+    const brujahNote = brujah ? `<p style="color:#c41e3a;"><b>Brujah:</b> +2 difficulty (clan weakness), added automatically.</p>` : '';
 
     const provs = VampireSheet.FRENZY_PROVOCATIONS;
     const conscience = actor.system.virtues?.conscience || 0;
@@ -5670,6 +5699,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           title: `${actor.name}: Frenzy (${scLabel})`,
           content: `<div style="margin:6px 0;color:#ddd;">
             <p>${scLabel} ${instinctVal}: the Beast takes over, unless the difficulty is lower than that.</p>
+            ${brujahNote}
             <label style="display:block;margin:6px 0 2px;">Provocation</label>
             <select name="frenzy-prov" style="width:100%;">${options}</select>
             <label style="display:block;margin:6px 0 2px;">Difficulty override (optional)</label>
@@ -5691,9 +5721,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       if (!picked) return;
 
       const iProv = provs[picked.prov];
-      const iDiff = !isNaN(picked.diff)
+      const iBase = !isNaN(picked.diff)
         ? Math.min(Math.max(picked.diff, 2), 10)
         : (picked.prov === 'evil' ? evilDiff : (iProv?.diff ?? 6));
+      const iDiff = brujah ? Math.min(iBase + 2, 10) : iBase;
       const iLabel = picked.prov === 'evil' ? 'Blatantly evil act' : (iProv?.label ?? 'Provocation');
 
       if (iDiff >= instinctVal) {
@@ -5749,6 +5780,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         content: `<div style="margin:6px 0;color:#ddd;">
           ${progress ? `<p>Accumulated successes: <b>${progress}/5</b>.</p>` : ''}
           <p>${scLabel} roll. Five total successes overcome the urge; fewer hold the Beast off for one turn per success.</p>
+          ${brujahNote}
           <label style="display:block;margin:6px 0 2px;">Provocation</label>
           <select name="frenzy-prov" style="width:100%;">${options}</select>
           <label style="display:block;margin:6px 0 2px;">Difficulty override (optional)</label>
@@ -5775,9 +5807,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     const prov = provs[choice.prov];
-    const difficulty = !isNaN(choice.diff)
+    const baseDiff = !isNaN(choice.diff)
       ? Math.min(Math.max(choice.diff, 2), 10)
       : (choice.prov === 'evil' ? evilDiff : (prov?.diff ?? 6));
+    const difficulty = brujah ? Math.min(baseDiff + 2, 10) : baseDiff;
     const provLabel = choice.prov === 'evil' ? 'Blatantly evil act' : (prov?.label ?? 'Provocation');
 
     // Self-Control rolls cap at the current blood pool, same as resisting the Kiss
@@ -5790,7 +5823,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
     const { dice, total, outcome } = this._tallyDice(roll, difficulty);
-    const label = `Resist Frenzy: ${provLabel} (${scLabel}${capped ? ', capped by blood' : ''})`;
+    const label = `Resist Frenzy: ${provLabel} (${scLabel}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`;
 
     if (outcome === 'botch') {
       await this._emitRollCard(actor, { roll, label, pool, difficulty, dice, total: 0, outcome, extra: 'Botch! The Beast takes the wheel.' });

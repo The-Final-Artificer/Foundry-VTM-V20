@@ -19,7 +19,7 @@
   <div class="form-group">
     <label>Level</label>
     <div class="dot-row" data-path="system.level">
-      {{{vtmDots system.level 5}}}
+      {{{vtmDots system.level traitMax}}}
     </div>
   </div>
 
@@ -35,9 +35,9 @@
   {{/if}}
 
   {{#if isGM}}
-  {{#if system.description}}
-  <div class="disc-description">{{{enrichedDescription}}}</div>
-  {{/if}}
+  <div class="disc-description">
+    <prose-mirror name="system.description" toggled value="{{system.description}}" data-document-uuid="{{item.uuid}}">{{{enrichedDescription}}}</prose-mirror>
+  </div>
   {{/if}}
 
   <div class="power-list">
@@ -71,7 +71,13 @@
         <input type="number" name="system.powers.{{this.key}}.difficulty" value="{{this.difficulty}}" min="2" max="10" class="power-diff" />
         <input type="text" name="system.powers.{{this.key}}.cost" value="{{this.cost}}" placeholder="Cost" class="power-cost" />
       </div>
-      <div class="power-desc">{{{this.desc}}}</div>
+      <div class="power-desc">
+        {{#if ../isEditable}}
+        <prose-mirror name="system.powers.{{this.key}}.desc" toggled value="{{this.desc}}" data-document-uuid="{{../item.uuid}}">{{{this.enrichedDesc}}}</prose-mirror>
+        {{else}}
+        {{{this.enrichedDesc}}}
+        {{/if}}
+      </div>
     </div>
     {{/each}}
   </div>
@@ -96,7 +102,7 @@
   <div class="form-group">
     <label>Rating</label>
     <div class="dot-row" data-path="system.rating">
-      {{{vtmDots system.rating 5}}}
+      {{{vtmDots system.rating traitMax}}}
     </div>
   </div>
 

@@ -1244,7 +1244,7 @@ const RITUAL_CATEGORIES = [
   }
 ];
 
-const COMPENDIUM_VERSION = 66;
+const COMPENDIUM_VERSION = 67;
 
 export { DISCIPLINES, BACKGROUNDS, MERITS, FLAWS, RITUAL_CATEGORIES };
 
@@ -1343,7 +1343,7 @@ export async function populateCompendiums({ force = false } = {}) {
             nameToFolder[wpn] = foldersByName[key];
           }
         }
-        itemData = data.map(item => {
+        itemData = itemData.map(item => {
           const fid = nameToFolder[item.name];
           return fid ? { ...item, folder: fid } : item;
         });
