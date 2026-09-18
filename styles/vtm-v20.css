@@ -3003,7 +3003,8 @@ textarea#chat-message {
 .vtm-v20.sheet.item .disc-description prose-mirror,
 .vtm-v20.sheet.item .power-desc prose-mirror {
   height: auto;
-  min-height: 0;
+  /* keep a hoverable strip when empty, or the edit button can never appear */
+  min-height: 26px;
   max-height: none;
 }
 .vtm-v20.sheet.item .disc-description prose-mirror .editor-container,
