@@ -771,6 +771,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // Same art as the token status effect
     const statusImg = id => CONFIG.statusEffects?.find(e => e.id === id)?.img;
     ctx.frenzyIcon = inFrenzy ? statusImg(FRENZY_STATUS_ID) : statusImg(ROTSCHRECK_STATUS_ID);
+    ctx.frenzyWpNote = inFrenzy
+      ? 'Spend 1 Willpower to control one of your actions for a turn; the frenzy continues.'
+      : 'Spend 1 Willpower to keep control for one turn.';
     ctx.brujahFrenzyNote = inFrenzy && /brujah/i.test(sys.clan || '');
     ctx.frenzyInstinct = this.document.type === 'vampire' && inFrenzy
       && /instinct/i.test(actor.getFlag('vtm-v20', 'virtueLabels')?.selfControl || '');
@@ -948,7 +951,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       content.addEventListener('animationend', () => content.classList.remove('chargen-entering'), { once: true });
     }
     const locked = this.document.getFlag('vtm-v20', 'sheetLocked') !== false;
-    el.classList.toggle('sheet-locked', locked && !game.user.isGM);
+    // Chargen manages its own inputs; the lock overlay would eat the clicks
+    el.classList.toggle('sheet-locked', locked && !game.user.isGM && !this._chargen);
 
     this._syncChargenButton();
     this._syncCompactButton();
@@ -1213,6 +1217,19 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         game.vtm.rollDicePool(this.document, {
           trait: `bg.${btn.dataset.itemId}`,
           label: btn.dataset.name,
+        });
+      });
+    });
+
+    el.querySelectorAll('.ritual-cast').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = this.document.items.get(btn.dataset.itemId);
+        if (!item) return;
+        game.vtm.rollDicePool(this.document, {
+          trait: item.system.primary,
+          trait2: item.system.secondary,
+          label: `Ritual: ${item.name}`,
+          difficulty: item.system.castDifficulty,
         });
       });
     });
@@ -2847,7 +2864,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     let timer = null;
 
     const show = (target, key) => {
-      const descs = traitAuthentic(key) || TRAIT_DESCRIPTIONS[key];
+      // Path characters get the Conviction/Instinct ladders instead
+      let lookup = key;
+      const vLabels = this.document.getFlag('vtm-v20', 'virtueLabels');
+      if (key === 'virtues.conscience' && /conviction/i.test(vLabels?.conscience || '')) lookup = 'virtues.conviction';
+      else if (key === 'virtues.selfControl' && /instinct/i.test(vLabels?.selfControl || '')) lookup = 'virtues.instinct';
+      const descs = traitAuthentic(lookup) || TRAIT_DESCRIPTIONS[lookup];
       if (!descs) return;
       let val;
       if (key === 'willpower') val = this.document.system.willpower.max;
@@ -5651,6 +5673,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     let pool = actor.system.virtues?.selfControl || 0;
+    let hCapped = false;
+    const hum = actor.system.humanity ?? 10;
+    if (pool > hum) { pool = hum; hCapped = true; }
     let capped = false;
     const bp = actor.system.blood?.value || 0;
     if (bp < pool) { pool = bp; capped = true; }
@@ -5663,7 +5688,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       : total > 0 ? 'Rides the wave: this action is taken consciously.'
       : 'The Beast does as it pleases.';
     await this._emitRollCard(actor, {
-      roll, label: `Ride the Wave (${label}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`,
+      roll, label: `Ride the Wave (${label}${hCapped ? ', capped by Humanity' : ''}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`,
       pool, difficulty, dice, total, outcome, extra,
     });
   }
@@ -5815,6 +5840,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     // Self-Control rolls cap at the current blood pool, same as resisting the Kiss
     let pool = actor.system.virtues?.selfControl || 0;
+    let hCapped = false;
+    const hum = actor.system.humanity ?? 10;
+    if (pool > hum) { pool = hum; hCapped = true; }
     let capped = false;
     const bp = actor.system.blood?.value || 0;
     if (bp < pool) { pool = bp; capped = true; }
@@ -5823,7 +5851,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
     const { dice, total, outcome } = this._tallyDice(roll, difficulty);
-    const label = `Resist Frenzy: ${provLabel} (${scLabel}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`;
+    const label = `Resist Frenzy: ${provLabel} (${scLabel}${hCapped ? ', capped by Humanity' : ''}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`;
 
     if (outcome === 'botch') {
       await this._emitRollCard(actor, { roll, label, pool, difficulty, dice, total: 0, outcome, extra: 'Botch! The Beast takes the wheel.' });
@@ -5909,12 +5937,14 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       : (prov?.diff ?? 6);
     const provLabel = prov?.label ?? 'Provocation';
     const courage = actor.system.virtues?.courage || 0;
-    const pool = Math.max(courage, 1);
+    const hum = actor.system.humanity ?? 10;
+    const hCapped = courage > hum;
+    const pool = Math.max(Math.min(courage, hum), 1);
 
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
     const { dice, total, outcome } = this._tallyDice(roll, difficulty);
-    const label = `R\u00f6tschreck: ${provLabel} (Courage)`;
+    const label = `R\u00f6tschreck: ${provLabel} (Courage${hCapped ? ', capped by Humanity' : ''})`;
 
     if (outcome === 'botch') {
       await this._emitRollCard(actor, { roll, label, pool, difficulty, dice, total: 0, outcome, extra: 'Botch! The Red Fear boils over into frenzy.' });

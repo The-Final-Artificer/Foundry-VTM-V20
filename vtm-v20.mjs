@@ -4,7 +4,7 @@ import { MortalData } from './module/mortal-data.mjs';
 import { DisciplineData, BackgroundData, MeritData, WeaponData, ArmorData, EquipmentData, ContainerData, PathData, RitualData } from './module/item-data.mjs';
 import { VampireSheet } from './module/vampire-sheet.mjs';
 import { VtmItemSheet } from './module/item-sheet.mjs';
-import { rollDicePool } from './module/dice.mjs';
+import { rollDicePool, promptChatRoll } from './module/dice.mjs';
 import { rollAttack, bindCombatButtons, bindCombatSocketHandlers, clearClinchForActor, clearHoldForActor } from './module/combat.mjs';
 import { registerInitiativeHooks, bindInitiativeSocketHandlers, renderInitiativeTracker } from './module/initiative.mjs';
 import { populateCompendiums, registerCompendiumSettings, WEAPONS } from './module/compendiums.mjs';
@@ -623,6 +623,24 @@ Hooks.on('updateCombat', (combat, changes) => {
 Hooks.on('createActiveEffect', effect => {
   enforceExclusiveCoverStatus(effect);
   enforceExclusiveImmobilizationStatus(effect);
+});
+
+// Quick d10 roller button beside the chat roll-mode toggles.
+// v13 hands the group over as #roll-privacy, v14 as #message-modes.
+Hooks.on('renderChatInput', (app, elements) => {
+  const modes = elements['#roll-privacy'] ?? elements['#message-modes'];
+  if (!modes || modes.querySelector('.vtm-chat-roll')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ui-control icon fas fa-dice-d20 vtm-chat-roll';
+  btn.dataset.tooltip = 'VTM Dice Roll';
+  btn.setAttribute('aria-label', 'VTM Dice Roll');
+  btn.addEventListener('click', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    promptChatRoll();
+  });
+  modes.append(btn);
 });
 
 // Huge Size grants an extra Bruised health level

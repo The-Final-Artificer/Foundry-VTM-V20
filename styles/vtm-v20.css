@@ -1180,6 +1180,7 @@ textarea#chat-message {
 .vtm-v20 .item-controls a:hover { color: var(--vtm-red); }
 
 .vtm-v20 .bg-roll,
+.vtm-v20 .ritual-cast,
 .vtm-v20 .discipline-activate {
   background: none;
   border: 1px solid var(--vtm-text-dim);
@@ -1198,6 +1199,7 @@ textarea#chat-message {
   opacity: 0.5;
 }
 .vtm-v20 .bg-roll:hover,
+.vtm-v20 .ritual-cast:hover,
 .vtm-v20 .discipline-activate:hover {
   opacity: 1;
   border-color: var(--vtm-red);
@@ -1458,6 +1460,12 @@ textarea#chat-message {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+.vtm-v20 .bearing-note {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--vtm-text-dim);
 }
 
 .vtm-v20 .wp-detail,
@@ -2535,16 +2543,36 @@ textarea#chat-message {
   color: var(--vtm-text);
 }
 
-/* Make Foundry's message wrapper match our dark cards */
-.chat-message:has(.vtm-roll) {
+/* Every chat message wears the dark card look, not just our roll cards */
+.chat-message.message {
   background: #1e1e1e;
   border: 1px solid #333;
+  color: var(--vtm-text);
 }
-.chat-message:has(.vtm-roll) .message-header {
+.chat-message.message .message-header {
   color: #999;
 }
-.chat-message:has(.vtm-roll) .message-header .message-sender {
+.chat-message.message .message-header .message-sender {
   color: #ccc;
+}
+
+/* Special message types stay recognizable on the dark card */
+.chat-message.message.whisper { border-left: 3px solid var(--vtm-gold); }
+.chat-message.message.blind { border-left: 3px solid #7b68ee; }
+.chat-message.message.emote { border-left: 3px solid var(--vtm-red-dim); }
+
+/* Core dice rolls and inline links readable on dark */
+.chat-message.message .dice-roll .dice-formula,
+.chat-message.message .dice-roll .dice-total {
+  background: var(--vtm-surface);
+  border: 1px solid var(--vtm-border);
+  color: var(--vtm-text-bright);
+}
+.chat-message.message .message-content a.content-link,
+.chat-message.message .message-content a.inline-roll {
+  background: var(--vtm-surface-light);
+  border: 1px solid var(--vtm-border);
+  color: var(--vtm-text-bright);
 }
 
 /* Chat roll results */
@@ -2814,6 +2842,40 @@ textarea#chat-message {
   outline: none;
 }
 
+/* Ritual casting row: full sheet width, then styled exactly like a
+   discipline power row (the form-group select rule would win otherwise) */
+.vtm-v20.sheet.item .ritual-cast-group {
+  grid-column: 1 / -1;
+}
+.vtm-v20.sheet.item .ritual-cast-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.vtm-v20.sheet.item .ritual-cast-row .power-trait {
+  background: var(--vtm-surface-light);
+  border: 1px solid var(--vtm-border);
+  border-radius: 3px;
+  color: var(--vtm-text);
+  padding: 2px 3px;
+  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  max-width: 140px;
+}
+.vtm-v20.sheet.item .ritual-cast-row .power-diff-label {
+  min-width: 0;
+}
+.vtm-v20.sheet.item .ritual-cast-row .power-diff {
+  flex: 0 0 38px;
+  width: 38px;
+  padding: 2px 3px;
+  font-size: 12px;
+}
+
+.vtm-v20.sheet.item .ritual-roll,
 .vtm-v20.sheet.item .power-roll {
   background: var(--vtm-red-dim);
   border: 1px solid var(--vtm-red);
@@ -2832,11 +2894,13 @@ textarea#chat-message {
   justify-content: center;
 }
 
+.vtm-v20.sheet.item .ritual-roll i,
 .vtm-v20.sheet.item .power-roll i {
   line-height: 1;
   margin: 0;
 }
 
+.vtm-v20.sheet.item .ritual-roll:hover,
 .vtm-v20.sheet.item .power-roll:hover {
   background: var(--vtm-red);
   box-shadow: 0 0 6px var(--vtm-red-glow);

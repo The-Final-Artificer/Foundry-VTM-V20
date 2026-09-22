@@ -30,6 +30,7 @@ export function isEncumbered(actor) {
 }
 
 function getOwner(actor) {
+  if (!actor) return game.user;
   const owners = game.users.filter(u => u.active && actor.testUserPermission(u, 'OWNER') && !u.isGM);
   return owners[0] || game.users.find(u => u.active && u.isGM) || game.user;
 }
@@ -155,11 +156,13 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   }
   if (sys.virtues) {
     const vFlags = actor.getFlag('vtm-v20', 'virtueLabels');
+    // Virtue dice can never exceed the Humanity/Path rating
+    const virtueCap = sys.humanity ?? 10;
     for (const [k, v] of Object.entries(sys.virtues)) {
       const label = (k === 'conscience' || k === 'selfControl') && vFlags?.[k]
         ? vFlags[k]
         : game.i18n.localize(`VTM.${k.charAt(0).toUpperCase() + k.slice(1)}`);
-      allTraits[`virtues.${k}`] = { label, value: v, group: 'virtues' };
+      allTraits[`virtues.${k}`] = { label, value: Math.min(v, virtueCap), group: 'virtues' };
     }
   }
   if (sys.willpower) {
@@ -456,7 +459,7 @@ export async function rollFixedPool(actor, { pool, difficulty = 6, label = 'Roll
   else if (ones > 0 && !hadSuccess) outcome = 'botch';
   const total = Math.max(successes, 0);
 
-  const pFlags = actor.getFlag('vtm-v20', 'portrait') || {};
+  const pFlags = actor?.getFlag('vtm-v20', 'portrait') || {};
   const pScale = pFlags.scale ?? 1;
   const pOffX = pFlags.offX ?? 0;
   const pOffY = pFlags.offY ?? 0;
@@ -469,7 +472,8 @@ export async function rollFixedPool(actor, { pool, difficulty = 6, label = 'Roll
   }
 
   const chatHtml = await renderTemplate('systems/vtm-v20/templates/roll-result.hbs', {
-    actorImg: actor.img, actorName: actor.name,
+    actorImg: actor?.img ?? game.user.avatar,
+    actorName: actor?.name ?? game.user.name,
     label, pool, difficulty, specialty, dice, total, outcome, portraitStyle,
   });
 
@@ -482,4 +486,63 @@ export async function rollFixedPool(actor, { pool, difficulty = 6, label = 'Roll
   });
 
   return { total, outcome, dice };
+}
+
+// Quick roller for the chat sidebar: any pool vs any difficulty, no actor needed
+export async function promptChatRoll() {
+  const diffBtns = [2, 3, 4, 5, 6, 7, 8, 9, 10].map(d =>
+    `<button type="button" class="diff-btn ${d === 6 ? 'active' : ''}" data-diff="${d}">${d}</button>`).join('');
+  const content = `
+  <form class="vtm-roll-dialog">
+    <div class="form-group">
+      <label>Dice Pool</label>
+      <input type="number" name="pool" value="5" min="1" max="30" />
+    </div>
+    <div class="form-group">
+      <label>Difficulty</label>
+      <input type="hidden" name="difficulty" value="6" />
+      <div class="diff-buttons">${diffBtns}</div>
+    </div>
+    <div class="form-group check"><label><input type="checkbox" name="specialty" /> Specialty (10s count double)</label></div>
+  </form>`;
+
+  const picked = await new Promise(resolve => {
+    new Dialog({
+      title: 'VTM Dice Roll',
+      content,
+      buttons: {
+        roll: {
+          icon: '<i class="fas fa-dice-d20"></i>', label: 'Roll',
+          callback: dlg => {
+            const form = dlg[0].querySelector('form');
+            resolve({
+              pool: Math.max(parseInt(form.pool.value) || 1, 1),
+              difficulty: parseInt(form.difficulty.value) || 6,
+              specialty: !!form.specialty.checked,
+            });
+          },
+        },
+      },
+      render: html => {
+        html.find('.diff-btn').click(ev => {
+          html.find('.diff-btn').removeClass('active');
+          ev.currentTarget.classList.add('active');
+          html.find('[name="difficulty"]').val(ev.currentTarget.dataset.diff);
+        });
+        html.find('[name="pool"]').focus().select();
+      },
+      default: 'roll',
+      close: () => resolve(null),
+    }, { classes: ['vtm-v20', 'dialog', 'roll-dialog'], width: 420 }).render(true);
+  });
+  if (!picked) return;
+
+  // Roll under the user's assigned character if they have one, plain user otherwise
+  const actor = game.user.character ?? null;
+  await rollFixedPool(actor, {
+    pool: picked.pool,
+    difficulty: picked.difficulty,
+    label: 'Dice Roll',
+    specialty: picked.specialty,
+  });
 }

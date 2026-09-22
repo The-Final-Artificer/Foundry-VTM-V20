@@ -132,7 +132,7 @@
 {{#if frenzied}}
 <div class="frenzy-banner">
   <span class="frenzy-title"><span class="frenzy-icon-wrap"><span class="frenzy-banner-icon" style="-webkit-mask-image: url('{{frenzyIcon}}'); mask-image: url('{{frenzyIcon}}');"></span></span> {{frenzyName}}</span>
-  <span class="frenzy-effects">No wound penalties. Dominate against you at +2 difficulty, resisting it at -2. No Willpower rolls needed. Immune to R&ouml;tschreck.{{#if brujahFrenzyNote}} <b>Brujah:</b> may NEVER spend Willpower to avoid frenzy, but may spend 1 Willpower to end the frenzy.{{/if}}</span>
+  <span class="frenzy-effects">No wound penalties. Dominate against you at +2 difficulty, resisting it at -2. No Willpower rolls needed. Immune to R&ouml;tschreck. {{frenzyWpNote}}{{#if brujahFrenzyNote}} <b>Brujah:</b> may NEVER spend Willpower to avoid frenzy, but may spend 1 Willpower to end the frenzy.{{/if}}</span>
   {{#if frenzyInstinct}}
   <button type="button" class="ride-wave-btn"><i class="fas fa-water"></i> Ride the Wave</button>
   {{/if}}
@@ -332,6 +332,9 @@
           <div class="item" data-item-id="{{this._id}}">
             <span class="item-name item-open">{{this.name}}</span>
             <span class="item-cost">Lv.{{this.system.level}}</span>
+            <button type="button" class="ritual-cast" data-item-id="{{this._id}}" title="Roll the casting">
+              <i class="fas fa-dice-d20"></i>
+            </button>
             <div class="item-controls">
               <a class="item-delete" title="Delete"><i class="fas fa-trash"></i></a>
             </div>
@@ -456,7 +459,7 @@
             {{else}}
             Humanity
             {{/if}}
-            {{#if humanityTip}}<span class="arch-info"><i class="fas fa-exclamation-circle"></i><span class="arch-pop pop-right"><b>Humanity</b>Humanity influences appearance: the lower it is, the more corpse-like the Kindred appears.</span></span>{{/if}}
+            {{#if humanityTip}}<span class="arch-info"><i class="fas fa-exclamation-circle"></i><span class="arch-pop pop-right"><b>Humanity</b>Humanity influences appearance: the lower it is, the more corpse-like the Kindred appears.<br /><br />Virtue dice pools can never exceed the Humanity rating.<br /><br />Vampires with higher Humanity rise earlier in the evening. If forced to act during the day, every dice pool is capped at the Humanity rating.<br /><br />Humanity also determines how long torpor lasts.</span></span>{{/if}}
           </h3>
           <div class="dot-row" data-path="system.humanity">
             {{{vtmDots system.humanity 10}}}
@@ -477,6 +480,9 @@
             {{/if}}
             {{/if}}
           </div>
+          {{#if humanityTip}}
+          <div class="bearing-note">The bearing modifier applies to Social rolls for appearing normal and winning sympathy.</div>
+          {{/if}}
         </div>
 
         <div class="section-block">

@@ -2,14 +2,14 @@
   "id": "vtm-v20",
   "title": "Vampire: The Masquerade V20",
   "description": "A clean, modern system for Vampire: The Masquerade 20th Anniversary Edition.",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "compatibility": {
     "minimum": "13",
     "verified": "14"
   },
   "url": "https://github.com/The-Final-Artificer/Foundry-VTM-V20",
   "manifest": "https://github.com/The-Final-Artificer/Foundry-VTM-V20/releases/latest/download/system.json",
-  "download": "https://github.com/The-Final-Artificer/Foundry-VTM-V20/releases/download/v1.1.1/vtm-v20.zip",
+  "download": "https://github.com/The-Final-Artificer/Foundry-VTM-V20/releases/download/v1.1.2/vtm-v20.zip",
   "authors": [{ "name": "The Final Artificer" }],
   "esmodules": ["vtm-v20.mjs"],
   "styles": ["styles/vtm-v20.css"],

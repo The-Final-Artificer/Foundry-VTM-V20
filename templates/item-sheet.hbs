@@ -96,6 +96,25 @@
       {{/each}}
     </select>
   </div>
+  <div class="form-group ritual-cast-group">
+    <label>Casting Roll</label>
+    <div class="ritual-cast-row">
+      <select name="system.primary" class="power-trait">
+        {{#each ritualPrimaryOptions}}
+        <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+      <span class="power-plus">+</span>
+      <select name="system.secondary" class="power-trait">
+        {{#each ritualSecondaryOptions}}
+        <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+      <label class="power-diff-label">Diff</label>
+      <input type="number" class="power-diff ritual-diff" value="{{ritualCastDiff}}" min="2" max="10" title="Automatic: 3 + ritual level (max 9). Type another number to override, or the automatic value to follow the level again." />
+      <button type="button" class="ritual-roll" title="Roll the casting"><i class="fas fa-dice-d20"></i></button>
+    </div>
+  </div>
   {{/if}}
 
   {{#if (eq item.type "background")}}
@@ -106,8 +125,14 @@
     </div>
   </div>
 
+  {{#if isEditable}}
+  <div class="disc-description">
+    <prose-mirror name="system.description" toggled value="{{system.description}}" data-document-uuid="{{item.uuid}}">{{{enrichedDescription}}}</prose-mirror>
+  </div>
+  {{else}}
   {{#if system.description}}
   <div class="disc-description">{{{enrichedDescription}}}</div>
+  {{/if}}
   {{/if}}
 
   <div class="power-list">

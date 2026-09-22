@@ -1628,6 +1628,9 @@ export async function holdEscape(actor, { poolOverride = null } = {}) {
 async function rollKissResist(defender, virtueLabel) {
   let pool = defender.system.virtues?.selfControl || 0;
   let capped = false;
+  let hCapped = false;
+  const hum = defender.system.humanity;
+  if (hum !== undefined && pool > hum) { pool = hum; hCapped = true; }
   if (defender.type === 'vampire') {
     const bp = defender.system.blood?.value || 0;
     if (bp < pool) { pool = bp; capped = true; }
@@ -1641,7 +1644,7 @@ async function rollKissResist(defender, virtueLabel) {
     actorImg: defender.img, actorName: defender.name,
     portraitStyle: portraitStyle(defender),
     label: 'Resist the Kiss',
-    sublabel: `${virtueLabel} ${pool}${capped ? ' | capped by blood pool' : ''}`,
+    sublabel: `${virtueLabel} ${pool}${hCapped ? ' | capped by Humanity' : ''}${capped ? ' | capped by blood pool' : ''}`,
     pool, difficulty: 8, isAttack: false,
     dice: res.dice, total: res.total, outcome: res.outcome,
     defendedLabel: res.outcome === 'success' ? `${defender.name} steels themselves against the Kiss!` : null,

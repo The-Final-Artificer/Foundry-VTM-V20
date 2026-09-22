@@ -275,25 +275,39 @@ export const TRAIT_DESCRIPTIONS = {
     "Scholar: A visionary who shapes how people interact with technology."
   ],
   "virtues.conscience": [
-    "You feel remorse only for the gravest wrongs, and rarely for long.",
-    "Serious misdeeds leave a mark on you, though lesser sins slide by.",
-    "An ordinary moral compass: wrongdoing weighs on you as it does on most people.",
-    "Your ethics run deep, and violating them haunts you.",
-    "Your principles are unshakable; even small cruelties gnaw at you."
+    "Uncaring",
+    "Normal",
+    "Ethical",
+    "Righteous",
+    "Remorseful"
   ],
   "virtues.selfControl": [
-    "The Beast is barely leashed; provocation finds you eager.",
-    "You keep composure in calm moments, but real temptation cuts deep.",
-    "Ordinary discipline: you resist most urges, though hunger tests you.",
-    "Cold-blooded restraint; few provocations ever reach you.",
-    "Near-total mastery of your impulses, even while starving."
+    "Unstable",
+    "Normal",
+    "Temperate",
+    "Hardened",
+    "Total self-mastery"
   ],
   "virtues.courage": [
-    "You break and run at the first real threat.",
-    "You hold your ground until the danger turns serious.",
-    "Steady nerves: you face what frightens you about as well as anyone.",
-    "Fear rarely moves you; flame and sunrise give you pause, not panic.",
-    "You would stare down the Final Death itself without flinching."
+    "Timid",
+    "Normal",
+    "Bold",
+    "Resolute",
+    "Heroic"
+  ],
+  "virtues.conviction": [
+    "Steady",
+    "Determined",
+    "Driven",
+    "Brutal",
+    "Completely self-assured"
+  ],
+  "virtues.instinct": [
+    "Intuitive",
+    "Feral",
+    "Bestial",
+    "Visceral",
+    "Primal"
   ],
   "willpower": [
     "A stiff breeze changes your mind.",

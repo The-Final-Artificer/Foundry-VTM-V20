@@ -146,8 +146,16 @@ export class RitualData extends foundry.abstract.TypeDataModel {
     return {
       level: int(1, 1, 5),
       ritualType: str('thaumaturgical'),
+      // Casting roll: Int + Occult by the book; difficulty 0 means 3 + level (max 9)
+      primary: str('attributes.intelligence'),
+      secondary: str('abilities.occult'),
+      difficulty: int(0, 0, 10),
       description: new f.HTMLField({ initial: '' }),
     };
+  }
+
+  get castDifficulty() {
+    return this.difficulty || Math.min(3 + (this.level || 1), 9);
   }
 }
 

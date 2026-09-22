@@ -223,6 +223,17 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       }));
     }
 
+    if (item.type === 'ritual') {
+      const loc = k => game.i18n.localize(`VTM.${k.charAt(0).toUpperCase() + k.slice(1)}`);
+      const traitOpts = [
+        ...Object.values(VTM.attributes).flat().map(k => ({ key: `attributes.${k}`, label: loc(k) })),
+        ...Object.values(VTM.abilities).flat().map(k => ({ key: `abilities.${k}`, label: loc(k) })),
+      ];
+      ctx.ritualPrimaryOptions = traitOpts.map(o => ({ ...o, selected: o.key === ctx.system.primary }));
+      ctx.ritualSecondaryOptions = traitOpts.map(o => ({ ...o, selected: o.key === ctx.system.secondary }));
+      ctx.ritualCastDiff = ctx.system.castDifficulty;
+    }
+
     if (item.type === 'weapon') {
       const loc = k => game.i18n.localize(`VTM.${k.charAt(0).toUpperCase() + k.slice(1)}`);
       ctx.requireTraitOptions = [
@@ -288,6 +299,29 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     });
 
     el.querySelector('.aura-chart-btn')?.addEventListener('click', () => this._showAuraChart());
+
+    // Typing the automatic value (or clearing) hands difficulty back to 3 + level
+    el.querySelector('.ritual-diff')?.addEventListener('change', ev => {
+      const sys = this.document.system;
+      const auto = Math.min(3 + (sys.level || 1), 9);
+      const v = parseInt(ev.currentTarget.value, 10);
+      this.document.update({ 'system.difficulty': (!v || v === auto) ? 0 : Math.min(Math.max(v, 2), 10) });
+    });
+
+    el.querySelector('.ritual-roll')?.addEventListener('click', () => {
+      const actor = this.document.parent;
+      if (!actor) {
+        ui.notifications.warn('This ritual must be on a character to roll.');
+        return;
+      }
+      const sys = this.document.system;
+      game.vtm.rollDicePool(actor, {
+        trait: sys.primary,
+        trait2: sys.secondary,
+        label: `Ritual: ${this.document.name}`,
+        difficulty: sys.castDifficulty,
+      });
+    });
 
     el.querySelectorAll('.power-roll').forEach(btn => {
       btn.addEventListener('click', async () => {
