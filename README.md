@@ -65,6 +65,10 @@ https://github.com/The-Final-Artificer/Foundry-VTM-V20/releases/latest/download/
 
 3. Click **Install**
 
+## Credits
+
+Thanks to https://game-icons.net/ for all the cool icons I got to use!
+
 ## Requirements
 
 - Foundry VTT v13 or later (verified on v14)
