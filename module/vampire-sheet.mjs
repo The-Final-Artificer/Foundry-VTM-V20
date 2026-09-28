@@ -1298,9 +1298,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             if (!this._isMyResTurn()) {
               // Deferred slot: only its own action may fire
               const a = (decl.actions || [])[defIdx];
-              idx = (a && a.attackId === attackId && !a.reload) ? defIdx : -1;
+              idx = (a && a.attackId === attackId && !a.reload && !a.aborted) ? defIdx : -1;
             } else {
-              idx = (decl.actions || []).findIndex((a, i) => a.attackId === attackId && !a.reload && !this._resExecuted.has(i));
+              idx = (decl.actions || []).findIndex((a, i) => a.attackId === attackId && !a.reload && !a.aborted && !this._resExecuted.has(i));
             }
             if (idx >= 0) {
               await this._executeResAction(idx);
@@ -1357,9 +1357,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             let idx;
             if (!this._isMyResTurn()) {
               const a = (decl.actions || [])[defIdx];
-              idx = (a && a.attackId === attackId && !a.reload) ? defIdx : -1;
+              idx = (a && a.attackId === attackId && !a.reload && !a.aborted) ? defIdx : -1;
             } else {
-              idx = (decl.actions || []).findIndex((a, i) => a.attackId === attackId && !a.reload && !this._resExecuted.has(i));
+              idx = (decl.actions || []).findIndex((a, i) => a.attackId === attackId && !a.reload && !a.aborted && !this._resExecuted.has(i));
             }
             if (idx >= 0) {
               await this._executeResAction(idx, true);
@@ -1410,10 +1410,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           let idx;
           if (!this._isMyResTurn()) {
             const a = (decl.actions || [])[defIdx];
-            idx = (a && a.attackId === actionId && (!readyType || a.readyType === readyType)) ? defIdx : -1;
+            idx = (a && a.attackId === actionId && !a.aborted && (!readyType || a.readyType === readyType)) ? defIdx : -1;
           } else {
             idx = (decl.actions || []).findIndex((a, i) =>
-              a.attackId === actionId && (!readyType || a.readyType === readyType) && !this._resExecuted.has(i));
+              a.attackId === actionId && !a.aborted && (!readyType || a.readyType === readyType) && !this._resExecuted.has(i));
           }
           if (idx >= 0) {
             await this._executeResAction(idx);
@@ -1445,10 +1445,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         let idx;
         if (!this._isMyResTurn()) {
           const a = (decl.actions || [])[defIdx];
-          idx = (a && a.attackId === actionId && (!readyType || a.readyType === readyType)) ? defIdx : -1;
+          idx = (a && a.attackId === actionId && !a.aborted && (!readyType || a.readyType === readyType)) ? defIdx : -1;
         } else {
           idx = (decl.actions || []).findIndex((a, i) =>
-            a.attackId === actionId && (!readyType || a.readyType === readyType) && !this._resExecuted.has(i));
+            a.attackId === actionId && !a.aborted && (!readyType || a.readyType === readyType) && !this._resExecuted.has(i));
         }
         if (idx >= 0) await this._executeResAction(idx, true);
       }));
@@ -1478,9 +1478,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             let idx;
             if (!this._isMyResTurn()) {
               const a = (decl.actions || [])[defIdx];
-              idx = (a && a.reload && a.attackId === attackId) ? defIdx : -1;
+              idx = (a && a.reload && a.attackId === attackId && !a.aborted) ? defIdx : -1;
             } else {
-              idx = (decl.actions || []).findIndex((a, i) => a.reload && a.attackId === attackId && !this._resExecuted.has(i));
+              idx = (decl.actions || []).findIndex((a, i) => a.reload && a.attackId === attackId && !a.aborted && !this._resExecuted.has(i));
             }
             if (idx >= 0) {
               await this._executeResAction(idx);
@@ -3228,6 +3228,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   _getAttackById(id) {
+    // The built attack list knows every id, discipline attacks included
+    const built = this._attacks?.find(a => a.id === id);
+    if (built) return built;
     if (id === 'unarmed') return { name: 'Unarmed' };
     if (id === 'kick') return { name: 'Kick' };
     if (id?.startsWith('custom-')) {
@@ -3565,10 +3568,14 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this._tab = 'combat';
 
     // An abort replanned the turn mid-round: redistribute before anything else
-    if (combatant.getFlag('vtm-v20', 'reallocPending')) {
+    const pendingRealloc = combatant.getFlag('vtm-v20', 'reallocPending');
+    if (pendingRealloc) {
       const decl0 = combatant.getFlag('vtm-v20', 'declaration') || {};
       await combatant.unsetFlag('vtm-v20', 'reallocPending');
-      await this._promptReallocation(combatant, decl0, decl0.totalPool || 0, decl0.celerityCap ?? null);
+      await this._promptReallocation(combatant, decl0, decl0.totalPool || 0, decl0.celerityCap ?? null, {
+        reason: 'abort',
+        oldTotal: pendingRealloc.from ?? decl0.totalPool,
+      });
       return;
     }
 
@@ -3592,9 +3599,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this.render(true);
   }
 
-  async _promptReallocation(combatant, decl, newTotal, newCap = null) {
+  async _promptReallocation(combatant, decl, newTotal, newCap = null, opts = {}) {
     const actions = decl.actions || [];
-    const oldTotal = decl.totalPool;
+    // After an abort decl.totalPool is already the new value, so the caller
+    // passes the pre-abort pool along
+    const oldTotal = opts.oldTotal ?? decl.totalPool;
     const diff = oldTotal - newTotal;
 
     const lockedDice = this._resSpentTotal();
@@ -3727,7 +3736,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       new Dialog({
         title: `${this.document.name}: Reallocate Dice`,
         content: `<div style="margin:6px 0;color:#ddd;">
-          <p>Wound penalty changed! Pool reduced from <b>${oldTotal}</b> to <b>${newTotal}</b> (-${diff}).</p>
+          <p>${opts.reason === 'abort' ? 'Aborted to defense!' : 'Wound penalty changed!'} Pool ${
+            diff > 0 ? `reduced from <b>${oldTotal}</b> to <b>${newTotal}</b> (-${diff})`
+            : diff < 0 ? `increased from <b>${oldTotal}</b> to <b>${newTotal}</b> (+${-diff})`
+            : `recalculated to <b>${newTotal}</b>`}.</p>
           ${lockedDice ? `<p>Already spent on executed actions: <b>${lockedDice}</b></p>` : ''}
           <p>Redistribute <b>${budget}</b> dice among your remaining actions:</p>
           <div style="margin-top:8px;">${inputsHtml}</div>

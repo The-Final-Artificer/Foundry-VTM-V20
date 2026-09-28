@@ -930,7 +930,7 @@ async function runAbortFlow(defender, combatant, sheet, types, abortables, decl,
     await combatant.update({
       'flags.vtm-v20.declaration': { ...decl, actions, totalPool: newTotal, basePool: lowest, celerityCap: info.on ? info.cap : null },
       'flags.vtm-v20.defSpent': ledger,
-      'flags.vtm-v20.reallocPending': survivors.length > 0,
+      'flags.vtm-v20.reallocPending': survivors.length > 0 ? { from: decl.totalPool || 0 } : false,
       'flags.vtm-v20.deferred': deferred.length ? deferred : null,
     });
   }
