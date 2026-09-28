@@ -8,7 +8,11 @@ import { ARCHETYPES } from './archetypes-data.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
 
 // Virtues, Willpower and Humanity keep their shipped text by design.
-const TRAIT_EXCLUDE = new Set(['virtues.conscience', 'virtues.selfControl', 'virtues.courage', 'willpower', 'humanity']);
+const TRAIT_EXCLUDE = new Set([
+  'virtues.conscience', 'virtues.selfControl', 'virtues.courage',
+  'virtues.conviction', 'virtues.instinct',
+  'willpower', 'humanity',
+]);
 
 const traitName = key => {
   const last = key.split('.').pop();

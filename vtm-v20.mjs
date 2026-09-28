@@ -580,8 +580,6 @@ Hooks.on('deleteCombat', (combat) => {
     sheet._resCombatant = null;
     sheet._resExecuted = new Set();
     sheet._resSpent = new Map();
-    sheet._resDefenseSpent = new Map();
-    sheet._resFullDefCount = 0;
     sheet._resTurnDone = false;
     if (sheet.rendered) sheet.render();
   }

@@ -775,6 +775,176 @@ export async function rollAttack(attacker, atk, options = {}) {
 
 // ── Phase 2: Defense Roll ───────────────────────────────────────────
 
+// Dice gone from the turn pool: executed actions from the synced mirror,
+// merged with any fresher local state, plus reactive defense spends.
+function resSpentTotal(combatant, sheet) {
+  const merged = new Map(Object.entries(combatant?.getFlag('vtm-v20', 'actSpent') || {}).map(([k, v]) => [Number(k), v]));
+  if (sheet?._resSpent) {
+    for (const [k, v] of sheet._resSpent) merged.set(k, Math.max(v, merged.get(k) || 0));
+  }
+  let sum = 0;
+  for (const v of merged.values()) sum += v;
+  for (const v of Object.values(combatant?.getFlag('vtm-v20', 'defSpent') || {})) sum += v;
+  return sum;
+}
+
+// Abort as a re-plan: give up one or more declared actions, pay Willpower
+// once, and the turn budget is recalculated as if declared fresh, using the
+// smallest pool among the surviving actions and the chosen maneuver. The
+// defense takes its dice immediately; leftovers are redistributed among the
+// survivors when the turn comes up.
+async function runAbortFlow(defender, combatant, sheet, types, abortables, decl, c) {
+  if (!sheet?._declPoolForAction) return null;
+
+  const sel = await new Promise(resolve => {
+    let html = '<div style="margin:6px 0;color:#ddd;">';
+    html += '<p>Give up which action(s)?</p>';
+    for (const ab of abortables) {
+      html += '<div style="padding:2px 0;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;">';
+      html += `<input type="checkbox" class="abort-act" data-index="${ab.idx}" ${abortables.length === 1 ? 'checked' : ''} />`;
+      html += `<span>${ab.name}</span></label></div>`;
+    }
+    html += '<p style="margin-top:8px;">Defend with:</p>';
+    let first = true;
+    for (const [key, d] of Object.entries(types)) {
+      const p = effectiveTraitValue(defender, `attributes.${d.attr}`) + (defender.system.abilities?.[d.skill] || 0);
+      html += '<div style="padding:2px 0;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;">';
+      html += `<input type="radio" name="abort-man" value="${key}" ${first ? 'checked' : ''} />`;
+      html += `<span>${d.label} (pool ${p})</span></label></div>`;
+      first = false;
+    }
+    html += '</div>';
+    new Dialog({
+      title: `${defender.name}: Abort to Defense`,
+      content: html,
+      buttons: {
+        ok: { icon: '<i class="fas fa-check"></i>', label: 'Continue', callback: dlg => {
+          const idxs = [...dlg[0].querySelectorAll('.abort-act:checked')].map(el => parseInt(el.dataset.index));
+          const man = dlg[0].querySelector('input[name="abort-man"]:checked')?.value || 'dodge';
+          resolve(idxs.length ? { idxs, man } : null);
+        }},
+        cancel: { label: 'Cancel', callback: () => resolve(null) },
+      },
+      default: 'ok',
+      close: () => resolve(null),
+    }, { classes: ['vtm-v20', 'dialog'], width: 380 }).render(true);
+  });
+  if (!sel) return null;
+
+  // One Willpower payment per abort, rolled or spent
+  const wpChoice = await new Promise(resolve => {
+    new Dialog({
+      title: `${defender.name}: Abort to Defense`,
+      content: '<p style="margin:8px 0;color:#ddd;">Aborting requires a Willpower check.</p>',
+      buttons: {
+        roll: { icon: '<i class="fas fa-dice-d20"></i>', label: 'Roll Willpower (diff 6)', callback: () => resolve('roll') },
+        spend: { icon: '<i class="fas fa-fire"></i>', label: 'Spend 1 Willpower', callback: () => resolve('spend') },
+        cancel: { label: 'Cancel', callback: () => resolve('cancel') },
+      },
+      default: 'roll',
+      close: () => resolve('cancel'),
+    }, { classes: ['vtm-v20', 'dialog'], width: 360 }).render(true);
+  });
+  if (wpChoice === 'cancel') return null;
+
+  if (wpChoice === 'spend') {
+    const wpVal = defender.system.willpower?.value ?? 0;
+    if (wpVal < 1) {
+      ui.notifications.warn(`${defender.name} has no Willpower to spend.`);
+      return null;
+    }
+    await defender.update({ 'system.willpower.value': wpVal - 1 });
+  } else {
+    const wpMax = defender.system.willpower?.max || 1;
+    const wpRoll = new Roll(`${wpMax}d10`);
+    await wpRoll.evaluate();
+    const wpRes = evalPool(wpRoll, 6);
+    await showDice(wpRoll, defender);
+    const wpHtml = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
+      actorImg: defender.img, actorName: defender.name,
+      portraitStyle: portraitStyle(defender),
+      label: 'Willpower: Abort to Defense', sublabel: `Willpower ${wpMax}`,
+      pool: wpMax, difficulty: 6, isAttack: false,
+      dice: wpRes.dice, total: wpRes.total, outcome: wpRes.outcome,
+      defendedLabel: wpRes.outcome === 'success' ? `${defender.name} aborts to defense!` : null,
+      hitLabel: wpRes.outcome !== 'success' ? `Abort failed. ${defender.name} must stick to the declared actions.` : null,
+    });
+    await ChatMessage.create({
+      user: game.user.id,
+      speaker: ChatMessage.getSpeaker({ actor: defender }),
+      content: wpHtml, style: CONST.CHAT_MESSAGE_STYLES.OTHER,
+    });
+    if (wpRes.outcome !== 'success') return 'failed';
+  }
+
+  // Recalculate the turn as if declared fresh
+  const actions = (decl.actions || []).map(a => ({ ...a }));
+  const abortedSet = new Set(sel.idxs);
+  for (const i of abortedSet) if (actions[i]) { actions[i].aborted = true; actions[i].alloc = 0; }
+
+  const executed = new Set(Object.keys(combatant?.getFlag('vtm-v20', 'actSpent') || {}).map(Number));
+  if (sheet?._resExecuted) for (const i of sheet._resExecuted) executed.add(i);
+
+  const survivors = [];
+  actions.forEach((a, i) => {
+    if (!a.aborted && !a.heal && !executed.has(i)) survivors.push(a);
+  });
+  const pools = survivors.map(a => sheet._declPoolForAction(a)).filter(p => p !== undefined);
+  const defPool = effectiveTraitValue(defender, `attributes.${types[sel.man].attr}`)
+    + (defender.system.abilities?.[types[sel.man].skill] || 0);
+  const lowest = Math.min(defPool, ...pools);
+  const wp = defender.system.woundPenalty || 0;
+  const info = sheet._celerityDeclInfo(lowest, wp);
+  const newTotal = info.budget;
+  const spent = resSpentTotal(combatant, sheet);
+  const maxD = Math.max(newTotal - spent - survivors.length, 1);
+
+  let dice = maxD;
+  if (maxD > 1) {
+    dice = await new Promise(resolve => {
+      let html = '<div style="margin:8px 0;color:#ddd;">';
+      html += `<p>New pool: <b>${newTotal}</b> dice${spent ? ` (${spent} already spent)` : ''}${survivors.length ? `, 1 reserved for each of the ${survivors.length} remaining action${survivors.length > 1 ? 's' : ''}` : ''}.</p>`;
+      html += `<p>Dice for the ${types[sel.man].label}?</p>`;
+      html += `<input type="range" min="1" max="${maxD}" value="${maxD}" class="def-dice-slider" style="width:100%;" />`;
+      html += `<div style="text-align:center;font-size:18px;font-weight:bold;color:var(--vtm-gold,#c9a959);" class="def-dice-val">${maxD}</div></div>`;
+      new Dialog({
+        title: `${defender.name}: ${types[sel.man].label} Dice`,
+        content: html,
+        buttons: { ok: { icon: '<i class="fas fa-dice-d20"></i>', label: 'Roll', callback: dlg => resolve(parseInt(dlg[0].querySelector('.def-dice-slider').value)) } },
+        default: 'ok',
+        render: dlg => {
+          const slider = dlg.find('.def-dice-slider');
+          const val = dlg.find('.def-dice-val');
+          slider.on('input', () => val.text(slider.val()));
+        },
+        close: () => resolve(maxD),
+      }, { classes: ['vtm-v20', 'dialog'], width: 320 }).render(true);
+    });
+  }
+
+  // Persist the re-planned turn in a single write
+  if (combatant) {
+    const ledger = { ...(combatant.getFlag('vtm-v20', 'defSpent') || {}) };
+    ledger.abort = (ledger.abort || 0) + dice;
+    const deferred = (combatant.getFlag('vtm-v20', 'deferred') || []).filter(e => !abortedSet.has(e.idx));
+    await combatant.update({
+      'flags.vtm-v20.declaration': { ...decl, actions, totalPool: newTotal, basePool: lowest, celerityCap: info.on ? info.cap : null },
+      'flags.vtm-v20.defSpent': ledger,
+      'flags.vtm-v20.reallocPending': survivors.length > 0,
+      'flags.vtm-v20.deferred': deferred.length ? deferred : null,
+    });
+  }
+
+  const names = sel.idxs.map(i => abortables.find(ab => ab.idx === i)?.name || 'action').join(', ');
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: defender }),
+    content: `<div class="vtm-roll"><div class="roll-meta"><i class="fas fa-shield-alt"></i> ${defender.name} aborts ${names}. New pool ${newTotal}, ${dice} dice to ${types[sel.man].label}.</div></div>`,
+    style: CONST.CHAT_MESSAGE_STYLES.OTHER,
+  });
+
+  return { choice: sel.man, pool: dice };
+}
+
 export async function rollDefense(msg) {
   const c = msg.flags?.['vtm-v20']?.combat;
   if (!c || c.phase !== 'attack') return;
@@ -808,15 +978,17 @@ export async function rollDefense(msg) {
   // Find declared defense actions that still have dice remaining
   const declaredDefenses = [];
   const abortableActions = [];
+  const defLedger = combatant?.getFlag('vtm-v20', 'defSpent') || {};
   if (decl?.actions) {
-    const usedIndices = new Set();
+    const usedIndices = new Set(Object.keys(combatant?.getFlag('vtm-v20', 'actSpent') || {}).map(Number));
     if (sheet?._resExecuted) {
       for (const i of sheet._resExecuted) usedIndices.add(i);
     }
     decl.actions.forEach((a, i) => {
+      if (a.aborted) return;
       if (a.defense && types[a.defense]) {
         const alloc = a.alloc || 1;
-        const spent = sheet?._resDefenseSpent?.get(i) || 0;
+        const spent = defLedger[i] || 0;
         const remaining = alloc - spent;
         if (remaining > 0) {
           declaredDefenses.push({ idx: i, defense: a.defense, alloc, spent, remaining });
@@ -840,59 +1012,64 @@ export async function rollDefense(msg) {
   if (inClinch) {
     choice = null;
   } else if (isFullDef) {
-    // Full defense: pick any available defense type, pool = full trait pool minus cumulative penalty
-    const defCount = sheet?._resFullDefCount || 0;
+    // Full defense: pick any defense type, full pool minus the cumulative
+    // penalty. The count lives on the combatant so it survives reloads,
+    // stays in sync across clients, and resets with each round's flag sweep.
+    const wpen = defender.system.woundPenalty || 0;
+    const ap = Array.from(defender.items)
+      .filter(i => i.type === 'armor' && i.system.equipped)
+      .reduce((s, i) => s + (i.system.penalty || 0), 0);
+    const baseFor = key => {
+      const d = types[key];
+      return effectiveTraitValue(defender, `attributes.${d.attr}`)
+        + (defender.system.abilities?.[d.skill] || 0) + wpen + ap;
+    };
+    const defCount = combatant?.getFlag('vtm-v20', 'fullDefCount') || 0;
     const btnEntries = Object.entries(types).map(([key, d]) => {
-      const a = effectiveTraitValue(defender, `attributes.${d.attr}`);
-      const s = defender.system.abilities?.[d.skill] || 0;
       const sl = game.i18n.localize(`VTM.${d.skill.charAt(0).toUpperCase() + d.skill.slice(1)}`);
-      const effectivePool = Math.max(a + s - defCount, 1);
-      return [key, `${d.label} (Dex + ${sl}) [${effectivePool} dice]`];
+      return [key, `${d.label} (Dex + ${sl}) [${Math.max(baseFor(key) - defCount, 1)} dice]`];
     });
     btnEntries.push(['none', 'No Defense']);
 
     const result = await new Promise(resolve => {
       const btns = {};
       for (const [k, lbl] of btnEntries)
-        btns[k] = { label: lbl, callback: () => resolve(k === 'none' ? null : k) };
+        btns[k] = { label: lbl, callback: () => resolve(k) };
       new Dialog({
         title: `${defender.name}: Full Defense`,
         content: `<p style="margin:8px 0;color:#ddd;">Defend against ${c.weaponName}?${defCount ? ` (defense #${defCount + 1}, -${defCount} dice)` : ''}</p>${blockNote}`,
         buttons: btns, default: 'dodge',
-        close: () => resolve(null),
+        close: () => resolve('cancel'),
       }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-defense-dialog'], width: 400 }).render(true);
     });
 
-    choice = result;
+    // Closing with X commits to nothing, the Defend button stays usable
+    if (result === 'cancel') return;
+    choice = result === 'none' ? null : result;
     if (choice) {
-      const def = types[choice];
-      const av = effectiveTraitValue(defender, `attributes.${def.attr}`);
-      const sv = defender.system.abilities?.[def.skill] || 0;
-      const wpen = defender.system.woundPenalty || 0;
-      const ap = Array.from(defender.items)
-        .filter(i => i.type === 'armor' && i.system.equipped)
-        .reduce((s, i) => s + (i.system.penalty || 0), 0);
-      pool = Math.max(av + sv + wpen + ap - defCount, 1);
-      if (sheet) sheet._resFullDefCount = defCount + 1;
+      // Re-read the count in case another attack card was answered meanwhile
+      const cur = combatant?.getFlag('vtm-v20', 'fullDefCount') || 0;
+      pool = Math.max(baseFor(choice) - cur, 1);
+      if (combatant) await combatant.setFlag('vtm-v20', 'fullDefCount', cur + 1);
     }
 
   } else if (declaredDefenses.length || abortableActions.length) {
-    // Has declared defenses or actions that can be aborted.
-    // Loop so that a failed/cancelled abort brings the player back to pick again.
-    const failedAborts = new Set();
+    // Declared defenses spend from the combatant ledger. Aborting re-plans
+    // the turn; a failed or cancelled pick loops back to this menu.
+    let abortFailed = false;
     let picking = true;
     while (picking) {
       picking = false;
 
       const btnEntries = [];
       for (const dd of declaredDefenses) {
+        if (dd.remaining <= 0) continue;
         const d = types[dd.defense];
         btnEntries.push([`decl-${dd.idx}`, `${d.label} [${dd.remaining}/${dd.alloc} dice remaining]`]);
       }
-      for (const ab of abortableActions) {
-        if (sheet?._resExecuted?.has(ab.idx)) continue;
-        if (failedAborts.has(ab.idx)) continue;
-        btnEntries.push([`abort-${ab.idx}`, `Abort "${ab.name}" to defend (WP roll)`]);
+      const abortables = abortableActions.filter(ab => !sheet?._resExecuted?.has(ab.idx));
+      if (abortables.length && !abortFailed) {
+        btnEntries.push(['abort', `Abort action${abortables.length > 1 ? 's' : ''} to defend (Willpower)`]);
       }
       btnEntries.push(['none', 'No Defense']);
 
@@ -907,10 +1084,12 @@ export async function rollDefense(msg) {
           title: `${defender.name}: Choose Defense`,
           content: `<p style="margin:8px 0;color:#ddd;">Defend against ${c.weaponName}?</p>${blockNote}`,
           buttons: btns, default: btnEntries[0]?.[0],
-          close: () => resolve('none'),
+          close: () => resolve('cancel'),
         }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-defense-dialog'], width: 400 }).render(true);
       });
 
+      // X just closes the dialog, the Defend button stays usable
+      if (result === 'cancel') return;
       if (result === 'none') {
         choice = null;
       } else if (result.startsWith('decl-')) {
@@ -938,108 +1117,33 @@ export async function rollDefense(msg) {
                 const val = dlg.find('.def-dice-val');
                 slider.on('input', () => val.text(slider.val()));
               },
-              close: () => resolve(dd.remaining),
+              close: () => resolve(null),
             }, { classes: ['vtm-v20', 'dialog'], width: 300 }).render(true);
           });
+          if (pool === null) { picking = true; continue; }
         }
 
-        if (sheet) {
-          const prev = sheet._resDefenseSpent.get(idx) || 0;
-          sheet._resDefenseSpent.set(idx, prev + pool);
-          sheet._resSpent.set(idx, (sheet._resSpent.get(idx) || 0) + pool);
+        // Re-read the ledger at spend time; a second attack card may have
+        // drained this defense while the dialog was open
+        const ledger = { ...(combatant?.getFlag('vtm-v20', 'defSpent') || {}) };
+        const freshLeft = dd.alloc - (ledger[idx] || 0);
+        if (freshLeft <= 0) {
+          ui.notifications.warn(`${types[dd.defense].label} has no dice left.`);
+          dd.remaining = 0;
+          picking = true;
+          continue;
         }
-      } else if (result.startsWith('abort-')) {
-        const idx = parseInt(result.replace('abort-', ''));
-        const aborted = abortableActions.find(a => a.idx === idx);
-
-        const wpChoice = await new Promise(resolve => {
-          new Dialog({
-            title: `${defender.name}: Abort to Defense`,
-            content: `<p style="margin:8px 0;color:#ddd;">Aborting "${aborted.name}" requires a Willpower check.</p>`,
-            buttons: {
-              roll: { icon: '<i class="fas fa-dice-d20"></i>', label: 'Roll Willpower (diff 6)', callback: () => resolve('roll') },
-              spend: { icon: '<i class="fas fa-fire"></i>', label: 'Spend 1 Willpower', callback: () => resolve('spend') },
-              cancel: { label: 'Cancel', callback: () => resolve('cancel') },
-            },
-            default: 'roll',
-            close: () => resolve('cancel'),
-          }, { classes: ['vtm-v20', 'dialog'], width: 360 }).render(true);
-        });
-
-        if (wpChoice === 'cancel') { picking = true; continue; }
-
-        if (wpChoice === 'spend') {
-          const curWp = defender.system.willpower?.current ?? defender.system.willpower?.max ?? 0;
-          if (curWp < 1) {
-            ui.notifications.warn(`${defender.name} has no Willpower to spend.`);
-            picking = true;
-            continue;
-          }
-          await defender.update({ 'system.willpower.current': curWp - 1 });
-          ui.notifications.info(`${defender.name} spends 1 Willpower to abort to defense.`);
-        } else {
-          const wpMax = defender.system.willpower?.max || 1;
-          const wpRoll = new Roll(`${wpMax}d10`);
-          await wpRoll.evaluate();
-          const wpRes = evalPool(wpRoll, 6);
-          await showDice(wpRoll, defender);
-
-          const wpHtml = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
-            actorImg: defender.img, actorName: defender.name,
-            portraitStyle: portraitStyle(defender),
-            label: 'Willpower: Abort to Defense', sublabel: `Willpower ${wpMax}`,
-            pool: wpMax, difficulty: 6, isAttack: false,
-            dice: wpRes.dice, total: wpRes.total, outcome: wpRes.outcome,
-            defendedLabel: wpRes.outcome === 'success' ? `${defender.name} aborts to defense!` : null,
-            hitLabel: wpRes.outcome !== 'success' ? `Abort failed. ${defender.name} cannot defend.` : null,
-          });
-          await ChatMessage.create({
-            user: game.user.id,
-            speaker: ChatMessage.getSpeaker({ actor: defender }),
-            content: wpHtml, style: CONST.CHAT_MESSAGE_STYLES.OTHER,
-          });
-
-          if (wpRes.outcome !== 'success') {
-            // Failed: this abort is burned, loop back for remaining options
-            failedAborts.add(idx);
-            picking = true;
-            continue;
-          }
-        }
-
-        // Abort succeeded: compute actual defense pools from traits
-        const wpen = defender.system.woundPenalty || 0;
-        const abortAp = Array.from(defender.items)
-          .filter(i => i.type === 'armor' && i.system.equipped)
-          .reduce((s, i) => s + (i.system.penalty || 0), 0);
-        const dexVal = effectiveTraitValue(defender, 'attributes.dexterity');
-
-        const defBtns = Object.entries(types).map(([key, d]) => {
-          const sv = defender.system.abilities?.[d.skill] || 0;
-          const dp = Math.max(dexVal + sv + wpen + abortAp, 1);
-          const sl = game.i18n.localize(`VTM.${d.skill.charAt(0).toUpperCase() + d.skill.slice(1)}`);
-          return [key, `${d.label} (Dex + ${sl}) [${dp} dice]`, dp];
-        });
-
-        const picked = await new Promise(resolve => {
-          const btns = {};
-          for (const [k, lbl] of defBtns)
-            btns[k] = { label: lbl, callback: () => resolve(k) };
-          new Dialog({
-            title: `${defender.name}: Choose Defense Maneuver`,
-            content: `<p style="margin:8px 0;color:#ddd;">Pick your defensive maneuver:</p>${blockNote}`,
-            buttons: btns, default: 'dodge',
-            close: () => resolve('dodge'),
-          }, { classes: ['vtm-v20', 'dialog', 'roll-dialog', 'vtm-defense-dialog'], width: 400 }).render(true);
-        });
-
-        choice = picked;
-        pool = defBtns.find(b => b[0] === picked)?.[2] || 1;
-
-        if (sheet) {
-          sheet._resExecuted.add(idx);
-          sheet._resSpent.set(idx, pool);
-        }
+        pool = Math.min(pool, freshLeft);
+        ledger[idx] = (ledger[idx] || 0) + pool;
+        if (combatant) await combatant.setFlag('vtm-v20', 'defSpent', ledger);
+        dd.spent += pool;
+        dd.remaining = dd.alloc - dd.spent;
+      } else if (result === 'abort') {
+        const outcome = await runAbortFlow(defender, combatant, sheet, types, abortables, decl, c);
+        if (outcome === 'failed') { abortFailed = true; picking = true; continue; }
+        if (!outcome) { picking = true; continue; }
+        choice = outcome.choice;
+        pool = outcome.pool;
       }
     }
 
@@ -1049,11 +1153,15 @@ export async function rollDefense(msg) {
 
   } else {
     // No active declaration system: free-form choice (outside structured combat)
+    const ffWpen = defender.system.woundPenalty || 0;
+    const ffAp = Array.from(defender.items)
+      .filter(i => i.type === 'armor' && i.system.equipped)
+      .reduce((s, i) => s + (i.system.penalty || 0), 0);
     const btnEntries = Object.entries(types).map(([key, d]) => {
       const a = effectiveTraitValue(defender, `attributes.${d.attr}`);
       const s = defender.system.abilities?.[d.skill] || 0;
       const sl = game.i18n.localize(`VTM.${d.skill.charAt(0).toUpperCase() + d.skill.slice(1)}`);
-      return [key, `${d.label} (Dex + ${sl}) [${a + s}]`];
+      return [key, `${d.label} (Dex + ${sl}) [${Math.max(a + s + ffWpen + ffAp, 1)} dice]`];
     });
     btnEntries.push(['none', 'No Defense']);
 

@@ -161,8 +161,6 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _resCombatant = null;
   _resExecuted = new Set();
   _resSpent = new Map();
-  _resDefenseSpent = new Map();
-  _resFullDefCount = 0;
   _resTurnDone = false;
   _resBloodSpent = 0;
   _targetingChoice = 'medium';
@@ -585,7 +583,6 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       this._resCombatant = null;
       this._resExecuted = new Set();
       this._resSpent = new Map();
-      this._resDefenseSpent = new Map();
       this._resTurnDone = false;
       this._resBloodSpent = 0;
     }
@@ -606,6 +603,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           this._resCombatant = combatant;
           const resolved = combatant.getFlag('vtm-v20', 'resolved');
           if (resolved) this._resTurnDone = true;
+          // Rebuild local execution state from the synced mirror (e.g. after F5)
+          const acted = combatant.getFlag('vtm-v20', 'actSpent') || {};
+          for (const [i, n] of Object.entries(acted)) {
+            this._resExecuted.add(Number(i));
+            this._resSpent.set(Number(i), n);
+          }
         }
       }
     }
@@ -642,7 +645,6 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         this._resCombatant = null;
         this._resExecuted = new Set();
         this._resSpent = new Map();
-        this._resDefenseSpent = new Map();
         this._resTurnDone = false;
         this._resBloodSpent = 0;
       }
@@ -655,16 +657,17 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       ctx.resTotalPool = decl.totalPool || 0;
       ctx.resMultiAction = resActions.length > 1;
 
-      // Remaining dice = total minus spent on attacks and defense
-      let spent = [...this._resSpent.values()].reduce((s, v) => s + v, 0);
-      // Defense dice are tracked in _resSpent by index, same as attacks
-      ctx.resRemaining = Math.max(ctx.resTotalPool - spent, 0);
+      // Remaining dice = total minus executed actions and reactive defense
+      // spends, both read through the synced combatant ledgers
+      ctx.resRemaining = Math.max(ctx.resTotalPool - this._resSpentTotal(), 0);
 
       // Reset declaration highlights, mark from flag data instead
       for (const atk of attacks) atk.declared = false;
       for (const def of ctx.defenses) def.declared = false;
 
+      const defLedger = this._resCombatant?.getFlag('vtm-v20', 'defSpent') || {};
       for (const [i, ra] of resActions.entries()) {
+        if (ra.aborted) continue;
         if (ra.attackId) {
           const atk = attacks.find(a => a.id === ra.attackId);
           if (atk) {
@@ -679,7 +682,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             def.declared = true;
             def.resIndex = i;
             const alloc = ra.alloc || 1;
-            const dSpent = this._resDefenseSpent.get(i) || 0;
+            const dSpent = defLedger[i] || 0;
             def.resExecuted = dSpent >= alloc;
           }
         }
@@ -687,12 +690,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
       // Custom resolution actions (no matching row)
       const customRes = resActions
-        .map((a, i) => (!a.attackId && !a.defense) ? { index: i, name: a.text || 'Custom Action', executed: this._resExecuted.has(i) } : null)
+        .map((a, i) => (!a.attackId && !a.defense && !a.aborted) ? { index: i, name: a.text || 'Custom Action', executed: this._resExecuted.has(i) } : null)
         .filter(Boolean);
       ctx.resCustomActions = customRes.length ? customRes : null;
 
       // Only attacks and custom actions need to be executed; defenses are reactive
-      ctx.resAllExecuted = resActions.every((a, i) => a.defense || this._resExecuted.has(i));
+      ctx.resAllExecuted = resActions.every((a, i) => a.defense || a.aborted || this._resExecuted.has(i));
     }
 
     ctx.armorPenalty = items
@@ -2263,7 +2266,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const actions = decl.actions || [];
     const total = decl.totalPool || 0;
     const fullDef = decl.fullDefense || false;
-    let spent = [...this._resSpent.values()].reduce((s, v) => s + v, 0);
+    let spent = this._resSpentTotal();
     const remaining = Math.max(total - spent, 0);
     const turnDone = this._resTurnDone;
 
@@ -2275,11 +2278,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       && !this._resCombatant?.getFlag('vtm-v20', 'resolved');
 
     // Build defense status (shared between all panel modes)
+    const defLedger = this._resCombatant?.getFlag('vtm-v20', 'defSpent') || {};
     const defActions = actions
       .map((a, i) => {
-        if (!a.defense) return null;
+        if (!a.defense || a.aborted) return null;
         const alloc = a.alloc || 1;
-        const spent = this._resDefenseSpent.get(i) || 0;
+        const spent = defLedger[i] || 0;
         return { i, name: a.text || a.defense, alloc, spent, remaining: alloc - spent };
       })
       .filter(Boolean);
@@ -2321,7 +2325,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     };
 
     if (fullDef) {
-      const defensesUsed = this._resFullDefCount || 0;
+      const defensesUsed = this._resCombatant?.getFlag('vtm-v20', 'fullDefCount') || 0;
       let h = '<div class="res-panel active">';
       h += '<div class="res-phase-banner"><i class="fas fa-shield-alt"></i> Full Defense</div>';
       h += '<div class="res-pool-info">Defenses used: <b>' + defensesUsed + '</b> (-' + defensesUsed + ' dice penalty)</div>';
@@ -2357,7 +2361,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
 
       if (amDelayed) {
-        const left = actions.filter((a, i) => !a.defense && !a.heal && !this._resExecuted.has(i)).length;
+        const left = actions.filter((a, i) => !a.defense && !a.heal && !a.aborted && !this._resExecuted.has(i)).length;
         h += '<div class="res-phase-banner celerity-slot"><i class="fas fa-pause"></i> Delaying</div>';
         h += `<div class="res-pool-info">Dice remaining: <b>${remaining}</b> / ${total} | Actions banked: <b>${left}</b></div>`;
         h += '<div class="res-buttons">';
@@ -2394,22 +2398,22 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     // Active resolution: it's our turn, show full panel
     const heals = actions
-      .map((a, i) => a.heal ? { i, name: a.text || 'Heal', amount: a.heal, done: this._resExecuted.has(i) } : null)
+      .map((a, i) => (a.heal && !a.aborted) ? { i, name: a.text || 'Heal', amount: a.heal, done: this._resExecuted.has(i) } : null)
       .filter(Boolean);
     const customs = actions
-      .map((a, i) => (!a.attackId && !a.defense && !a.heal) ? { i, name: a.text || 'Custom Action', done: this._resExecuted.has(i) } : null)
+      .map((a, i) => (!a.attackId && !a.defense && !a.heal && !a.aborted) ? { i, name: a.text || 'Custom Action', done: this._resExecuted.has(i) } : null)
       .filter(Boolean);
     const reloads = actions
-      .map((a, i) => a.reload ? { i, name: a.text || 'Reload', done: this._resExecuted.has(i) } : null)
+      .map((a, i) => (a.reload && !a.aborted) ? { i, name: a.text || 'Reload', done: this._resExecuted.has(i) } : null)
       .filter(Boolean);
 
     // Celerity cap: actions that can't fit in the turn defer instead of block
     const cap = decl.celerityCap;
     const capLeft = cap != null ? Math.max(cap - spent, 0) : null;
-    const isBlocked = (a, i) => cap != null && !a.defense && !a.heal
+    const isBlocked = (a, i) => cap != null && !a.defense && !a.heal && !a.aborted
       && !this._resExecuted.has(i) && (a.alloc || 1) > capLeft;
     const blocked = actions.map((a, i) => isBlocked(a, i) ? i : null).filter(i => i !== null);
-    const allDone = actions.every((a, i) => a.defense || this._resExecuted.has(i) || blocked.includes(i));
+    const allDone = actions.every((a, i) => a.defense || a.aborted || this._resExecuted.has(i) || blocked.includes(i));
 
     let h = '<div class="res-panel active">';
     h += finalCall
@@ -3501,6 +3505,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const info = this._celerityDeclInfo(lowestPool, wp);
       totalPool = info.budget;
       celerityCap = info.on ? info.cap : null;
+
+      // Lone action: sliders never showed, so alloc is still the seed of 1.
+      // Defenses spend straight from alloc, a solo dodge would roll one die.
+      const solo = this._declActions.filter(a => !a.heal);
+      if (solo.length === 1 && !info.on && totalPool > 0) solo[0].alloc = totalPool;
     }
 
     const combatant = this._declCombatant;
@@ -3538,8 +3547,6 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this._resCombatant = combatant;
     this._resExecuted = new Set();
     this._resSpent = new Map();
-    this._resDefenseSpent = new Map();
-    this._resFullDefCount = 0;
     this._resTurnDone = false;
     this._tab = 'combat';
     this.render();
@@ -3553,11 +3560,17 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       this._resCombatant = combatant;
       this._resExecuted = new Set();
       this._resSpent = new Map();
-      this._resDefenseSpent = new Map();
-      this._resFullDefCount = 0;
     }
     this._resTurnDone = false;
     this._tab = 'combat';
+
+    // An abort replanned the turn mid-round: redistribute before anything else
+    if (combatant.getFlag('vtm-v20', 'reallocPending')) {
+      const decl0 = combatant.getFlag('vtm-v20', 'declaration') || {};
+      await combatant.unsetFlag('vtm-v20', 'reallocPending');
+      await this._promptReallocation(combatant, decl0, decl0.totalPool || 0, decl0.celerityCap ?? null);
+      return;
+    }
 
     // Check if wound penalty changed since declaration. The comparison must
     // rebuild the pool the same way the declaration did, Celerity included,
@@ -3584,8 +3597,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const oldTotal = decl.totalPool;
     const diff = oldTotal - newTotal;
 
-    const alreadySpent = [...this._resSpent.entries()];
-    const lockedDice = alreadySpent.reduce((s, [, v]) => s + v, 0);
+    const lockedDice = this._resSpentTotal();
     const budget = Math.max(newTotal - lockedDice, 0);
 
     const entries = actions.map((a, i) => {
@@ -3595,7 +3607,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const resolved = this._getAttackById(a.attackId);
         if (resolved?.name) name = resolved.name;
       }
-      const executed = this._resExecuted.has(i);
+      const executed = this._resExecuted.has(i) || !!a.aborted;
       const spent = this._resSpent.get(i) || 0;
       return { i, name, alloc: a.alloc || 1, executed, spent };
     });
@@ -3776,20 +3788,6 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this.render(true);
   }
 
-  _endResolution() {
-    if (this.document.getFlag('vtm-v20', 'wpIgnoreWounds')) {
-      this.document.unsetFlag('vtm-v20', 'wpIgnoreWounds');
-    }
-    this._resCombat = null;
-    this._resCombatant = null;
-    this._resExecuted = new Set();
-    this._resSpent = new Map();
-    this._resDefenseSpent = new Map();
-    this._resFullDefCount = 0;
-    this._resTurnDone = false;
-    this.render();
-  }
-
   // A deferred Celerity slot for this combatant just came up in the order
   startDeferredResolution(combat, combatant, idx, init) {
     if (!this._resCombat) {
@@ -3804,6 +3802,31 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _isMyResTurn() {
     if (!this._resCombat || !this._resCombatant || this._resTurnDone) return false;
     return this._resCombat.getFlag('vtm-v20', 'currentResolver') === this._resCombatant.id;
+  }
+
+  // Mark an action executed locally and mirror the spend onto the combatant,
+  // so other clients and a reloaded page can rebuild the truth
+  _markSpent(idx, dice) {
+    this._resExecuted.add(idx);
+    this._resSpent.set(idx, dice);
+    const c = this._resCombatant;
+    if (c) {
+      const cur = { ...(c.getFlag('vtm-v20', 'actSpent') || {}) };
+      cur[idx] = dice;
+      c.setFlag('vtm-v20', 'actSpent', cur);
+    }
+  }
+
+  // Total dice gone from the turn pool: executed actions (mirror merged with
+  // any fresher local state) plus reactive defense dice from the ledger
+  _resSpentTotal() {
+    const c = this._resCombatant;
+    const merged = new Map(Object.entries(c?.getFlag('vtm-v20', 'actSpent') || {}).map(([k, v]) => [Number(k), v]));
+    for (const [k, v] of this._resSpent) merged.set(k, Math.max(v, merged.get(k) || 0));
+    let sum = 0;
+    for (const v of merged.values()) sum += v;
+    for (const v of Object.values(c?.getFlag('vtm-v20', 'defSpent') || {})) sum += v;
+    return sum;
   }
 
   // Which action index (if any) is currently mine to resolve as a deferred
@@ -3838,10 +3861,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const decl = this._resCombatant.getFlag('vtm-v20', 'declaration') || {};
     const actions = decl.actions || [];
     const action = actions[idx];
-    if (!action) return;
+    if (!action || action.aborted) return;
 
     const totalPool = decl.totalPool || 0;
-    const spent = [...this._resSpent.values()].reduce((s, v) => s + v, 0);
+    const spent = this._resSpentTotal();
     const remaining = Math.max(totalPool - spent, 0);
     const nonHealCount = actions.filter(a => !a.heal).length;
     // Celerity declarations always use explicit allocations
@@ -3892,8 +3915,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const amount = Math.min(action.heal, bloodLeft);
       if (amount <= 0) {
         ui.notifications.warn(`Already spent ${perTurn} blood this turn, cannot heal.`);
-        this._resExecuted.add(idx);
-        this._resSpent.set(idx, 0);
+        this._markSpent(idx, 0);
         this.render();
         return;
       }
@@ -3957,8 +3979,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
 
       this._resBloodSpent += amount;
-      this._resExecuted.add(idx);
-      this._resSpent.set(idx, 0);
+      this._markSpent(idx, 0);
       this.render();
       return;
     }
@@ -3984,8 +4005,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         });
       }
 
-      this._resExecuted.add(idx);
-      this._resSpent.set(idx, multiAction ? poolSpent : 0);
+      this._markSpent(idx, multiAction ? poolSpent : 0);
       this.render();
       return;
     }
@@ -4004,8 +4024,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
       // Adjustment dialog closed: nothing rolled, nothing spent
       if (adjust && result === null) return;
-      this._resExecuted.add(idx);
-      this._resSpent.set(idx, poolSpent);
+      this._markSpent(idx, poolSpent);
       this.render();
       return;
     }
@@ -4103,8 +4122,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
     }
 
-    this._resExecuted.add(idx);
-    this._resSpent.set(idx, poolSpent);
+    this._markSpent(idx, poolSpent);
     this.render();
   }
 
@@ -5010,7 +5028,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const eligible = actions
       .map((a, i) => {
-        if (a.defense || this._resExecuted.has(i)) return null;
+        if (a.defense || a.aborted || this._resExecuted.has(i)) return null;
         return { i, name: a.text || 'Action', alloc: a.alloc || 0 };
       })
       .filter(Boolean);
