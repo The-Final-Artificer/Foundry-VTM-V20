@@ -6,6 +6,7 @@ import { PATHS } from './paths-data.mjs';
 import { RITUALS } from './rituals-data.mjs';
 import { ARCHETYPES } from './archetypes-data.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
+import { VTM } from './config.mjs';
 
 // Virtues, Willpower and Humanity keep their shipped text by design.
 const TRAIT_EXCLUDE = new Set([
@@ -26,6 +27,7 @@ const powerList = sys => Object.entries(sys?.powers || {})
 export function buildCatalog() {
   return {
     archetypes: Object.keys(ARCHETYPES),
+    clans: VTM.clans.map(name => ({ name, disciplines: VTM.clanDisciplines[name] || [] })),
     disciplines: DISCIPLINES.map(d => ({ name: d.name, powers: powerList(d.system) })),
     paths: PATHS.map(p => ({ name: p.name, powers: powerList(p.system) })),
     rituals: RITUALS.map(r => ({ name: r.name, level: r.system?.level ?? 0, type: r.system?.ritualType || '' })),
@@ -46,6 +48,7 @@ export function buildCatalog() {
 export function listSlots(catalog = buildCatalog()) {
   const slots = [];
   for (const n of catalog.archetypes) slots.push({ key: `archetype:${n}`, label: n, category: 'Archetypes' });
+  for (const c of catalog.clans || []) slots.push({ key: `clan:${c.name}`, label: c.name, category: 'Clan Weaknesses' });
   for (const d of catalog.disciplines) {
     slots.push({ key: `discipline:${d.name}:intro`, label: `${d.name} (introduction)`, category: 'Disciplines' });
     for (const p of d.powers) {

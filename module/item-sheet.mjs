@@ -1,5 +1,6 @@
 import { VTM } from './config.mjs';
 import { applyHealthDamage } from './combat.mjs';
+import { DISCIPLINES } from './compendiums.mjs';
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ItemSheetV2 } = foundry.applications.sheets;
@@ -249,6 +250,17 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       ];
     }
 
+    if (item.type === 'clan') {
+      const chosen = new Set(ctx.system.disciplines || []);
+      const names = DISCIPLINES.map(d => d.name);
+      // World discipline items (homebrew) count too
+      for (const i of game.items) {
+        if (i.type === 'discipline' && !names.includes(i.name)) names.push(i.name);
+      }
+      for (const n of chosen) if (!names.includes(n)) names.push(n);
+      ctx.clanDisciplineOptions = names.map(n => ({ name: n, checked: chosen.has(n) }));
+    }
+
     ctx.enrichedDescription = await TextEditor.enrichHTML(item.system.description || '', { relativeTo: item });
     // Dot cap follows the owner's generation; unowned items show the mortal cap
     ctx.traitMax = item.parent?.system?.traitMax || 5;
@@ -261,6 +273,12 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   _onRender(context, options) {
     super._onRender(context, options);
     const el = this.element;
+
+    el.querySelectorAll('.clan-disc-check').forEach(cb =>
+      cb.addEventListener('change', () => {
+        const names = [...el.querySelectorAll('.clan-disc-check:checked')].map(c => c.dataset.name);
+        this.document.update({ 'system.disciplines': names });
+      }));
 
     // Image: click for lightbox, edit button for file picker
     const img = el.querySelector('.sheet-header img');

@@ -9,10 +9,28 @@ export function computeCarry(actor) {
   const eiActive = game.modules?.get('enhanced-inventory')?.active;
   const eiData = eiActive ? (actor.getFlag('enhanced-inventory', 'data') || {}) : {};
   const slottedIds = new Set(Object.values(eiData.slots || {}).filter(Boolean));
+
+  // Havens are places, not luggage: the container and everything stored in it
+  // stays off the scale. Nested containers inside a haven count as stored too.
+  const havenIds = new Set(actor.items.filter(i => i.type === 'container' && i.system.haven).map(i => i.id));
+  if (eiActive && havenIds.size) {
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const it of actor.items) {
+        if (it.type !== 'container' || havenIds.has(it.id)) continue;
+        const cid = it.getFlag('enhanced-inventory', 'grid')?.containerId;
+        if (cid && havenIds.has(cid)) { havenIds.add(it.id); grew = true; }
+      }
+    }
+  }
+
   for (const it of actor.items) {
+    if (it.type === 'container' && it.system.haven) continue;
     if (eiActive) {
       const grid = it.getFlag('enhanced-inventory', 'grid');
       if (grid && grid.gridX === -1 && grid.gridY === -1 && !slottedIds.has(it.id) && !grid.armorId) continue;
+      if (havenIds.size && havenIds.has(grid?.containerId)) continue;
     }
     const w = it.system.weight || 0;
     if (it.type === 'equipment') weight += w * (it.system.quantity || 1);

@@ -23,7 +23,7 @@
           <label>Clan <span class="required">*</span></label>
           <input type="text" name="clan" list="chargen-clans" value="{{d.clan}}" placeholder="Choose or type..." />
           <datalist id="chargen-clans">
-            {{#each config.clans}}
+            {{#each clanOptions}}
             <option value="{{this}}">{{this}}</option>
             {{/each}}
           </datalist>

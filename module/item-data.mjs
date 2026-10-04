@@ -165,7 +165,19 @@ export class ContainerData extends foundry.abstract.TypeDataModel {
       weight: new f.NumberField({ required: true, nullable: false, initial: 0, min: 0 }),
       capacity: int(0, 0, 100),
       penalty: new f.NumberField({ required: true, nullable: false, initial: 0, min: -5, max: 0, integer: true }),
+      // A place rather than luggage: exempt from carrying capacity
+      haven: new f.BooleanField({ initial: false }),
       equipped: new f.BooleanField({ initial: false }),
+      description: new f.HTMLField({ initial: '' }),
+    };
+  }
+}
+
+export class ClanData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    return {
+      weakness: str(''),
+      disciplines: new f.ArrayField(str(''), { required: true, initial: [] }),
       description: new f.HTMLField({ initial: '' }),
     };
   }

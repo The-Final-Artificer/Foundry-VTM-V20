@@ -1,7 +1,7 @@
 import { VTM } from './module/config.mjs';
 import { VampireData } from './module/vampire-data.mjs';
 import { MortalData } from './module/mortal-data.mjs';
-import { DisciplineData, BackgroundData, MeritData, WeaponData, ArmorData, EquipmentData, ContainerData, PathData, RitualData } from './module/item-data.mjs';
+import { DisciplineData, BackgroundData, MeritData, WeaponData, ArmorData, EquipmentData, ContainerData, PathData, RitualData, ClanData } from './module/item-data.mjs';
 import { VampireSheet } from './module/vampire-sheet.mjs';
 import { VtmItemSheet } from './module/item-sheet.mjs';
 import { rollDicePool, promptChatRoll } from './module/dice.mjs';
@@ -274,6 +274,7 @@ Hooks.once('init', () => {
   CONFIG.Item.dataModels.container = ContainerData;
   CONFIG.Item.dataModels.path = PathData;
   CONFIG.Item.dataModels.ritual = RitualData;
+  CONFIG.Item.dataModels.clan = ClanData;
 
   CONFIG.Actor.trackableAttributes = {
     vampire: {
@@ -618,9 +619,26 @@ Hooks.on('updateCombat', (combat, changes) => {
   }
 });
 
+// Gangrel frenzy: the clan weakness hands out a temporary animal feature.
+// Whispered to the GM and the actor's owners only.
+async function gangrelFrenzyNotice(effect) {
+  if (!effect?.statuses?.has?.(FRENZY_STATUS_ID)) return;
+  const actor = effect.parent;
+  if (actor?.type !== 'vampire' || actor.system?.clan !== 'Gangrel') return;
+  if (!shouldEnforceCoverExclusivity(actor)) return;
+  const recipients = game.users.filter(u => u.isGM || actor.testUserPermission(u, 'OWNER')).map(u => u.id);
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    whisper: recipients,
+    content: `<div class="vtm-roll"><div class="roll-info" style="padding:6px 0"><span class="roll-actor">${actor.name}</span><span class="roll-label">Gangrel clan weakness</span></div><div class="roll-meta"><i class="fas fa-paw"></i> The frenzy leaves its mark: ${actor.name} acquires a temporary animal characteristic. Decide it with the Storyteller.</div></div>`,
+    style: CONST.CHAT_MESSAGE_STYLES.OTHER,
+  });
+}
+
 Hooks.on('createActiveEffect', effect => {
   enforceExclusiveCoverStatus(effect);
   enforceExclusiveImmobilizationStatus(effect);
+  gangrelFrenzyNotice(effect);
 });
 
 // Quick d10 roller button beside the chat roll-mode toggles.

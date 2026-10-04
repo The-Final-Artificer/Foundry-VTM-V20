@@ -116,6 +116,46 @@ const CATCHALLS = new Set(['hobby talent', 'professional skill', 'expert knowled
 
 const LEVEL_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5 };
 
+// ── clan weaknesses ───────────────────────────────────────────────────────
+// Clan chapters carry a "Clan Disciplines: A, B, C" line right before the
+// Weaknesses section, and the discipline triple is unique per clan, so the
+// paste does not need to include the chapter title.
+
+const CLAN_SECTION_END = /\n[ \t]*(?:Organization|Stereotypes?|Background|Character Creation|Quote|Nickname|Appearance|Haven|Sobriquet|Sect|Clan Disciplines)[ \t]*:/;
+
+function extractClanWeaknesses(text, catalog) {
+  const clans = catalog.clans || [];
+  if (!clans.length) return { text, captures: [] };
+  const byDisc = new Map();
+  const byName = new Map();
+  for (const c of clans) {
+    if (c.disciplines?.length) byDisc.set(c.disciplines.map(norm).sort().join('|'), c.name);
+    byName.set(normHead(c.name), c.name);
+  }
+
+  const captures = [];
+  const spans = [];
+  const re = /Clan Disciplines[ \t]*:[ \t]*([^\n]+)\n+[ \t]*Weakness(?:es)?[ \t]*:[ \t]*/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const triple = m[1].split(/[,;]/).map(norm).filter(Boolean).sort().join('|');
+    let clan = byDisc.get(triple) || null;
+    if (!clan) {
+      // fall back to the nearest clan name above the match
+      const before = text.slice(Math.max(0, m.index - 4000), m.index).split('\n');
+      for (let j = before.length - 1; j >= 0 && !clan; j--) clan = byName.get(normHead(before[j].trim())) || null;
+    }
+    const start = m.index + m[0].length;
+    const endM = CLAN_SECTION_END.exec(text.slice(start));
+    const end = endM ? start + endM.index : Math.min(start + 2500, text.length);
+    captures.push({ key: clan ? `clan:${clan}` : null, label: clan ? `${clan} (clan weakness)` : 'Unknown clan', body: text.slice(start, end) });
+    spans.push([start, end]);
+  }
+  // excise captured blocks back to front so earlier offsets stay valid
+  for (let i = spans.length - 1; i >= 0; i--) text = text.slice(0, spans[i][0]) + text.slice(spans[i][1]);
+  return { text, captures };
+}
+
 // ── reflow and output formatting ──────────────────────────────────────────
 
 const ROW_RE = /^(?:•\s|Botch\b|Failure\b|\d+\+?\s+success(?:es)?\b|Successes\s+(?:Result|Information)\b|Health Level\b|Blood Spent\b)/;
@@ -205,6 +245,8 @@ export function parseAuthenticText(raw, catalog) {
   let text = stripEpigraph(fixHyphens(stripJunk(String(raw).replace(/\r\n?/g, '\n'))));
   const mid = extractMidtextBoxes(text);
   text = mid.text;
+  const cw = extractClanWeaknesses(text, catalog);
+  text = cw.text;
   const lines = text.split('\n');
 
   const captures = new Map();
@@ -215,6 +257,10 @@ export function parseAuthenticText(raw, catalog) {
   for (const b of mid.boxes) {
     if (b.route) pendingRoutes.push({ key: b.route, title: b.title, text: b.text });
     else leftovers.push({ title: b.title, text: b.text });
+  }
+  for (const c of cw.captures) {
+    if (!c.key) { skipped.push({ name: 'Clan weakness', reason: 'could not identify the clan' }); continue; }
+    captures.set(c.key, { key: c.key, label: c.label, kind: 'clan', lines: c.body.split('\n'), notes: [] });
   }
 
   let target = null;
@@ -563,6 +609,8 @@ export function parseAuthenticText(raw, catalog) {
     if (cap.kind === 'archetype') {
       out = formatArchetype(cap.lines);
       if (!out.includes('\n\n• ')) cap.notes.push('no Willpower regain line found');
+    } else if (cap.kind === 'clan') {
+      out = toPlain(cap.lines);
     } else {
       out = toHtml(cap.lines);
     }

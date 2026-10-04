@@ -36,6 +36,11 @@ export function archetypeAuthentic(name) {
   return { body: raw.slice(0, cut).trim(), regain: raw.slice(cut + 4).trim() };
 }
 
+export function clanAuthentic(name) {
+  const raw = getOverrides()[`clan:${name}`];
+  return raw ? { body: raw.trim() } : null;
+}
+
 export function traitAuthentic(key) {
   const raw = getOverrides()[`trait:${key}`];
   return raw ? raw.split('\n').filter(l => l.trim()) : null;

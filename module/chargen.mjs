@@ -1,5 +1,6 @@
 import { VTM } from './config.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
+import { clanOptions, clanDisciplinesFor } from './clan-weaknesses.mjs';
 
 const ATTR_POOLS = [7, 5, 3];
 const ABIL_POOLS = [13, 9, 5];
@@ -96,9 +97,10 @@ export class ChargenWizard {
       ctx.bgRemaining = this._itemPool('bg');
       ctx.virtueRemaining = this._virtuePool();
       ctx.virtueLabels = d.virtueLabels;
-      const clanDisc = VTM.clanDisciplines[d.clan];
+      const clanDisc = clanDisciplinesFor(d.clan, VTM.clanDisciplines);
       ctx.clanDiscHint = clanDisc?.length ? clanDisc.join(', ') : null;
     }
+    ctx.clanOptions = clanOptions(VTM.clans);
     if (this.step === 4) {
       const gen = VTM.generationTable[d.generation] || {};
       const fb = d.fb;

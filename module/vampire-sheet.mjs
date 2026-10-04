@@ -5,7 +5,8 @@ import { ChargenWizard } from './chargen.mjs';
 import { applyHealthDamage, checkIncapacitated, computeSoakPool, finalDamageAfterSoak, getCondition, clinchInflictDamage, clinchEscape, holdEscape, standUp } from './combat.mjs';
 import { blindedDifficulty, hasStatus, statusIconVisibility, FRENZY_STATUS_ID, ROTSCHRECK_STATUS_ID } from './status-effects.mjs';
 import { archetypeInfo } from './archetypes-data.mjs';
-import { archetypeAuthentic, traitAuthentic } from './authentic-store.mjs';
+import { archetypeAuthentic, clanAuthentic, traitAuthentic } from './authentic-store.mjs';
+import { clanWeaknessInfo, clanItemInfo, clanOptions } from './clan-weaknesses.mjs';
 import { disciplineLevel, isDisciplineActive, potenceLevel, potenceAutoSuccesses, celerityLevel, effectiveTraitValue, effectiveStrength, usesStrengthTrait } from './discipline-effects.mjs';
 import { exportSheet } from './sheet-export.mjs';
 import { computeCarry } from './movement.mjs';
@@ -763,6 +764,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ctx.hungerLabel = actor.getFlag('vtm-v20', 'virtueLabels')?.selfControl || game.i18n.localize('VTM.SelfControl');
     ctx.natureInfo = archetypeAuthentic(sys.nature) || archetypeInfo(sys.nature);
     ctx.demeanorInfo = archetypeAuthentic(sys.demeanor) || archetypeInfo(sys.demeanor);
+    ctx.clanInfo = this.document.type === 'vampire' ? (clanItemInfo(sys.clan) || clanAuthentic(sys.clan) || clanWeaknessInfo(sys.clan)) : null;
     ctx.humanityTip = this.document.type === 'vampire' && sys.pathName === 'Humanity';
     ctx.bloodPerTurn = sys.bloodPerTurn || 1;
     ctx.traitMax = sys.traitMax || 5;
@@ -793,6 +795,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ctx.curMove = { label: move.curLabel, value: move.curValue };
 
     ctx.config = VTM;
+    ctx.clanOptions = clanOptions(VTM.clans);
 
     // Path, bearing, virtues
     const pathKey = sys.pathName || 'Humanity';
@@ -2505,8 +2508,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   _setupBioPages(el) {
     const SEP = '<!-- PAGE -->';
-    const locked = this.document.getFlag('vtm-v20', 'sheetLocked') !== false;
-    const canEdit = this.isEditable && (game.user.isGM || !locked);
+    // Owners can always journal: the sheet lock covers stats, not the bio
+    const canEdit = this.isEditable;
     const actor = this.document;
     const toolbar = el.querySelector('.bio-toolbar');
 
@@ -6073,7 +6076,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const intensity = intensities[choice.intensity] || intensities.faint;
     const exposure = exposures[choice.exposure] || exposures.small;
     const dmgType = 'aggravated';
-    const incoming = exposure.levels;
+    // Followers of Set burn worse: two extra health levels from sunlight
+    const setite = actor.system.clan === 'Followers of Set';
+    const incoming = exposure.levels + (setite ? 2 : 0);
 
     // Only Fortitude stands between a vampire and the sun
     const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
@@ -6105,12 +6110,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       defenderName: actor.name, defenderImg: actor.img,
       defenderPortraitStyle: this._portraitStyle(),
       weaponName: intensity.label, damageType: dmgType,
-      dmgPool: incoming, dmgLabel: `${exposure.label}, per turn in the light`,
+      dmgPool: incoming, dmgLabel: `${exposure.label}${setite ? ' + 2 Followers of Set' : ''}, per turn in the light`,
       dmgDice: [], dmgSuccesses: incoming,
       soakPool: fortLevel, soakLabel,
       soakDice, soakSuccesses: soaked, soakSkipped,
       netDamage: net, noDamage: net === 0,
-      damageAdjustment: null,
+      damageAdjustment: setite ? 'Followers of Set: sunlight deals two additional health levels.' : null,
       condition: cond, penalty: actor.system.woundPenalty ? `${actor.system.woundPenalty}` : null,
     });
 

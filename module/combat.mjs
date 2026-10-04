@@ -316,7 +316,8 @@ function calcDmgPool(formula, str, netSucc) {
   if (!f || f === 'str') base = str;
   else if (f.startsWith('str')) base = str + (parseInt(f.replace(/str\+?/, '')) || 0);
   else base = parseInt(f) || 0;
-  return Math.max(base + netSucc, 1);
+  // V20 p.272: the first success only buys the hit, the rest add damage dice
+  return Math.max(base + Math.max(netSucc - 1, 0), 1);
 }
 
 export function finalDamageAfterSoak(actor, amount, type) {
@@ -1836,12 +1837,13 @@ export async function rollDamage(msg) {
     const disarmed = dmgTotal > targetStr;
 
     const df = (c.damageFormula || '').trim().toLowerCase();
+    const dmgExtra = Math.max((c.netSuccesses || 0) - 1, 0);
     let dLabel;
     if (!df || df.startsWith('str')) {
       const bonus = df.startsWith('str') ? (parseInt(df.replace(/str\+?/, '')) || 0) : 0;
-      dLabel = (bonus ? `Str ${str} + ${bonus}` : `Str ${str}`) + ` + ${c.netSuccesses} net`;
+      dLabel = (bonus ? `Str ${str} + ${bonus}` : `Str ${str}`) + ` + ${dmgExtra} extra`;
     } else {
-      dLabel = `Base ${parseInt(df) || 0} + ${c.netSuccesses} net`;
+      dLabel = `Base ${parseInt(df) || 0} + ${dmgExtra} extra`;
     }
     if (dmgWoundPen) dLabel += ` wound ${dmgWoundPen}`;
     if (dmgAuto) dLabel += ` + Potence ${dmgAuto} auto`;
@@ -1968,13 +1970,14 @@ export async function rollDamage(msg) {
     await knockdownSave(attacker, { difficulty: 7 });
   }
 
+  const dmgExtra = Math.max((c.netSuccesses || 0) - 1, 0);
   let dmgLabel;
   if (!f || f === 'str' || f.startsWith('str')) {
     const bonus = f.startsWith('str') ? (parseInt(f.replace(/str\+?/, '')) || 0) : 0;
     dmgLabel = bonus ? `Str ${str} + ${bonus}` : `Str ${str}`;
-    dmgLabel += ` + ${c.netSuccesses} net`;
+    dmgLabel += ` + ${dmgExtra} extra`;
   } else {
-    dmgLabel = `Base ${parseInt(f) || 0} + ${c.netSuccesses} net`;
+    dmgLabel = `Base ${parseInt(f) || 0} + ${dmgExtra} extra`;
   }
   if (horridBonus) dmgLabel += ' + 1 Horrid Form';
   if (targetingDamageMod) dmgLabel += ` + ${targetingDamageMod} targeted`;

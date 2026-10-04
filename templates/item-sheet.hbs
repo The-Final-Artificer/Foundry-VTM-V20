@@ -117,6 +117,21 @@
   </div>
   {{/if}}
 
+  {{#if (eq item.type "clan")}}
+  <div class="form-group">
+    <label>Weakness</label>
+  </div>
+  <textarea name="system.weakness" class="clan-weakness" rows="5" placeholder="Shown on the sheet when hovering the mark next to Clan...">{{system.weakness}}</textarea>
+  <div class="form-group">
+    <label>Typical Disciplines</label>
+  </div>
+  <div class="clan-disc-grid">
+    {{#each clanDisciplineOptions}}
+    <label class="clan-disc-opt"><input type="checkbox" class="clan-disc-check" data-name="{{this.name}}" {{#if this.checked}}checked{{/if}} /> {{this.name}}</label>
+    {{/each}}
+  </div>
+  {{/if}}
+
   {{#if (eq item.type "background")}}
   <div class="form-group">
     <label>Rating</label>
@@ -307,6 +322,10 @@
   <div class="form-group">
     <label>Dex Penalty</label>
     <input type="number" name="system.penalty" value="{{system.penalty}}" min="-5" max="0" />
+  </div>
+  <div class="form-group">
+    <label>Stationary (haven)</label>
+    <input type="checkbox" name="system.haven" {{#if system.haven}}checked{{/if}} title="A place, not luggage: this container and everything stored in it is ignored by carrying capacity" />
   </div>
   {{/if}}
 

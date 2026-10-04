@@ -5667,3 +5667,8 @@ textarea#chat-message {
   font-size: 10px; color: var(--vtm-text-dim, #888); margin: 0 0 2px; line-height: 1.35;
 }
 .authentic-manager .atm-rebuild-note.hot { color: var(--vtm-gold, #c4a747); }
+
+/* Clan item sheet */
+.vtm-v20 .clan-weakness { width: 100%; min-height: 90px; margin: 2px 0 8px; }
+.vtm-v20 .clan-disc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 12px; margin: 4px 0 10px; }
+.vtm-v20 .clan-disc-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
