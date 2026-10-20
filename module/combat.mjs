@@ -1,5 +1,5 @@
 // Combat resolution: attack rolls, defense choices, damage + soak, auto-apply
-import { showDice, isEncumbered, promptRollAdjust, unbalancedPenalty } from './dice.mjs';
+import { showDice, isEncumbered, promptRollAdjust, unbalancedPenalty, gearPenalty } from './dice.mjs';
 import {
   statusIconVisibility,
   BLINDED_STATUS_ID,
@@ -13,7 +13,7 @@ import {
   hasStatus,
   iterableValues,
 } from './status-effects.mjs';
-import { disciplineLevel, isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
+import { disciplineLevel, isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, itemTraitBonus, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
 import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
 
 const TARGETING_ARMOR_REQUESTS = new Map();
@@ -26,12 +26,15 @@ function portraitStyle(actor) {
   return `object-position: calc(50% + ${(ox * r).toFixed(1)}px) calc(50% + ${(oy * r).toFixed(1)}px); transform: scale(${s});`;
 }
 
-function evalPool(roll, diff) {
+function evalPool(roll, diff, specialty = false) {
   let succ = 0, ones = 0;
   const dice = roll.terms[0].results.map(r => {
     const v = r.result;
     let st = 'fail';
-    if (v >= diff) { succ++; st = 'success'; }
+    if (v >= diff) {
+      succ++; st = 'success';
+      if (v === 10 && specialty) { succ++; st = 'crit'; }
+    }
     if (v === 1) { ones++; st = 'botch'; }
     return { value: v, status: st };
   });
@@ -389,8 +392,11 @@ function attackPool(actor, atk) {
   const traits = Array.isArray(atk.poolTraits) && atk.poolTraits.length
     ? atk.poolTraits.filter(Boolean)
     : ['attributes.dexterity', atk.skill].filter(Boolean);
-  const parts = traits.map(path => `${traitLabel(path)} ${traitValue(actor, path)}`);
+  // Item bonuses print as their own part so the card says where the dice came from
+  const itemB = traits.reduce((s, path) => s + itemTraitBonus(actor, path), 0);
+  const parts = traits.map(path => `${traitLabel(path)} ${traitValue(actor, path) - itemTraitBonus(actor, path)}`);
   let total = traits.reduce((sum, path) => sum + traitValue(actor, path), 0);
+  if (itemB) parts.push(`item ${signed(itemB)}`);
 
   const accuracyMod = Number(atk.accuracyMod) || 0;
   if (accuracyMod) {
@@ -404,14 +410,10 @@ function attackPool(actor, atk) {
     parts.push(`wound ${wp}`);
   }
 
-  const ap = traits.includes('attributes.dexterity')
-    ? Array.from(actor.items)
-      .filter(i => i.type === 'armor' && i.system.equipped)
-      .reduce((s, i) => s + (i.system.penalty || 0), 0)
-    : 0;
+  const ap = traits.includes('attributes.dexterity') ? gearPenalty(actor) : 0;
   if (ap) {
     total += ap;
-    parts.push(`armor ${ap}`);
+    parts.push(`gear ${ap}`);
   }
 
   const autoSucc = usesStrengthTrait(...traits) ? potenceAutoSuccesses(actor) : 0;
@@ -600,6 +602,7 @@ export async function rollAttack(attacker, atk, options = {}) {
   // Cancelling aborts the whole attack, so the caller must not mark it spent.
   let adjustMod = 0;
   let manualDiff = false;
+  let specialtyOn = false;
   if (options.adjust && !(targetFullyImmobilized && defender)) {
     const poolBits = [...atkPool.parts];
     if (blindTargetBonus) poolBits.push(`target blinded +${blindTargetBonus}`);
@@ -623,9 +626,11 @@ export async function rollAttack(attacker, atk, options = {}) {
     const adj = await promptRollAdjust({
       title: `Attack: ${atk.name}`,
       pool, poolLabel, difficulty, diffNotes,
+      specialty: true,
     });
     if (!adj) return false;
     adjustMod = adj.mod;
+    specialtyOn = adj.specialty;
     if (adjustMod) pool = Math.max(pool + adjustMod, 1);
     if (adj.difficulty !== difficulty) {
       difficulty = adj.difficulty;
@@ -685,7 +690,7 @@ export async function rollAttack(attacker, atk, options = {}) {
 
   const roll = new Roll(`${pool}d10`);
   await roll.evaluate();
-  const res = evalPool(roll, difficulty);
+  const res = evalPool(roll, difficulty, specialtyOn);
   let atkAuto = atkPool.autoSuccesses || 0;
 
   // WP spend: +1 auto-success on attack
@@ -718,6 +723,7 @@ export async function rollAttack(attacker, atk, options = {}) {
   if (offHandDiff) contextParts.push('off hand +1 diff');
   if (attackerBlinded) contextParts.unshift('blinded diff +2');
   if (manualDiff) contextParts.push(`diff set to ${difficulty}`);
+  if (specialtyOn) contextParts.push('specialty 10s x2');
   const sublabel = contextParts.length
     ? `${parts.join(' + ')} | ${contextParts.join(' | ')}`
     : parts.join(' + ');
@@ -808,7 +814,7 @@ async function runAbortFlow(defender, combatant, sheet, types, abortables, decl,
     html += '<p style="margin-top:8px;">Defend with:</p>';
     let first = true;
     for (const [key, d] of Object.entries(types)) {
-      const p = effectiveTraitValue(defender, `attributes.${d.attr}`) + (defender.system.abilities?.[d.skill] || 0);
+      const p = effectiveTraitValue(defender, `attributes.${d.attr}`) + effectiveTraitValue(defender, `abilities.${d.skill}`);
       html += '<div style="padding:2px 0;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;">';
       html += `<input type="radio" name="abort-man" value="${key}" ${first ? 'checked' : ''} />`;
       html += `<span>${d.label} (pool ${p})</span></label></div>`;
@@ -886,13 +892,45 @@ async function runAbortFlow(defender, combatant, sheet, types, abortables, decl,
   const executed = new Set(Object.keys(combatant?.getFlag('vtm-v20', 'actSpent') || {}).map(Number));
   if (sheet?._resExecuted) for (const i of sheet._resExecuted) executed.add(i);
 
+  // RAW Celerity turn: no shared budget to recalculate. The defense simply
+  // takes its own full pool and the surviving actions keep theirs.
+  if (decl.celerityRaw) {
+    const wpen = defender.system.woundPenalty || 0;
+    const defPool = Math.max(
+      effectiveTraitValue(defender, `attributes.${types[sel.man].attr}`)
+      + effectiveTraitValue(defender, `abilities.${types[sel.man].skill}`)
+      + gearPenalty(defender) + wpen, 1);
+    const spentSoFar = resSpentTotal(combatant, sheet);
+    const unexec = actions.reduce((s, a, i) =>
+      s + ((!a.heal && !a.aborted && !executed.has(i)) ? (a.alloc || 0) : 0), 0);
+    const rawTotal = spentSoFar + defPool + unexec;
+    if (combatant) {
+      const ledger = { ...(combatant.getFlag('vtm-v20', 'defSpent') || {}) };
+      ledger.abort = (ledger.abort || 0) + defPool;
+      const deferred = (combatant.getFlag('vtm-v20', 'deferred') || []).filter(e => !abortedSet.has(e.idx));
+      await combatant.update({
+        'flags.vtm-v20.declaration': { ...decl, actions, totalPool: rawTotal, basePool: rawTotal, celerityCap: null },
+        'flags.vtm-v20.defSpent': ledger,
+        'flags.vtm-v20.reallocPending': false,
+        'flags.vtm-v20.deferred': deferred.length ? deferred : null,
+      });
+    }
+    const rawNames = sel.idxs.map(i => abortables.find(ab => ab.idx === i)?.name || 'action').join(', ');
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: defender }),
+      content: `<div class="vtm-roll"><div class="roll-meta"><i class="fas fa-shield-alt"></i> ${defender.name} aborts ${rawNames}. ${defPool} dice to ${types[sel.man].label} (full pool).</div></div>`,
+      style: CONST.CHAT_MESSAGE_STYLES.OTHER,
+    });
+    return { choice: sel.man, pool: defPool };
+  }
+
   const survivors = [];
   actions.forEach((a, i) => {
     if (!a.aborted && !a.heal && !executed.has(i)) survivors.push(a);
   });
   const pools = survivors.map(a => sheet._declPoolForAction(a)).filter(p => p !== undefined);
   const defPool = effectiveTraitValue(defender, `attributes.${types[sel.man].attr}`)
-    + (defender.system.abilities?.[types[sel.man].skill] || 0);
+    + effectiveTraitValue(defender, `abilities.${types[sel.man].skill}`);
   const lowest = Math.min(defPool, ...pools);
   const wp = defender.system.woundPenalty || 0;
   const info = sheet._celerityDeclInfo(lowest, wp);
@@ -1017,13 +1055,11 @@ export async function rollDefense(msg) {
     // penalty. The count lives on the combatant so it survives reloads,
     // stays in sync across clients, and resets with each round's flag sweep.
     const wpen = defender.system.woundPenalty || 0;
-    const ap = Array.from(defender.items)
-      .filter(i => i.type === 'armor' && i.system.equipped)
-      .reduce((s, i) => s + (i.system.penalty || 0), 0);
+    const ap = gearPenalty(defender);
     const baseFor = key => {
       const d = types[key];
       return effectiveTraitValue(defender, `attributes.${d.attr}`)
-        + (defender.system.abilities?.[d.skill] || 0) + wpen + ap;
+        + effectiveTraitValue(defender, `abilities.${d.skill}`) + wpen + ap;
     };
     const defCount = combatant?.getFlag('vtm-v20', 'fullDefCount') || 0;
     const btnEntries = Object.entries(types).map(([key, d]) => {
@@ -1155,12 +1191,10 @@ export async function rollDefense(msg) {
   } else {
     // No active declaration system: free-form choice (outside structured combat)
     const ffWpen = defender.system.woundPenalty || 0;
-    const ffAp = Array.from(defender.items)
-      .filter(i => i.type === 'armor' && i.system.equipped)
-      .reduce((s, i) => s + (i.system.penalty || 0), 0);
+    const ffAp = gearPenalty(defender);
     const btnEntries = Object.entries(types).map(([key, d]) => {
       const a = effectiveTraitValue(defender, `attributes.${d.attr}`);
-      const s = defender.system.abilities?.[d.skill] || 0;
+      const s = effectiveTraitValue(defender, `abilities.${d.skill}`);
       const sl = game.i18n.localize(`VTM.${d.skill.charAt(0).toUpperCase() + d.skill.slice(1)}`);
       return [key, `${d.label} (Dex + ${sl}) [${Math.max(a + s + ffWpen + ffAp, 1)} dice]`];
     });
@@ -1181,11 +1215,9 @@ export async function rollDefense(msg) {
     if (choice) {
       const def = types[choice];
       const av = effectiveTraitValue(defender, `attributes.${def.attr}`);
-      const sv = defender.system.abilities?.[def.skill] || 0;
+      const sv = effectiveTraitValue(defender, `abilities.${def.skill}`);
       const wpen = defender.system.woundPenalty || 0;
-      const ap = Array.from(defender.items)
-        .filter(i => i.type === 'armor' && i.system.equipped)
-        .reduce((s, i) => s + (i.system.penalty || 0), 0);
+      const ap = gearPenalty(defender);
       pool = Math.max(av + sv + wpen + ap, 1);
     }
   }
@@ -1573,9 +1605,9 @@ export async function clinchEscape(actor, { poolOverride = null } = {}) {
 // difficulty, successes cancel, and only a positive margin wins.
 async function rollResistedStrBrawl(actor, opp, { poolOverride = null, title, continueText } = {}) {
   const myStr = effectiveTraitValue(actor, 'attributes.strength');
-  const myBrawl = actor.system.abilities?.brawl || 0;
+  const myBrawl = effectiveTraitValue(actor, 'abilities.brawl');
   const oppStr = effectiveTraitValue(opp, 'attributes.strength');
-  const oppBrawl = opp.system.abilities?.brawl || 0;
+  const oppBrawl = effectiveTraitValue(opp, 'abilities.brawl');
   const myWound = actor.system.woundPenalty || 0;
   const oppWound = opp.system.woundPenalty || 0;
 
@@ -2072,7 +2104,7 @@ function statusEffectData(id, fallbackName, fallbackImg) {
 // Tackle targets who keep their footing are still unbalanced next round.
 async function knockdownSave(victim, { difficulty = 8, unbalancedOnSuccess = false } = {}) {
   const dex = effectiveTraitValue(victim, 'attributes.dexterity');
-  const ath = victim.system.abilities?.athletics || 0;
+  const ath = effectiveTraitValue(victim, 'abilities.athletics');
   const wp = victim.system.woundPenalty || 0;
   const pool = Math.max(dex + ath + wp, 1);
   const roll = new Roll(`${pool}d10`);

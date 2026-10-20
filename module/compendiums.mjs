@@ -430,12 +430,12 @@ export const WEAPONS = [
   },
   {
     name: 'SMG, Large', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { firearm: true, hands: 2, weight: 3.5, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '30+1', rate: '21*',
+    system: { firearm: true, hands: 2, weight: 3.5, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '30+1', rate: '21', burst: true,
       description: '<p>A full-size submachine gun (Uzi, MP5). * Capable of three-round bursts and full-auto fire.</p>' }
   },
   {
     name: 'Assault Rifle', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { firearm: true, hands: 2, weight: 3.5, damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '150', capacity: '30+1', rate: '20*',
+    system: { firearm: true, hands: 2, weight: 3.5, damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '150', capacity: '30+1', rate: '20', burst: true,
       description: '<p>A military assault rifle (M16, AK-47). * Capable of three-round bursts and full-auto fire.</p>' }
   },
   {
@@ -551,7 +551,7 @@ export const WEAPONS = [
   // â”€â”€ Storytellers Companion SMGs â”€â”€
   {
     name: 'Beretta Model 93R', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { firearm: true, weight: 1.2, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '20+1', rate: '15*', fullAuto: 'no',
+    system: { firearm: true, weight: 1.2, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '20', capacity: '20+1', rate: '15', burst: true, fullAuto: 'no',
       description: `<p>A three-round-burst machine pistol variant of the Model 92, with fold-down grip and stock. Not capable of full-auto. Caliber: 9mm. Rate: 15.</p>` }
   },
   {
@@ -571,17 +571,17 @@ export const WEAPONS = [
   },
   {
     name: 'Heckler & Koch MP5', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { firearm: true, hands: 2, weight: 2.5, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '15+1 or 30+1', rate: '21*',
+    system: { firearm: true, hands: 2, weight: 2.5, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '15+1 or 30+1', rate: '21', burst: true,
       description: `<p>An extremely reliable and well-regarded SMG series used by special operations units worldwide. Also available in 10mm (Damage 5). Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>` }
   },
   {
     name: 'Heckler & Koch MP5K', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { firearm: true, weight: 2, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '15+1 or 30+1', rate: '21*',
+    system: { firearm: true, weight: 2, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '25', capacity: '15+1 or 30+1', rate: '21', burst: true,
       description: `<p>A short-barreled, highly concealable variant of the MP5. Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>` }
   },
   {
     name: 'Heckler & Koch MP5SD', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { firearm: true, hands: 2, weight: 3.1, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '15+1 or 30+1', rate: '21*',
+    system: { firearm: true, hands: 2, weight: 3.1, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '40', capacity: '15+1 or 30+1', rate: '21', burst: true,
       description: `<p>A sound-suppressed MP5 variant with integral suppressor. Caliber: 9mm. Rate: 21. Burst/auto/spray capable.</p>` }
   },
   {
@@ -665,7 +665,7 @@ export const WEAPONS = [
   },
   {
     name: 'Steyr AUG', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { firearm: true, hands: 2, weight: 3.6, damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '200', capacity: '42+1', rate: '21*',
+    system: { firearm: true, hands: 2, weight: 3.6, damage: '7', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '200', capacity: '42+1', rate: '21', burst: true,
       description: `<p>A bullpup assault rifle with modular design (convertible to SMG, carbine, or LMG). Integral scope. Caliber: 5.56mm. Rate: 21. SMG config: 9mm, Damage 4, Range 50.</p>` }
   },
   {
@@ -680,7 +680,7 @@ export const WEAPONS = [
   },
   {
     name: 'Heckler & Koch G3', type: 'weapon', img: 'icons/svg/sword.svg',
-    system: { firearm: true, hands: 2, weight: 4.4, damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '275', capacity: '20+1', rate: '10*',
+    system: { firearm: true, hands: 2, weight: 4.4, damage: '8', damageType: 'lethal', difficulty: 6, conceal: 'N', range: '275', capacity: '20+1', rate: '10', burst: true,
       description: `<p>A German battle rifle. Slightly heavier than similar models but very reliable. Caliber: 7.62mm. Rate: 10.</p>` }
   },
   {
@@ -1244,7 +1244,7 @@ const RITUAL_CATEGORIES = [
   }
 ];
 
-const COMPENDIUM_VERSION = 67;
+const COMPENDIUM_VERSION = 68;
 
 export { DISCIPLINES, BACKGROUNDS, MERITS, FLAWS, RITUAL_CATEGORIES };
 

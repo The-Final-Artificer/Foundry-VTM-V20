@@ -338,6 +338,51 @@ Hooks.once('init', () => {
     range: { min: 5, max: 120, step: 1 },
   });
 
+  game.settings.register('vtm-v20', 'celerityMode', {
+    name: 'Celerity Rules',
+    hint: 'Which Celerity ruleset combat uses. Hover the markers below for what each one does.',
+    scope: 'world',
+    config: true,
+    type: String,
+    choices: { homebrew: 'Homebrew (enhanced)', raw: 'RAW V20' },
+    default: 'homebrew',
+  });
+
+  // The two rulesets deserve more explanation than a hint line: inject the
+  // same hover popups the sheet uses next to the dropdown
+  Hooks.on('renderSettingsConfig', (app, html) => {
+    const el = html instanceof HTMLElement ? html : html[0];
+    const select = el?.querySelector('select[name="vtm-v20.celerityMode"]');
+    if (!select) return;
+    const group = select.closest('.form-group');
+    if (!group || group.querySelector('.celerity-mode-info')) return;
+    const info = document.createElement('div');
+    info.className = 'vtm-v20 celerity-mode-info';
+    info.innerHTML = `
+      <span class="arch-info">RAW V20 <i class="fas fa-exclamation-circle"></i><span class="arch-pop pop-left"><b>RAW V20 Celerity</b>Each Celerity dot adds one die to Dexterity rolls. During the declaration phase you can buy extra actions for 1 blood point each, up to your Celerity rating, and this spending may exceed your per-turn generation limit. Every action keeps its own full dice pool with no splitting; extra actions must be physical, cannot be split further, and resolve at the end of the round after everyone has acted. Each dot spent on an extra action stops adding to Dexterity rolls for that round. Celerity does not raise initiative or movement in this mode.</span></span>
+      <span class="arch-info">Homebrew <i class="fas fa-exclamation-circle"></i><span class="arch-pop pop-left"><b>Homebrew Celerity</b>Celerity adds its rating to initiative, to Dexterity dice pools, and in yards to movement. Movement Burst (1 blood): multiply speed by 1 + Celerity for a round. Speed Burst (1 blood, during declaration): instead of separate extra actions you get one dice budget, your lowest pool plus half of it per Celerity dot, to split freely across your actions. A turn cap of lowest pool + Celerity limits what resolves on your turn; dice past the cap resolve as deferred slots at initiative -1, -2 and so on. Dex pools lose the passive bonus while active. Defenses count against the cap but are never deferred.</span></span>`;
+    group.append(info);
+  });
+
+  // Theme: a class on the body, the stylesheet does the rest
+  const applySheetTheme = () => {
+    let printed = false;
+    try { printed = game.settings.get('vtm-v20', 'sheetTheme') === 'printed'; }
+    catch { printed = false; }
+    document.body.classList.toggle('vtm-theme-printed', printed);
+  };
+  game.settings.register('vtm-v20', 'sheetTheme', {
+    name: 'Theme',
+    hint: 'How the system dresses its sheets, dialogs and chat messages. Per player: everyone picks their own look.',
+    scope: 'client',
+    config: true,
+    type: String,
+    choices: { modern: 'Modern Nights', printed: 'Printed Sheet' },
+    default: 'modern',
+    onChange: applySheetTheme,
+  });
+  applySheetTheme();
+
   game.settings.register('vtm-v20', 'movementBarMigrated', {
     scope: 'world',
     config: false,
@@ -450,6 +495,7 @@ Hooks.once('ready', () => {
         const upd = {};
         if ((src.rate || '') !== (item.system.rate || '')) upd['system.rate'] = src.rate || '';
         if ((src.fullAuto || '') !== (item.system.fullAuto || '')) upd['system.fullAuto'] = src.fullAuto || '';
+        if ((src.burst === true) !== (item.system.burst === true)) upd['system.burst'] = src.burst === true;
         if (src.description && item.system.description !== src.description) upd['system.description'] = src.description;
         return Object.keys(upd).length ? upd : null;
       };

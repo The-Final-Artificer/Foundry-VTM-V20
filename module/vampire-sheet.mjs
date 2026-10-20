@@ -1,5 +1,5 @@
 import { VTM } from './config.mjs';
-import { showDice, promptRollAdjust } from './dice.mjs';
+import { showDice, promptRollAdjust, gearPenalty } from './dice.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
 import { ChargenWizard } from './chargen.mjs';
 import { applyHealthDamage, checkIncapacitated, computeSoakPool, finalDamageAfterSoak, getCondition, clinchInflictDamage, clinchEscape, holdEscape, standUp } from './combat.mjs';
@@ -7,7 +7,7 @@ import { blindedDifficulty, hasStatus, statusIconVisibility, FRENZY_STATUS_ID, R
 import { archetypeInfo } from './archetypes-data.mjs';
 import { archetypeAuthentic, clanAuthentic, traitAuthentic } from './authentic-store.mjs';
 import { clanWeaknessInfo, clanItemInfo, clanOptions } from './clan-weaknesses.mjs';
-import { disciplineLevel, isDisciplineActive, potenceLevel, potenceAutoSuccesses, celerityLevel, effectiveTraitValue, effectiveStrength, usesStrengthTrait } from './discipline-effects.mjs';
+import { disciplineLevel, isDisciplineActive, potenceLevel, potenceAutoSuccesses, celerityLevel, celerityRawMode, effectiveTraitValue, effectiveStrength, usesStrengthTrait } from './discipline-effects.mjs';
 import { exportSheet } from './sheet-export.mjs';
 import { computeCarry } from './movement.mjs';
 import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
@@ -36,14 +36,14 @@ function ammoLabel(system) {
   return remaining === null ? '' : `${remaining} / ${capacity}`;
 }
 
-// Burst needs the star in the rate ('21*'); full auto is any gun cycling 10+
-// rounds a turn, with system.fullAuto overriding the two liars (the burst-only
-// 93R at rate 15, the USAS-12 hosing at rate 6).
+// Burst is the weapon's own toggle (a legacy star in the rate still counts);
+// full auto is any gun cycling 10+ rounds a turn, with system.fullAuto
+// overriding the two liars (the burst-only 93R at rate 15, the USAS-12 at 6).
 function fireModeInfo(atk) {
   if (!atk?.isRanged) return null;
   const rateStr = String(atk.rate || '');
   const rateNum = parseInt(rateStr) || 0;
-  const burst = rateStr.includes('*');
+  const burst = atk.burst === true || rateStr.includes('*');
   const auto = atk.fullAuto === 'yes' || (atk.fullAuto !== 'no' && rateNum >= 10);
   if (!burst && !auto) return null;
   return { rateNum, burst, auto };
@@ -52,6 +52,12 @@ function fireModeInfo(atk) {
 function signed(value) {
   const n = Number(value) || 0;
   return n > 0 ? `+${n}` : `${n}`;
+}
+
+// RAW Celerity extras park far below any real initiative so they flush
+// after everyone has acted; label them as what they are
+function slotLabel(init) {
+  return init <= -900 ? 'end of round' : `initiative ${init}`;
 }
 
 function traitLabel(path) {
@@ -289,7 +295,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'unarmed', name: 'Unarmed',
       img: 'systems/vtm-v20/VTM icons/high-punch.svg',
-      pool: `Dex + Brawl (${dex + (sys.abilities?.brawl || 0)})`,
+      pool: `Dex + Brawl (${dex + effectiveTraitValue(actor, 'abilities.brawl')})`,
       damage: damageDisplay('Str', strVal, potAuto),
       damageType: 'bashing', damageFormula: 'Str',
       skill: 'abilities.brawl', isRanged: false,
@@ -297,7 +303,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'kick', name: 'Kick',
       img: 'systems/vtm-v20/VTM icons/Actions Icons/high-kick.png',
-      pool: `Dex + Brawl (${dex + (sys.abilities?.brawl || 0)})`,
+      pool: `Dex + Brawl (${dex + effectiveTraitValue(actor, 'abilities.brawl')})`,
       damage: damageDisplay('Str+1', strVal, potAuto),
       damageType: 'bashing', damageFormula: 'Str+1',
       skill: 'abilities.brawl', isRanged: false, difficultyMod: 1, difficultyLabel: '+1',
@@ -305,7 +311,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'clinch', name: 'Clinch',
       img: 'systems/vtm-v20/VTM icons/grab.svg',
-      pool: `Str + Brawl (${strVal + (sys.abilities?.brawl || 0)})`,
+      pool: `Str + Brawl (${strVal + effectiveTraitValue(actor, 'abilities.brawl')})`,
       damage: damageDisplay('Str', strVal, potAuto),
       damageType: 'bashing', damageFormula: 'Str',
       skill: 'abilities.brawl', isRanged: false,
@@ -317,7 +323,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'disarm', name: 'Disarm',
       img: 'systems/vtm-v20/VTM icons/Disarm.svg',
-      pool: `Dex + Melee (${dex + (sys.abilities?.melee || 0)})`,
+      pool: `Dex + Melee (${dex + effectiveTraitValue(actor, 'abilities.melee')})`,
       damage: 'Special', damageType: '',
       damageFormula: disarmWeapon?.system.damage || 'Str',
       skill: 'abilities.melee', isRanged: false,
@@ -328,7 +334,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'hold', name: 'Hold',
       img: 'systems/vtm-v20/VTM icons/grab.svg',
-      pool: `Str + Brawl (${strVal + (sys.abilities?.brawl || 0)})`,
+      pool: `Str + Brawl (${strVal + effectiveTraitValue(actor, 'abilities.brawl')})`,
       hideDamage: true,
       damageFormula: '', damageType: '',
       skill: 'abilities.brawl', isRanged: false,
@@ -340,7 +346,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'sweep', name: 'Sweep',
       img: 'systems/vtm-v20/VTM icons/falling.svg',
-      pool: `Dex + Brawl/Melee (${dex + (sys.abilities?.brawl || 0)}/${dex + (sys.abilities?.melee || 0)})`,
+      pool: `Dex + Brawl/Melee (${dex + effectiveTraitValue(actor, 'abilities.brawl')}/${dex + effectiveTraitValue(actor, 'abilities.melee')})`,
       damage: damageDisplay('Str', strVal, potAuto),
       damageType: 'bashing', damageFormula: 'Str',
       skill: 'abilities.brawl', isRanged: false,
@@ -351,7 +357,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'tackle', name: 'Tackle',
       icon: 'fa-person-falling-burst',
-      pool: `Str + Brawl (${strVal + (sys.abilities?.brawl || 0)})`,
+      pool: `Str + Brawl (${strVal + effectiveTraitValue(actor, 'abilities.brawl')})`,
       damage: damageDisplay('Str+1', strVal, potAuto),
       damageType: 'bashing', damageFormula: 'Str+1',
       skill: 'abilities.brawl', isRanged: false,
@@ -366,7 +372,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       attacks.push({
         id: 'bite', name: 'Bite',
         img: 'systems/vtm-v20/VTM icons/fangs.svg',
-        pool: `Dex + Brawl + 1 (${dex + (sys.abilities?.brawl || 0) + 1})`,
+        pool: `Dex + Brawl + 1 (${dex + effectiveTraitValue(actor, 'abilities.brawl') + 1})`,
         damage: damageDisplay(biteDmg, strVal, potAuto),
         damageType: 'aggravated', damageFormula: biteDmg,
         skill: 'abilities.brawl', isRanged: false,
@@ -401,7 +407,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     for (const w of items.filter(i => i.type === 'weapon' && i.system.equipped)) {
       const isRanged = !!w.system.range;
       const skillKey = isRanged ? 'firearms' : 'melee';
-      const skillVal = sys.abilities?.[skillKey] || 0;
+      const skillVal = effectiveTraitValue(actor, `abilities.${skillKey}`);
       let dmgDisplay = w.system.damage || '0';
       const rawDmg = dmgDisplay.trim().toLowerCase();
       if (rawDmg === 'str' || rawDmg.startsWith('str')) {
@@ -415,14 +421,14 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         damageFormula: w.system.damage,
         skill: `abilities.${skillKey}`,
         isRanged, range: w.system.range, capacity: w.system.capacity,
-        rate: w.system.rate, fullAuto: w.system.fullAuto || '', firearm: !!w.system.firearm, ammoLabel: ammoLabel(w.system),
+        rate: w.system.rate, fullAuto: w.system.fullAuto || '', burst: !!w.system.burst, firearm: !!w.system.firearm, ammoLabel: ammoLabel(w.system),
         offHand: !!w.system.offHand,
         note: w.system.offHand ? (ctx.ambidextrous ? 'Off hand (Ambidextrous: no penalty)' : 'Off hand: +1 difficulty') : '',
       });
     }
     if (actor.getFlag('vtm-v20', 'horridReality')) {
-      const manip = sys.attributes?.manipulation || 0;
-      const sub = sys.abilities?.subterfuge || 0;
+      const manip = effectiveTraitValue(actor, 'attributes.manipulation');
+      const sub = effectiveTraitValue(actor, 'abilities.subterfuge');
       attacks.push({
         id: 'horrid-reality', name: 'Horrid Reality Injury',
         icon: 'fa-brain',
@@ -435,7 +441,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const serpentis = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'serpentis');
     const tongueSkill = actor.getFlag('vtm-v20', 'tongueSkill');
     if (serpentis && serpentis.system.level >= 2 && tongueSkill) {
-      const skillVal = sys.abilities?.[tongueSkill] || 0;
+      const skillVal = effectiveTraitValue(actor, `abilities.${tongueSkill}`);
       const skillLabel = tongueSkill.charAt(0).toUpperCase() + tongueSkill.slice(1);
       attacks.push({
         id: 'tongue-of-the-asp', name: 'Tongue of the Asp',
@@ -449,7 +455,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const quietus = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'quietus');
     if (quietus && quietus.system.level >= 5) {
       const sta = effectiveTraitValue(actor, 'attributes.stamina');
-      const ath = sys.abilities?.athletics || 0;
+      const ath = effectiveTraitValue(actor, 'abilities.athletics');
       const potLvl = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'potence')?.system.level || 0;
       const rangeDots = (sys.attributes?.strength || 0) + potLvl;
       attacks.push({
@@ -466,7 +472,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'get-up', name: 'Get Up',
       icon: 'fa-person-arrow-up-from-line',
-      pool: `Dex + Athletics (${dex + (sys.abilities?.athletics || 0)})`,
+      pool: `Dex + Athletics (${dex + effectiveTraitValue(actor, 'abilities.athletics')})`,
       skill: 'abilities.athletics', isRanged: false,
       isAction: true, actionDifficulty: 4,
       note: 'Success removes the prone and knockdown effects',
@@ -474,7 +480,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     attacks.push({
       id: 'ready-weapon', name: 'Ready Weapon',
       img: 'systems/vtm-v20/VTM icons/switch-weapon.svg',
-      pool: `Dex + Melee (${dex + (sys.abilities?.melee || 0)}) / Dex + Firearms (${dex + (sys.abilities?.firearms || 0)})`,
+      pool: `Dex + Melee (${dex + effectiveTraitValue(actor, 'abilities.melee')}) / Dex + Firearms (${dex + effectiveTraitValue(actor, 'abilities.firearms')})`,
       isRanged: false,
       isAction: true, isReadyWeapon: true,
       actionDifficulty: 4,
@@ -483,9 +489,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this._attacks = attacks;
 
     // Declaration + Resolution (inline in combat tab)
-    const brawlVal = sys.abilities?.brawl || 0;
-    const ath = sys.abilities?.athletics || 0;
-    const meleeVal = sys.abilities?.melee || 0;
+    const brawlVal = effectiveTraitValue(actor, 'abilities.brawl');
+    const ath = effectiveTraitValue(actor, 'abilities.athletics');
+    const meleeVal = effectiveTraitValue(actor, 'abilities.melee');
     ctx.defenses = [
       { name: 'Dodge', defense: 'dodge', img: 'systems/vtm-v20/VTM icons/body-balance.svg', pool: dex + ath, poolLabel: 'Dex + Athletics', trait: 'attributes.dexterity', trait2: 'abilities.athletics' },
       { name: 'Block', defense: 'block', img: 'systems/vtm-v20/VTM icons/hand-bandage.svg', pool: dex + brawlVal, poolLabel: 'Dex + Brawl', trait: 'attributes.dexterity', trait2: 'abilities.brawl' },
@@ -699,9 +705,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       ctx.resAllExecuted = resActions.every((a, i) => a.defense || a.aborted || this._resExecuted.has(i));
     }
 
-    ctx.armorPenalty = items
-      .filter(i => (i.type === 'armor' || i.type === 'container') && i.system.equipped)
-      .reduce((sum, i) => sum + (i.system.penalty || 0), 0);
+    ctx.armorPenalty = gearPenalty(actor);
 
     // Carrying capacity
     const carry = computeCarry(actor);
@@ -845,6 +849,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       fx.push({ name: 'Movement Burst', icon: 'fa-wind', desc: `Movement speed x${celerityLevel(actor) + 1}` });
     if (actor.getFlag('vtm-v20', 'celerityActions'))
       fx.push({ name: 'Speed Burst', icon: 'fa-forward', desc: `+${Math.floor((celerityLevel(actor) || 0))} half-pools of action dice this round. Dex pools lose the Celerity bonus.` });
+    const rawCel = actor.getFlag('vtm-v20', 'celerityRawActions') || 0;
+    if (rawCel)
+      fx.push({ name: 'Celerity Extra Actions', icon: 'fa-forward', desc: `${rawCel} extra action${rawCel > 1 ? 's' : ''} at full pool at the end of the round. Dex rolls lose ${rawCel} Celerity ${rawCel > 1 ? 'dice' : 'die'} this round.` });
     ctx.activeEffects = fx;
 
     return ctx;
@@ -1158,8 +1165,14 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       else this._rollSelect = null;
     }
 
-    el.querySelectorAll('.soak-btn').forEach(btn =>
-      btn.addEventListener('click', () => this._rollSoak()));
+    el.querySelectorAll('.soak-btn').forEach(btn => {
+      btn.addEventListener('click', () => this._rollSoak());
+      // Right-click: set difficulty and bonus dice by hand
+      btn.addEventListener('contextmenu', ev => {
+        ev.preventDefault();
+        this._rollSoak(true);
+      });
+    });
 
     el.querySelectorAll('.defense-roll-btn').forEach(btn =>
       btn.addEventListener('click', () => {
@@ -2187,9 +2200,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const celInfo = this._celerityDeclInfo(lowestPool, wp);
       const totalPool = celInfo.budget;
       const nonHealCount = actions.filter(a => !a.heal).length;
+      // RAW Celerity turns never split dice: every action keeps its full pool
+      const rawCel = this.document.getFlag('vtm-v20', 'celerityRawActions') || 0;
       // Celerity always uses explicit allocation, even for a single action,
       // so the cap can be respected while distributing the bigger budget
-      const multi = nonHealCount > 1 || (celInfo.on && nonHealCount > 0);
+      const multi = !rawCel && (nonHealCount > 1 || (celInfo.on && nonHealCount > 0));
       const allocated = actions.reduce((sum, a) => sum + (a.alloc || 0), 0);
       const remaining = totalPool - allocated;
 
@@ -2244,6 +2259,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         h += nonHealCount > 0
           ? `<div class="decl-split-info celerity-cap-info"><i class="fas fa-hourglass-half"></i> Turn cap: <b>${celInfo.cap}</b> dice resolve on your turn. Actions beyond it resolve at initiative -1, -2...</div>`
           : `<div class="decl-split-info celerity-cap-info"><i class="fas fa-wind"></i> Speed Burst active. Budget and cap appear once you declare actions.</div>`;
+      }
+      if (rawCel) {
+        const over = nonHealCount > 1 + rawCel;
+        h += `<div class="decl-split-info celerity-cap-info"><i class="fas fa-wind"></i> Celerity: <b>1 + ${rawCel}</b> actions, each at its full pool, no splitting.`;
+        if (over) h += ` <span class="over-budget">Too many actions declared (${nonHealCount})!</span>`;
+        h += ' Extra actions resolve at the end of the round and must be physical.</div>';
       }
     }
 
@@ -2349,7 +2370,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const a = actions[defIdx];
         let name = a?.text || 'Action';
         if (a?.attackId && !a?.text) name = this._getAttackById(a.attackId)?.name || name;
-        h += `<div class="res-phase-banner celerity-slot"><i class="fas fa-wind"></i> Deferred action resolves now (initiative ${dr?.init})</div>`;
+        h += `<div class="res-phase-banner celerity-slot"><i class="fas fa-wind"></i> Deferred action resolves now (${slotLabel(dr?.init ?? 0)})</div>`;
         h += '<div class="res-actions">';
         h += '<div class="res-action-entry">';
         h += `<span class="res-action-name">${name} [${a?.alloc || 1}d]</span>`;
@@ -2384,7 +2405,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const banked = pendingDef.filter(e => e.delayed);
         const auto = pendingDef.filter(e => !e.delayed);
         if (auto.length) {
-          h += `<div class="decl-split-info celerity-cap-info"><i class="fas fa-wind"></i> ${auto.length} deferred action${auto.length > 1 ? 's' : ''} pending (initiative ${auto.map(e => e.init).join(', ')})</div>`;
+          h += `<div class="decl-split-info celerity-cap-info"><i class="fas fa-wind"></i> ${auto.length} deferred action${auto.length > 1 ? 's' : ''} pending (${[...new Set(auto.map(e => slotLabel(e.init)))].join(', ')})</div>`;
         }
         if (banked.length) {
           h += `<div class="decl-split-info celerity-cap-info"><i class="fas fa-pause"></i> ${banked.length} deferred action${banked.length > 1 ? 's' : ''} banked</div>`;
@@ -2924,12 +2945,15 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // -- Soak roll -----------------------------------------------------------
 
   // Tally d10s against a difficulty, V20-style (1s cancel successes)
-  _tallyDice(roll, difficulty) {
+  _tallyDice(roll, difficulty, specialty = false) {
     let successes = 0, ones = 0;
     const dice = roll.terms[0].results.map(r => {
       const val = r.result;
       let status = 'fail';
-      if (val >= difficulty) { successes++; status = 'success'; }
+      if (val >= difficulty) {
+        successes++; status = 'success';
+        if (val === 10 && specialty) { successes++; status = 'crit'; }
+      }
       if (val === 1) { ones++; status = 'botch'; }
       return { value: val, status };
     });
@@ -3316,45 +3340,51 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (a.heal) return undefined;
     const sys = this.document.system;
     const dex = effectiveTraitValue(this.document, 'attributes.dexterity');
+    // Captured rolls carry their pool with gear and wounds already in; the pools
+    // computed here need the gear drag applied whenever Dexterity is involved
+    const ap = gearPenalty(this.document);
+    const dexPool = n => Math.max(n + ap, 0);
     if (a.pool) return a.pool;
     if (['clinch-damage', 'clinch-escape', 'hold-escape'].includes(a.attackId)) {
-      return effectiveTraitValue(this.document, 'attributes.strength') + (sys.abilities?.brawl || 0);
+      return effectiveTraitValue(this.document, 'attributes.strength') + effectiveTraitValue(this.document, 'abilities.brawl');
     }
     if (a.defense) {
       const skills = { dodge: 'athletics', block: 'brawl', parry: 'melee' };
-      return dex + (sys.abilities?.[skills[a.defense]] || 0);
+      return dexPool(dex + effectiveTraitValue(this.document, `abilities.${skills[a.defense]}`));
     }
-    if (a.reload) return dex + (sys.abilities?.firearms || 0);
-    if (a.attackId === 'unarmed' || a.attackId === 'kick') return dex + (sys.abilities?.brawl || 0);
+    if (a.reload) return dexPool(dex + effectiveTraitValue(this.document, 'abilities.firearms'));
+    if (a.attackId === 'unarmed' || a.attackId === 'kick') return dexPool(dex + effectiveTraitValue(this.document, 'abilities.brawl'));
     if (a.attackId?.startsWith('custom-')) {
       const customId = a.attackId.replace('custom-', '');
       const custom = (sys.customAttacks ?? []).find(c => c.id === customId);
       if (custom) {
         const traits = [custom.primary, custom.secondary].filter(Boolean);
-        return traits.reduce((sum, path) => sum + effectiveTraitValue(this.document, path), 0) + (Number(custom.accuracyMod) || 0);
+        const total = traits.reduce((sum, path) => sum + effectiveTraitValue(this.document, path), 0) + (Number(custom.accuracyMod) || 0);
+        return traits.includes('attributes.dexterity') ? dexPool(total) : total;
       }
       return 0;
     }
     const atkDef = this._attacks?.find(x => x.id === a.attackId);
     if (atkDef?.isReadyWeapon) {
       const skill = a.readyType === 'ranged' ? 'firearms' : 'melee';
-      return dex + (sys.abilities?.[skill] || 0);
+      return dexPool(dex + effectiveTraitValue(this.document, `abilities.${skill}`));
     }
     if (atkDef?.isAction) {
       const skill = (atkDef.skill || '').split('.').pop();
-      return dex + (sys.abilities?.[skill] || 0);
+      return dexPool(dex + effectiveTraitValue(this.document, `abilities.${skill}`));
     }
     if (atkDef?.poolTraits) {
-      return atkDef.poolTraits.reduce((sum, path) => sum + effectiveTraitValue(this.document, path), 0);
+      const total = atkDef.poolTraits.reduce((sum, path) => sum + effectiveTraitValue(this.document, path), 0);
+      return atkDef.poolTraits.includes('attributes.dexterity') ? dexPool(total) : total;
     }
     if (atkDef?.skill) {
       const skill = atkDef.skill.split('.').pop();
-      return dex + (sys.abilities?.[skill] || 0);
+      return dexPool(dex + effectiveTraitValue(this.document, `abilities.${skill}`));
     }
     const w = Array.from(this.document.items).find(i => i.id === a.attackId);
     if (w) {
       const isRanged = !!w.system.range;
-      return dex + (sys.abilities?.[isRanged ? 'firearms' : 'melee'] || 0);
+      return dexPool(dex + effectiveTraitValue(this.document, `abilities.${isRanged ? 'firearms' : 'melee'}`));
     }
     return 0;
   }
@@ -3461,7 +3491,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // Celerity validates even a single action, its alloc is cap-bound.
     const nonHealActions = this._declActions.filter(a => !a.heal);
     const celerityOn = !!this.document.getFlag('vtm-v20', 'celerityActions');
-    if (!fullDef && (nonHealActions.length > 1 || (celerityOn && nonHealActions.length > 0))) {
+    const rawCel = fullDef ? 0 : (this.document.getFlag('vtm-v20', 'celerityRawActions') || 0);
+    if (rawCel > 0 && nonHealActions.length > 1 + rawCel) {
+      ui.notifications.warn(`Celerity grants ${rawCel} extra action${rawCel > 1 ? 's' : ''}: declare at most ${1 + rawCel} actions (you have ${nonHealActions.length}).`);
+      return;
+    }
+    if (!fullDef && rawCel === 0 && (nonHealActions.length > 1 || (celerityOn && nonHealActions.length > 0))) {
       let lowestCheck = Infinity;
       for (const a of nonHealActions) {
         const p = this._declPoolForAction(a);
@@ -3500,7 +3535,17 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     let totalPool = 0;
     let basePool = 0;
     let celerityCap = null;
-    if (!fullDef) {
+    if (!fullDef && rawCel > 0) {
+      // RAW Celerity: every action keeps its own full pool, nothing is split.
+      // Captured rolls already carry wounds and gear inside their stored pool.
+      for (const a of this._declActions) {
+        if (a.heal) continue;
+        const p = this._declPoolForAction(a);
+        a.alloc = Math.max((p ?? 0) + (a.pool ? 0 : wp), 1);
+        totalPool += a.alloc;
+      }
+      basePool = totalPool;
+    } else if (!fullDef) {
       let lowestPool = Infinity;
       for (const a of this._declActions) {
         const p = this._declPoolForAction(a);
@@ -3528,9 +3573,21 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       totalPool,
       basePool,
       celerityCap,
+      celerityRaw: rawCel > 0 ? rawCel : null,
       diceAllocations: [],
       resolved: false,
     });
+
+    // RAW Celerity: everything after the first regular action is an extra,
+    // parked as a deferred slot that flushes at the end of the round
+    if (rawCel > 0) {
+      const mains = this._declActions.map((a, i) => (!a.heal && !a.defense) ? i : null).filter(i => i !== null);
+      const extras = mains.slice(1);
+      if (extras.length) {
+        const myInit = combatant.initiative ?? 0;
+        await combatant.setFlag('vtm-v20', 'deferred', extras.map((idx, n) => ({ idx, init: -1000 + myInit - n })));
+      }
+    }
 
     const intent = text || (fullDef ? 'Entire Turn Defense' : 'No declaration');
     await ChatMessage.create({
@@ -3582,6 +3639,15 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return;
     }
 
+    // RAW Celerity turns have no shared budget to redistribute: pools are
+    // simply refreshed from the current traits and wounds, silently
+    const declRaw = combatant.getFlag('vtm-v20', 'declaration') || {};
+    if (declRaw.celerityRaw) {
+      await this._rawRecomputeAllocs(combatant);
+      this.render(true);
+      return;
+    }
+
     // Check if wound penalty changed since declaration. The comparison must
     // rebuild the pool the same way the declaration did, Celerity included,
     // or the bonus dice read as a phantom wound change.
@@ -3600,6 +3666,30 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     this.render(true);
+  }
+
+  // RAW Celerity: refresh every unexecuted action's alloc from its current
+  // full pool (wounds and gear included), keeping totalPool consistent with
+  // what was already spent. No dialog: there is nothing to redistribute.
+  async _rawRecomputeAllocs(combatant) {
+    const decl = combatant.getFlag('vtm-v20', 'declaration') || {};
+    if (!decl.celerityRaw) return;
+    const wp = this.document.system.woundPenalty || 0;
+    const executed = new Set(Object.keys(combatant.getFlag('vtm-v20', 'actSpent') || {}).map(Number));
+    for (const i of this._resExecuted) executed.add(i);
+    const actions = (decl.actions || []).map(a => ({ ...a }));
+    let changed = false;
+    let unexec = 0;
+    actions.forEach((a, i) => {
+      if (a.heal || a.aborted || executed.has(i)) return;
+      const p = this._declPoolForAction(a);
+      const alloc = Math.max((p ?? 0) + (a.pool ? 0 : wp), 1);
+      if (alloc !== a.alloc) { a.alloc = alloc; changed = true; }
+      unexec += alloc;
+    });
+    const newTotal = this._resSpentTotal() + unexec;
+    if (!changed && newTotal === decl.totalPool) return;
+    await combatant.setFlag('vtm-v20', 'declaration', { ...decl, actions, totalPool: newTotal, basePool: newTotal });
   }
 
   async _promptReallocation(combatant, decl, newTotal, newCap = null, opts = {}) {
@@ -3804,13 +3894,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   // A deferred Celerity slot for this combatant just came up in the order
-  startDeferredResolution(combat, combatant, idx, init) {
+  async startDeferredResolution(combat, combatant, idx, init) {
     if (!this._resCombat) {
       this._resCombat = combat;
       this._resCombatant = combatant;
     }
     this._tab = 'combat';
-    ui.notifications.info(`${combatant.name}: deferred action resolves now (initiative ${init}).`);
+    if ((combatant.getFlag('vtm-v20', 'declaration') || {}).celerityRaw) {
+      await this._rawRecomputeAllocs(combatant);
+    }
+    ui.notifications.info(`${combatant.name}: deferred action resolves now (${slotLabel(init)}).`);
     this.render();
   }
 
@@ -3909,6 +4002,15 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         poolForAction = Math.min(poolForAction, capLeft);
       }
     }
+
+    // RAW Celerity: extras are locked to their end-of-round slots
+    if (decl.celerityRaw && !isDeferredSlot && !action.heal && !action.defense) {
+      const parked = (this._resCombatant.getFlag('vtm-v20', 'deferred') || []).some(e => e.idx === idx);
+      if (parked) {
+        ui.notifications.info('Celerity extra action: it resolves at the end of the round.');
+        return;
+      }
+    }
     let movementDist = 0;
     if (this._movementActive) {
       movementDist = parseInt(this._movementDrawer?.querySelector('[name="movement-dist"]')?.value) || 0;
@@ -3939,7 +4041,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       if (hasOtherActions) {
         // Healing while doing other stuff: Stamina + Survival reflexive (diff 8)
         const stamina = effectiveTraitValue(actor, 'attributes.stamina');
-        const survival = sys.abilities?.survival || 0;
+        const survival = effectiveTraitValue(actor, 'abilities.survival');
         const pool = Math.max(stamina + survival, 1);
 
         const result = await game.vtm.rollDicePool(actor, {
@@ -4287,7 +4389,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (!opts) return;
 
     const manip = effectiveTraitValue(actor, 'attributes.manipulation');
-    const sub = actor.system.abilities?.subterfuge || 0;
+    const sub = effectiveTraitValue(actor, 'abilities.subterfuge');
     const pool = Math.max(manip + sub, 1);
     const tPerc = target.system.attributes?.perception || 0;
     const tSC = target.system.virtues?.selfControl || 0;
@@ -4378,7 +4480,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await this.document.setFlag('vtm-v20', 'tongueSkill', skill);
   }
 
-  async _rollSoak() {
+  async _rollSoak(adjust = false) {
     const actor = this.document;
     const dmgType = await new Promise(resolve => {
       new Dialog({
@@ -4417,8 +4519,17 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return ui.notifications.warn('Cannot soak this damage type.');
     }
 
-    const { pool, parts, difficulty } = soakData;
-    const label = `Soak ${dmgType} (${parts.join(' + ')})`;
+    let { pool, parts, difficulty } = soakData;
+    let label = `Soak ${dmgType} (${parts.join(' + ')})`;
+    if (adjust) {
+      const adj = await promptRollAdjust({
+        title: `Soak ${dmgType}`,
+        pool, poolLabel: parts.join(' + '), difficulty,
+      });
+      if (!adj) return;
+      if (adj.mod) { pool = Math.max(pool + adj.mod, 1); label += ` | bonus ${signed(adj.mod)}`; }
+      if (adj.difficulty !== difficulty) { difficulty = adj.difficulty; label += ` | diff ${difficulty}`; }
+    }
     const roll = new Roll(`${Math.max(pool, 1)}d10`);
     await roll.evaluate();
     const { dice, total, outcome } = this._tallyDice(roll, difficulty);
@@ -4799,6 +4910,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // One dialog for both Celerity powers: each button activates or
   // deactivates its power depending on current state.
   async _celerityManage(item, inCombat) {
+    if (celerityRawMode()) return this._celerityManageRaw(item);
     const actor = this.document;
     const cel = item.system.level;
     const mult = cel + 1;
@@ -4877,6 +4989,87 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this.render();
   }
 
+  // RAW Celerity: buy extra actions during declaration, one blood each, up to
+  // the rating. The book lets this spending pass the per-turn generation cap,
+  // so the blood budget check is deliberately skipped here.
+  async _celerityManageRaw(item) {
+    const actor = this.document;
+    const cel = item.system.level;
+    const current = actor.getFlag('vtm-v20', 'celerityRawActions') || 0;
+
+    if (current) {
+      const drop = await new Promise(resolve => {
+        new Dialog({
+          title: 'Celerity',
+          content: `<p style="margin:8px 0;color:#ddd;">${current} extra action${current > 1 ? 's' : ''} bought this round.</p>`,
+          buttons: {
+            off: { label: 'Cancel Extra Actions', callback: () => resolve(true) },
+            keep: { label: 'Keep', callback: () => resolve(false) },
+          },
+          default: 'keep',
+          close: () => resolve(false),
+        }, { classes: ['vtm-v20', 'dialog'], width: 380 }).render(true);
+      });
+      if (!drop) return;
+      await actor.unsetFlag('vtm-v20', 'celerityRawActions');
+      const active = actor.getFlag('vtm-v20', 'activeDisciplines') || [];
+      await actor.setFlag('vtm-v20', 'activeDisciplines', active.filter(d => d !== 'celerity'));
+      ui.notifications.info('Celerity extra actions cancelled (the blood stays spent).');
+      this.render();
+      return;
+    }
+
+    if (!this._declCombat) {
+      ui.notifications.warn('Extra actions are bought during the declaration phase.');
+      return;
+    }
+    if (this._declCombatant?.getFlag('vtm-v20', 'declaration')) {
+      ui.notifications.warn('Declaration already confirmed. Buy extra actions before declaring next round.');
+      return;
+    }
+
+    const blood = actor.system.blood;
+    const maxN = Math.min(cel, blood?.value || 0);
+    if (maxN < 1) {
+      ui.notifications.warn('Not enough blood to buy an extra action.');
+      return;
+    }
+
+    const n = await new Promise(resolve => {
+      let html = '<div style="margin:8px 0;color:#ddd;">';
+      html += `<p>One blood point per extra action, up to your Celerity of <b>${cel}</b>. This spending may pass your per-turn generation limit.</p>`;
+      html += '<p>Each action keeps its full dice pool. Extra actions must be physical and resolve at the end of the round; every dot used stops adding to Dexterity rolls this round.</p>';
+      html += `<input type="range" min="1" max="${maxN}" value="${maxN}" class="raw-cel-slider" style="width:100%;" />`;
+      html += `<div style="text-align:center;font-size:18px;font-weight:bold;color:var(--vtm-gold,#c9a959);" class="raw-cel-val">${maxN}</div></div>`;
+      new Dialog({
+        title: 'Celerity: Extra Actions',
+        content: html,
+        buttons: {
+          ok: { icon: '<i class="fas fa-forward"></i>', label: 'Spend Blood', callback: dlg => resolve(parseInt(dlg[0].querySelector('.raw-cel-slider').value) || 0) },
+          cancel: { label: 'Cancel', callback: () => resolve(0) },
+        },
+        default: 'ok',
+        render: dlg => {
+          const slider = dlg.find('.raw-cel-slider');
+          const val = dlg.find('.raw-cel-val');
+          slider.on('input', () => val.text(slider.val()));
+        },
+        close: () => resolve(0),
+      }, { classes: ['vtm-v20', 'dialog'], width: 400 }).render(true);
+    });
+    if (!n) return;
+
+    await actor.update({ 'system.blood.value': blood.value - n });
+    await actor.setFlag('vtm-v20', 'celerityRawActions', n);
+    const active = actor.getFlag('vtm-v20', 'activeDisciplines') || [];
+    if (!active.includes('celerity')) {
+      await actor.setFlag('vtm-v20', 'activeDisciplines', [...active, 'celerity']);
+    }
+    this._playHealAnimation();
+    ui.notifications.info(`Celerity: ${n} extra action${n > 1 ? 's' : ''} this round for ${n} blood.`);
+    this.render();
+  }
+
   // Spend blood to heal bashing/lethal levels. Generation caps how many can
   // be healed in one turn (bloodPerTurn); aggravated can't be healed this way.
   _getActivePowers(actor, discKey) {
@@ -4909,6 +5102,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         powers.push({ id: 'movement-burst', name: 'Movement Burst' });
       if (actor.getFlag('vtm-v20', 'celerityActions'))
         powers.push({ id: 'extra-actions', name: 'Speed Burst' });
+      if (actor.getFlag('vtm-v20', 'celerityRawActions'))
+        powers.push({ id: 'raw-extra-actions', name: 'Extra Actions' });
     }
     return powers;
   }
@@ -4981,6 +5176,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       } else if (powerId === 'extra-actions') {
         await actor.unsetFlag('vtm-v20', 'celerityActions');
         return 'Speed Burst';
+      } else if (powerId === 'raw-extra-actions') {
+        await actor.unsetFlag('vtm-v20', 'celerityRawActions');
+        return 'Extra Actions';
       }
     }
     return null;
@@ -5223,7 +5421,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     const stamina = effectiveTraitValue(actor, 'attributes.stamina');
-    const survival = sys.abilities?.survival || 0;
+    const survival = effectiveTraitValue(actor, 'abilities.survival');
     const pool = Math.max(stamina + survival, 1);
 
     const result = await game.vtm.rollDicePool(actor, {
@@ -6377,6 +6575,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   async _rollJump(opts = {}) {
     const actor = this.document;
     let pool, difficulty, label;
+    let specialtyOn = false;
 
     if (opts.poolOverride) {
       // Resolution phase: skip the dialog, use assigned pool
@@ -6384,15 +6583,17 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       difficulty = opts.difficulty || 6;
       label = opts.label || 'Jump';
       if (opts.adjust) {
-        const adj = await promptRollAdjust({ title: `Roll: ${label}`, pool, difficulty });
+        const adj = await promptRollAdjust({ title: `Roll: ${label}`, pool, difficulty, specialty: true });
         if (!adj) return null;
         pool = Math.max(pool + adj.mod, 1);
         difficulty = adj.difficulty;
+        specialtyOn = adj.specialty;
         if (adj.mod) label += ` | bonus ${adj.mod > 0 ? '+' : ''}${adj.mod}`;
+        if (specialtyOn) label += ' | specialty';
       }
     } else {
       const str = effectiveStrength(actor);
-      const ath = actor.system.abilities?.athletics || 0;
+      const ath = effectiveTraitValue(actor, 'abilities.athletics');
       const woundPen = actor.system.woundPenalty || 0;
       const potAuto = potenceAutoSuccesses(actor);
 
@@ -6418,7 +6619,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
-    let { dice, total: diceTotal, outcome } = this._tallyDice(roll, difficulty);
+    let { dice, total: diceTotal, outcome } = this._tallyDice(roll, difficulty, specialtyOn);
     let autoSucc = potenceAutoSuccesses(this.document);
 
     let wpUsed = false;
@@ -6459,7 +6660,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   async _rollLedgeCatch() {
     const actor = this.document;
     const dex = effectiveTraitValue(actor, 'attributes.dexterity');
-    const ath = actor.system.abilities?.athletics || 0;
+    const ath = effectiveTraitValue(actor, 'abilities.athletics');
     const woundPen = actor.system.woundPenalty || 0;
 
     const top = `
@@ -6503,7 +6704,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const rawStr = actor.system.attributes?.strength || 0;
     const str = rawStr + potenceLevel(actor);
     const dex = effectiveTraitValue(actor, 'attributes.dexterity');
-    const ath = actor.system.abilities?.athletics || 0;
+    const ath = effectiveTraitValue(actor, 'abilities.athletics');
     const woundPen = actor.system.woundPenalty || 0;
 
     const choice = await this._throwDialog(str, dex, ath, woundPen);

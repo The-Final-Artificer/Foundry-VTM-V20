@@ -1,6 +1,6 @@
 // Carrying capacity and movement rates, derived on the actor so both the
 // sheet and token bars read the same numbers.
-import { celerityLevel, potenceLevel } from './discipline-effects.mjs';
+import { celerityLevel, celerityRawMode, potenceLevel } from './discipline-effects.mjs';
 
 export function computeCarry(actor) {
   const str = (actor.system.attributes?.strength || 0) + potenceLevel(actor);
@@ -53,7 +53,8 @@ export function computeMovement(actor) {
   const sys = actor.system;
   const carry = computeCarry(actor);
   const rawDex = sys.attributes?.dexterity || 0;
-  const cel = celerityLevel(actor);
+  // The flat yards and Movement Burst are the homebrew (DAV20) reading
+  const cel = celerityRawMode() ? 0 : celerityLevel(actor);
   const burstMult = actor.getFlag('vtm-v20', 'celerityBurst') ? cel + 1 : 1;
   const wolfMult = actor.getFlag('vtm-v20', 'wolfForm') ? 2 : 1;
   let walk = (7 + cel) * burstMult * wolfMult,

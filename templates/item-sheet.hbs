@@ -233,8 +233,12 @@
     <input type="text" name="system.ammo" value="{{system.ammo}}" placeholder="full" />
   </div>
   <div class="form-group">
-    <label>Rate</label>
-    <input type="text" name="system.rate" value="{{system.rate}}" placeholder="â€”" />
+    <label>Rate <span class="arch-info"><i class="fas fa-exclamation-circle"></i><span class="arch-pop pop-left"><b>Rate of Fire</b>The most rounds the weapon can fire in one turn. Weapons with a rate of 10 or higher can use full automatic fire.</span></span></label>
+    <input type="text" name="system.rate" value="{{system.rate}}" placeholder="-" />
+  </div>
+  <div class="form-group">
+    <label>3-Round Burst</label>
+    <input type="checkbox" name="system.burst" {{#if system.burst}}checked{{/if}} title="The weapon can fire three-round bursts" />
   </div>
   <div class="form-group">
     <label>Wield Req.</label>
@@ -326,6 +330,27 @@
   <div class="form-group">
     <label>Stationary (haven)</label>
     <input type="checkbox" name="system.haven" {{#if system.haven}}checked{{/if}} title="A place, not luggage: this container and everything stored in it is ignored by carrying capacity" />
+  </div>
+  {{/if}}
+
+  {{#if bonusCapable}}
+  <div class="bonus-section">
+    <label class="desc-label">Dice Bonuses <span class="arch-info"><i class="fas fa-exclamation-circle"></i><span class="arch-pop pop-left"><b>Dice Bonuses</b>Extra dice added to every roll that uses the chosen trait. Gear applies while equipped; merits and flaws always apply. The bonus is baked into the trait's value in roll windows and dice pools. Negative values work as penalties.</span></span></label>
+    {{#each bonusRows}}
+    <div class="bonus-row">
+      <select class="bonus-trait">
+        <optgroup label="Attributes">
+          {{#each attrOpts}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </optgroup>
+        <optgroup label="Abilities">
+          {{#each abilOpts}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </optgroup>
+      </select>
+      <input type="number" class="bonus-value" value="{{value}}" min="-5" max="5" step="1" />
+      <button type="button" class="bonus-remove" data-index="{{index}}" title="Remove bonus"><i class="fas fa-times"></i></button>
+    </div>
+    {{/each}}
+    <button type="button" class="bonus-add"><i class="fas fa-plus"></i> Add Bonus</button>
   </div>
   {{/if}}
 

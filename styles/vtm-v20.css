@@ -1609,6 +1609,14 @@ textarea#chat-message {
 .vtm-v20 .arch-info:hover .arch-pop.pop-right {
   transform: translateY(0);
 }
+/* Labels at a window's left edge open their popup inward the other way */
+.vtm-v20 .arch-pop.pop-left {
+  left: -8px;
+  transform: translateY(-6px);
+}
+.vtm-v20 .arch-info:hover .arch-pop.pop-left {
+  transform: translateY(0);
+}
 .vtm-v20 .arch-regain {
   display: block;
   margin-top: 7px;
@@ -5672,3 +5680,171 @@ textarea#chat-message {
 .vtm-v20 .clan-weakness { width: 100%; min-height: 90px; margin: 2px 0 8px; }
 .vtm-v20 .clan-disc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 12px; margin: 4px 0 10px; }
 .vtm-v20 .clan-disc-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* Celerity mode markers under the system setting */
+.celerity-mode-info { display: flex; gap: 20px; margin-top: 6px; font-size: 12px; }
+.celerity-mode-info .arch-info { cursor: help; }
+.celerity-mode-info .arch-pop { min-width: 280px; }
+
+/* Item dice bonus editor */
+.vtm-v20 .bonus-section { margin: 6px 0 10px; }
+.vtm-v20 .bonus-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.vtm-v20 .bonus-row .bonus-trait { flex: 1; }
+.vtm-v20 .bonus-row .bonus-value { width: 60px; }
+.vtm-v20 .bonus-add { margin-top: 4px; }
+
+/* ===== Theme: Printed Sheet ========================================
+   Client setting (Theme in system settings). The classic paper sheet
+   turned to the night side: ivory ink and blood on near black, old
+   print faces, no neon glow. Fonts are the IM Fell Types (SIL OFL,
+   see fonts/OFL-IMFellEnglish.txt and fonts/OFL-IMFellEnglishSC.txt). */
+@font-face {
+  font-family: 'IM Fell English';
+  src: url('../fonts/IMFellEnglish-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'IM Fell English';
+  src: url('../fonts/IMFellEnglish-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'IM Fell English SC';
+  src: url('../fonts/IMFellEnglishSC-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+/* The Fell oldstyle figures run tiny, so digits borrow Cinzel's larger
+   lining numerals: a digit-only face stacked in front of the print face */
+@font-face {
+  font-family: 'VTM Printed';
+  src: url('../fonts/Cinzel.ttf') format('truetype');
+  unicode-range: U+0030-0039;
+  font-weight: 400 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'VTM Printed';
+  src: url('../fonts/IMFellEnglish-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'VTM Printed';
+  src: url('../fonts/IMFellEnglish-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'VTM Printed SC';
+  src: url('../fonts/Cinzel.ttf') format('truetype');
+  unicode-range: U+0030-0039;
+  font-weight: 400 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'VTM Printed SC';
+  src: url('../fonts/IMFellEnglishSC-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+body.vtm-theme-printed {
+  --vtm-bg: #050505;
+  --vtm-surface: #0d0d0b;
+  --vtm-surface-light: #15130f;
+  --vtm-border: #58544a;
+  --vtm-red: #9c1f2b;
+  --vtm-red-dim: #701722;
+  --vtm-red-glow: rgba(0, 0, 0, 0);
+  --vtm-gold: #dcd7c7;
+  --vtm-text: #e3dfd1;
+  --vtm-text-dim: #8d897c;
+  --vtm-text-bright: #f6f3e8;
+  --color-cool-5: #050505;
+  --color-cool-5-90: #050505;
+  --color-cool-5-75: rgba(5, 5, 5, 0.8);
+  --color-cool-5-50: rgba(5, 5, 5, 0.5);
+  --color-cool-4: #15130f;
+  --color-cool-3: #58544a;
+  --color-shadow-primary: #9c1f2b;
+  --color-shadow-highlight: #dcd7c7;
+  --color-scrollbar: #701722;
+}
+
+/* The old print face takes over all text. Many base rules pin their font
+   with !important, so this has to outgun every one of them: a universal
+   selector for everything except icon glyphs and headers. */
+body.vtm-theme-printed,
+body.vtm-theme-printed *:not([class*="fa-"]):not(.fas):not(.far):not(.fab):not(h1):not(h2):not(h3):not(h4) {
+  font-family: 'VTM Printed', 'IM Fell English', serif !important;
+}
+
+/* Headers get the small caps face. The repeated class is deliberate: it is
+   the only way to sit above the universal rule in the !important ladder. */
+body.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed h1,
+body.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed h2,
+body.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed h3,
+body.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed h4,
+body.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed.vtm-theme-printed .window-header .window-title {
+  font-family: 'VTM Printed SC', 'IM Fell English SC', serif !important;
+  letter-spacing: 1.5px;
+}
+
+/* Ink on paper: ruled rows, flat dots, square corners */
+body.vtm-theme-printed .vtm-v20 .trait-row {
+  border-radius: 0;
+  border-bottom: 1px solid rgba(88, 84, 74, 0.5);
+}
+body.vtm-theme-printed .vtm-v20 .dot { border-color: #8d897c; }
+body.vtm-theme-printed .vtm-v20 .dot.filled { box-shadow: none; }
+body.vtm-theme-printed .vtm-v20 button,
+body.vtm-theme-printed .dialog .dialog-button {
+  border-radius: 0;
+}
+
+/* Chat cards use the same ink instead of their own greys */
+body.vtm-theme-printed .chat-message.message {
+  background: #070707;
+  border: 1px solid #3f3c34;
+}
+
+/* A second rule line frames each sheet like the paper original */
+body.vtm-theme-printed .vtm-v20.sheet .window-content {
+  outline: 1px solid var(--vtm-border);
+  outline-offset: -7px;
+}
+
+/* Roll cards print in the same ink: no green or neon on paper.
+   Successes are bright ivory, botches blood, fails dim outline. */
+body.vtm-theme-printed .vtm-roll,
+body.vtm-theme-printed .vtm-combat-damage {
+  background: #070707;
+}
+body.vtm-theme-printed .vtm-roll .die.success,
+body.vtm-theme-printed .vtm-combat-damage .die.success {
+  color: #9c1f2b;
+  border-color: #9c1f2b;
+  background: rgba(156, 31, 43, 0.10);
+}
+body.vtm-theme-printed .vtm-roll .die.crit {
+  color: #c0303c;
+  border-color: #c0303c;
+  background: rgba(192, 48, 60, 0.12);
+}
+body.vtm-theme-printed .vtm-roll .die.botch,
+body.vtm-theme-printed .vtm-combat-damage .die.botch {
+  color: #701722;
+  border-color: #701722;
+  background: rgba(112, 23, 34, 0.16);
+}
+body.vtm-theme-printed .vtm-roll .die.fail,
+body.vtm-theme-printed .vtm-combat-damage .die.fail {
+  color: #8d897c;
+  border-color: #58544a;
+  background: transparent;
+}
+body.vtm-theme-printed .vtm-roll .result-success { color: #9c1f2b; }
+body.vtm-theme-printed .vtm-roll .result-botch { color: #701722; }

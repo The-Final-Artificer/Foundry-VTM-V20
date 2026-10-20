@@ -16,6 +16,13 @@ export function celerityLevel(actor) {
   return disciplineLevel(actor, 'celerity');
 }
 
+// Which Celerity ruleset the world runs: the enhanced homebrew kit (default)
+// or RAW V20. Settings may not be registered yet during early data prep.
+export function celerityRawMode() {
+  try { return game.settings.get('vtm-v20', 'celerityMode') === 'raw'; }
+  catch { return false; }
+}
+
 export function isDisciplineActive(actor, name) {
   const active = actor?.getFlag('vtm-v20', 'activeDisciplines') || [];
   return active.includes(String(name || '').toLowerCase());
@@ -32,6 +39,20 @@ export function usesStrengthTrait(...paths) {
 export function isStrengthDamageFormula(formula) {
   const raw = String(formula || '').trim().toLowerCase();
   return !raw || raw === 'str' || raw.startsWith('str');
+}
+
+// Flat dice bonuses granted by items (an occult charm adding +1 to Larceny).
+// Gear counts while equipped; merits and flaws always apply.
+export function itemTraitBonus(actor, path) {
+  if (!path || !actor?.items) return 0;
+  let sum = 0;
+  for (const it of actor.items) {
+    const list = it.system?.bonuses;
+    if (!list?.length) continue;
+    if (it.system.equipped === false) continue;
+    for (const b of list) if (b.trait === path) sum += Number(b.value) || 0;
+  }
+  return sum;
 }
 
 // Raw trait value straight from the actor, no discipline bonuses
@@ -51,14 +72,17 @@ export function effectiveTraitValue(actor, path) {
   if (path === 'attributes.strength' && !isDisciplineActive(actor, 'potence')) {
     val += potenceLevel(actor);
   }
-  // Extra Actions redirects the dots into speed: no passive dice while active
+  // Extra Actions redirects the dots into speed: no passive dice while active.
+  // Under RAW, each extra action bought eats one dot of the passive instead.
   if (path === 'attributes.dexterity' && !actor.getFlag?.('vtm-v20', 'celerityActions')) {
-    val += celerityLevel(actor);
+    const rawSpent = actor.getFlag?.('vtm-v20', 'celerityRawActions') || 0;
+    val += Math.max(celerityLevel(actor) - rawSpent, 0);
   }
   const attr = path.split('.').pop();
   if (['strength', 'dexterity', 'stamina'].includes(attr)) {
     val += (actor.getFlag('vtm-v20', 'bloodBuffs')?.[attr] || 0);
   }
+  val += itemTraitBonus(actor, path);
   return val;
 }
 

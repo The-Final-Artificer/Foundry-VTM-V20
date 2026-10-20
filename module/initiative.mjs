@@ -2,7 +2,7 @@
 // Works alongside Foundry's built-in Combat document without subclassing it,
 // to avoid collection-lookup issues in Foundry V13+.
 
-import { celerityLevel } from './discipline-effects.mjs';
+import { celerityLevel, celerityRawMode } from './discipline-effects.mjs';
 
 // Override the built-in initiative roll with V20 rules:
 // 1d10 + Dex + Wits + Celerity + wound penalty, ties broken by the static rating.
@@ -21,7 +21,8 @@ export function registerInitiativeHooks() {
     const wp = actor.system.woundPenalty || 0;
     const dex = actor.system.attributes?.dexterity || 0;
     const wits = actor.system.attributes?.wits || 0;
-    const cel = celerityLevel(actor);
+    // RAW Celerity only speeds up dice, not the initiative rating
+    const cel = celerityRawMode() ? 0 : celerityLevel(actor);
     const rating = dex + wits + cel;
 
     // Foundry already rolled 1d10 + dex + wits from system.json formula.
@@ -54,6 +55,9 @@ export function registerInitiativeHooks() {
       }
       if (c.actor?.getFlag('vtm-v20', 'celerityActions')) {
         await c.actor.unsetFlag('vtm-v20', 'celerityActions');
+      }
+      if (c.actor?.getFlag('vtm-v20', 'celerityRawActions')) {
+        await c.actor.unsetFlag('vtm-v20', 'celerityRawActions');
       }
     }
 
@@ -131,6 +135,9 @@ export function registerInitiativeHooks() {
       if (c.actor?.getFlag('vtm-v20', 'celerityActions')) {
         await c.actor.unsetFlag('vtm-v20', 'celerityActions');
       }
+      if (c.actor?.getFlag('vtm-v20', 'celerityRawActions')) {
+        await c.actor.unsetFlag('vtm-v20', 'celerityRawActions');
+      }
     }
   });
 }
@@ -145,7 +152,7 @@ async function rerollAllInitiative(combat) {
     if (!c.actor || c.defeated) continue;
     const dex = c.actor.system.attributes?.dexterity || 0;
     const wits = c.actor.system.attributes?.wits || 0;
-    const cel = celerityLevel(c.actor);
+    const cel = celerityRawMode() ? 0 : celerityLevel(c.actor);
     const wp = c.actor.system.woundPenalty || 0;
     // Raw random instead of Roll so Dice So Nice doesn't show 3D dice
     const d10 = Math.floor(Math.random() * 10) + 1;
@@ -214,9 +221,12 @@ async function beginDeclaration(combat) {
   });
 
   // Open the declaration panel for ALL combatants so everyone can
-  // start planning their actions while waiting for their turn
+  // start planning their actions while waiting for their turn. Only for
+  // whoever will actually play them though: a sheet with an active player
+  // owner is that player's business, the GM shouldn't drown in popups.
   for (const cb of combat.combatants.contents) {
     if (!cb.actor || cb.defeated) continue;
+    if (ownerOf(cb) !== game.userId) continue;
     const sheet = cb.actor.sheet;
     if (sheet) sheet.startDeclaration(combat, cb);
   }
@@ -596,7 +606,7 @@ export function renderInitiativeTracker(app, html) {
     const dr = combat.getFlag('vtm-v20', 'deferredResolver');
     if (dr) {
       const cb = combat.combatants.get(dr.combatantId);
-      controls.innerHTML = `<div class="vtm-phase-label"><i class="fas fa-wind"></i> Deferred: <b>${cb?.name || '...'}</b> (init ${dr.init})</div>`;
+      controls.innerHTML = `<div class="vtm-phase-label"><i class="fas fa-wind"></i> Deferred: <b>${cb?.name || '...'}</b> (${dr.init <= -900 ? 'end of round' : `init ${dr.init}`})</div>`;
     } else {
       const curId = combat.getFlag('vtm-v20', 'currentResolver');
       const cur = combat.combatants.get(curId);

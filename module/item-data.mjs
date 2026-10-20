@@ -6,6 +6,13 @@ function int(initial, min = 0, max = 10) {
 function str(initial = '') {
   return new f.StringField({ required: true, nullable: false, initial });
 }
+// Flat dice bonuses to attributes or abilities (an occult charm adding +1 Larceny)
+function bonuses() {
+  return new f.ArrayField(new f.SchemaField({
+    trait: str(''),
+    value: new f.NumberField({ required: true, nullable: false, initial: 1, min: -5, max: 5, integer: true }),
+  }), { required: true, initial: [] });
+}
 
 export class DisciplineData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
@@ -57,6 +64,7 @@ export class MeritData extends foundry.abstract.TypeDataModel {
     return {
       cost: new f.NumberField({ required: true, nullable: false, initial: 1, min: -7, max: 7, integer: true }),
       meritType: str('physical'),
+      bonuses: bonuses(),
       description: new f.HTMLField({ initial: '' }),
     };
   }
@@ -77,6 +85,7 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
       // '' = judge by rate (10+ can full auto), 'yes'/'no' = the two liars
       // in the compendium (USAS-12 hoses at rate 6, the 93R is burst-only)
       fullAuto: str(''),
+      burst: new f.BooleanField({ initial: false }),
       hands: int(1, 1, 2),
       // bullets bruise Kindred: firearm damage downgrades to bashing on
       // vampires unless the shot is aimed at the head
@@ -86,6 +95,7 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
       requireTrait: str(''),
       requireMin: int(0, 0, 5),
       equipped: new f.BooleanField({ initial: false }),
+      bonuses: bonuses(),
       description: new f.HTMLField({ initial: '' }),
     };
   }
@@ -98,6 +108,7 @@ export class ArmorData extends foundry.abstract.TypeDataModel {
       rating: int(0, 0, 5),
       penalty: new f.NumberField({ required: true, nullable: false, initial: 0, min: -5, max: 0, integer: true }),
       equipped: new f.BooleanField({ initial: false }),
+      bonuses: bonuses(),
       description: new f.HTMLField({ initial: '' }),
       bottomWear: str('none'),
       topWear: str('none'),
@@ -111,6 +122,7 @@ export class EquipmentData extends foundry.abstract.TypeDataModel {
       weight: new f.NumberField({ required: true, nullable: false, initial: 0, min: 0 }),
       quantity: int(1, 0, 999),
       equipped: new f.BooleanField({ initial: false }),
+      bonuses: bonuses(),
       description: new f.HTMLField({ initial: '' }),
     };
   }
@@ -168,6 +180,7 @@ export class ContainerData extends foundry.abstract.TypeDataModel {
       // A place rather than luggage: exempt from carrying capacity
       haven: new f.BooleanField({ initial: false }),
       equipped: new f.BooleanField({ initial: false }),
+      bonuses: bonuses(),
       description: new f.HTMLField({ initial: '' }),
     };
   }

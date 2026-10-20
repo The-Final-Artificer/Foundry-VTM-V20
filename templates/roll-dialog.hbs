@@ -80,10 +80,14 @@
   {{/if}}
   {{#if armorPen}}
   <div class="form-group wound-pen-row armor-pen-row">
-    <label>Armor Penalty (Dex)</label>
+    <label>Gear Penalty (Dex)</label>
     <span class="wound-pen-val">{{armorPen}}</span>
   </div>
   {{/if}}
+  <div class="form-group wound-pen-row item-bonus-row" style="display:none;">
+    <label>Item Bonus</label>
+    <span class="wound-pen-val"></span>
+  </div>
   {{#if shadowPlayPool}}
   <div class="form-group wound-pen-row potence-row">
     <label>Shadow Play (Stealth/Intimidation)</label>

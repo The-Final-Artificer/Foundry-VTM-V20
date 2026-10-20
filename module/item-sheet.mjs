@@ -250,6 +250,20 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       ];
     }
 
+    // Dice bonus editor: gear plus merits/flaws can grant flat dice to traits
+    if (['weapon', 'armor', 'equipment', 'container', 'merit'].includes(item.type)) {
+      const loc = k => game.i18n.localize(`VTM.${k.charAt(0).toUpperCase() + k.slice(1)}`);
+      const attrOpts = Object.values(VTM.attributes).flat().map(k => ({ key: `attributes.${k}`, label: loc(k) }));
+      const abilOpts = Object.values(VTM.abilities).flat().map(k => ({ key: `abilities.${k}`, label: loc(k) }));
+      ctx.bonusCapable = true;
+      ctx.bonusRows = (item.system.bonuses || []).map((b, index) => ({
+        index,
+        value: b.value,
+        attrOpts: attrOpts.map(o => ({ ...o, selected: o.key === b.trait })),
+        abilOpts: abilOpts.map(o => ({ ...o, selected: o.key === b.trait })),
+      }));
+    }
+
     if (item.type === 'clan') {
       const chosen = new Set(ctx.system.disciplines || []);
       const names = DISCIPLINES.map(d => d.name);
@@ -279,6 +293,29 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const names = [...el.querySelectorAll('.clan-disc-check:checked')].map(c => c.dataset.name);
         this.document.update({ 'system.disciplines': names });
       }));
+
+    // Dice bonus rows live outside the form so they commit as one array
+    el.querySelector('.bonus-add')?.addEventListener('click', () => {
+      const list = (this.document.system.bonuses || []).map(b => ({ trait: b.trait, value: b.value }));
+      list.push({ trait: 'abilities.alertness', value: 1 });
+      this.document.update({ 'system.bonuses': list });
+    });
+    el.querySelectorAll('.bonus-remove').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.dataset.index);
+        const list = (this.document.system.bonuses || []).map(b => ({ trait: b.trait, value: b.value }));
+        if (!isNaN(i)) list.splice(i, 1);
+        this.document.update({ 'system.bonuses': list });
+      }));
+    const commitBonuses = () => {
+      const list = [...el.querySelectorAll('.bonus-row')].map(r => ({
+        trait: r.querySelector('.bonus-trait').value,
+        value: parseInt(r.querySelector('.bonus-value').value) || 0,
+      }));
+      this.document.update({ 'system.bonuses': list });
+    };
+    el.querySelectorAll('.bonus-trait, .bonus-value').forEach(input =>
+      input.addEventListener('change', commitBonuses));
 
     // Image: click for lightbox, edit button for file picker
     const img = el.querySelector('.sheet-header img');

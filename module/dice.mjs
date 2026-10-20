@@ -1,6 +1,7 @@
 // Find an active player who owns this actor (prefer non-GM so dice match the player's theme)
 import { blindedDifficulty } from './status-effects.mjs';
-import { effectiveTraitValue, potenceLevel, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
+import { effectiveTraitValue, itemTraitBonus, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
+import { computeCarry } from './movement.mjs';
 
 const PHYSICAL_ATTRS = new Set(['attributes.strength', 'attributes.dexterity', 'attributes.stamina']);
 
@@ -10,23 +11,16 @@ export function unbalancedPenalty(actor) {
   return (r && game.combat && game.combat.round === r) ? 1 : 0;
 }
 
+// Same carry math the sheet shows, haven exemptions included
 export function isEncumbered(actor) {
-  const str = (actor.system.attributes?.strength || 0) + potenceLevel(actor);
-  const maxCarry = str * 10;
-  let weight = 0;
-  const eiActive = game.modules.get('enhanced-inventory')?.active;
-  const eiData = eiActive ? (actor.getFlag('enhanced-inventory', 'data') || {}) : {};
-  const slottedIds = new Set(Object.values(eiData.slots || {}).filter(Boolean));
-  for (const it of actor.items) {
-    if (eiActive) {
-      const grid = it.getFlag('enhanced-inventory', 'grid');
-      if (grid && grid.gridX === -1 && grid.gridY === -1 && !slottedIds.has(it.id) && !grid.armorId) continue;
-    }
-    const w = it.system.weight || 0;
-    if (it.type === 'equipment') weight += w * (it.system.quantity || 1);
-    else if (w > 0) weight += w;
-  }
-  return weight > maxCarry;
+  return computeCarry(actor).encumbered;
+}
+
+// Dex drag from worn gear: equipped armor and penalized containers (heavy packs) alike
+export function gearPenalty(actor) {
+  return Array.from(actor.items)
+    .filter(i => (i.type === 'armor' || i.type === 'container') && i.system.equipped)
+    .reduce((s, i) => s + (i.system.penalty || 0), 0);
 }
 
 function getOwner(actor) {
@@ -138,19 +132,23 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   const baseDifficulty = Number(difficulty) || 6;
 
   const allTraits = {};
+  // Item bonuses show as their own line, so the trait values here stay clean of them
+  const itemBonusFor = k => (k ? itemTraitBonus(actor, k) : 0);
   if (sys.attributes) {
     for (const k of Object.keys(sys.attributes)) {
-      allTraits[`attributes.${k}`] = {
+      const path = `attributes.${k}`;
+      allTraits[path] = {
         label: game.i18n.localize(`VTM.${k.charAt(0).toUpperCase() + k.slice(1)}`),
-        value: effectiveTraitValue(actor, `attributes.${k}`), group: 'attributes'
+        value: effectiveTraitValue(actor, path) - itemTraitBonus(actor, path), group: 'attributes'
       };
     }
   }
   if (sys.abilities) {
-    for (const [k, v] of Object.entries(sys.abilities)) {
-      allTraits[`abilities.${k}`] = {
+    for (const k of Object.keys(sys.abilities)) {
+      const path = `abilities.${k}`;
+      allTraits[path] = {
         label: game.i18n.localize(`VTM.${k.charAt(0).toUpperCase() + k.slice(1)}`),
-        value: v, group: 'abilities'
+        value: effectiveTraitValue(actor, path) - itemTraitBonus(actor, path), group: 'abilities'
       };
     }
   }
@@ -196,9 +194,7 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   const batPerceptionBonus = batForm && (isPerception(trait) || isPerception(trait2)) ? -3 : 0;
   if (wolfPerceptionBonus) dialogDifficulty = Math.max(dialogDifficulty + wolfPerceptionBonus, 3);
   if (batPerceptionBonus) dialogDifficulty = Math.max(dialogDifficulty + batPerceptionBonus, 3);
-  const armorPen = Array.from(actor.items)
-    .filter(i => i.type === 'armor' && i.system.equipped)
-    .reduce((sum, i) => sum + (i.system.penalty || 0), 0);
+  const armorPen = gearPenalty(actor);
 
   const shadowPlay = !!actor.getFlag('vtm-v20', 'shadowPlay');
   const isStealth = k => k === 'abilities.stealth';
@@ -251,7 +247,12 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
             const autoSucc = (potenceAuto && usesStrengthTrait(pri, sec)) ? potenceAuto : 0;
             if (armorPen && (pri === 'attributes.dexterity' || sec === 'attributes.dexterity')) {
               total += armorPen;
-              parts.push(`armor ${armorPen}`);
+              parts.push(`gear ${armorPen}`);
+            }
+            const itemBonus = itemBonusFor(pri) + itemBonusFor(sec);
+            if (itemBonus) {
+              total += itemBonus;
+              parts.push(`item ${itemBonus > 0 ? `+${itemBonus}` : itemBonus}`);
             }
             if (shadowPlay && (isStealth(pri) || isStealth(sec) || isIntimidation(pri) || isIntimidation(sec))) {
               total += 1;
@@ -304,8 +305,22 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
           html.find('[name="primary"], [name="secondary"]').change(checkPhysical);
         }
 
+        // Item bonuses follow whichever traits are selected
+        const itemRow = html.find('.item-bonus-row');
+        if (itemRow.length) {
+          const updItem = () => {
+            const pri = html.find('[name="primary"]').val();
+            const sec = html.find('[name="secondary"]').val();
+            const b = itemBonusFor(pri) + itemBonusFor(sec);
+            itemRow.toggle(b !== 0);
+            itemRow.find('.wound-pen-val').text(b > 0 ? `+${b}` : `${b}`);
+          };
+          updItem();
+          html.find('[name="primary"], [name="secondary"]').change(updItem);
+        }
+
         // Willpower and Virtue rolls ignore wound penalties, so hide the row for them
-        const woundRow = html.find('.wound-pen-row:not(.armor-pen-row)');
+        const woundRow = html.find('.wound-pen-row:not(.armor-pen-row):not(.item-bonus-row)');
         if (woundRow.length) {
           const checkWp = () => {
             const pri = html.find('[name="primary"]').val();
