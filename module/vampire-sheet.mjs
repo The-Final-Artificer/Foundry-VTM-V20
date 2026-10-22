@@ -109,6 +109,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         { icon: "fas fa-magic", label: "Chargen", action: "toggleChargen" },
         { icon: "fas fa-file-export", label: "Export Sheet", action: "exportSheet" },
         { icon: "fas fa-heart-circle-plus", label: "Health Levels", action: "manageHealth" },
+        { icon: "fas fa-scale-balanced", label: "Virtues", action: "manageVirtues" },
       ]
     },
     form: { submitOnChange: true },
@@ -133,12 +134,15 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       toggleCompact: VampireSheet.#onToggleCompact,
       exportSheet: VampireSheet.#onExportSheet,
       manageHealth: VampireSheet.#onManageHealth,
+      manageVirtues: VampireSheet.#onManageVirtues,
     }
   };
 
   _getHeaderControls() {
-    const controls = super._getHeaderControls();
-    return game.user.isGM ? controls : controls.filter(c => c.action !== 'manageHealth');
+    let controls = super._getHeaderControls();
+    if (!game.user.isGM) controls = controls.filter(c => c.action !== 'manageHealth');
+    if (!this.isEditable) controls = controls.filter(c => c.action !== 'manageVirtues');
+    return controls;
   }
 
   static PARTS = {
@@ -1739,6 +1743,53 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     exportSheet(this);
   }
 
+  // Swap Conscience/Conviction and Self-Control/Instinct in place: the dots
+  // stay, only the virtue identity (labels, ladders, frenzy flow) changes
+  static async #onManageVirtues() {
+    if (!this.isEditable) return;
+    const actor = this.document;
+    const cur = actor.getFlag('vtm-v20', 'virtueLabels') || {};
+    const conscience = cur.conscience || 'Conscience';
+    const selfControl = cur.selfControl || 'Self-Control';
+    const opt = (value, sel) => `<option value="${value}" ${value === sel ? 'selected' : ''}>${value}</option>`;
+
+    const result = await foundry.applications.api.DialogV2.wait({
+      window: { title: `${actor.name}: Virtues` },
+      content: `
+        <p style="font-size:12px;opacity:.8;">The ratings keep their dots; only which virtue they represent changes.</p>
+        <div class="form-group">
+          <label>First Virtue</label>
+          <select name="conscience">${opt('Conscience', conscience)}${opt('Conviction', conscience)}</select>
+        </div>
+        <div class="form-group">
+          <label>Second Virtue</label>
+          <select name="selfControl">${opt('Self-Control', selfControl)}${opt('Instinct', selfControl)}</select>
+        </div>`,
+      buttons: [
+        {
+          action: 'save', label: 'Save', default: true,
+          callback: (ev, btn, dlg) => ({
+            conscience: dlg.element.querySelector('[name="conscience"]').value,
+            selfControl: dlg.element.querySelector('[name="selfControl"]').value,
+          }),
+        },
+        { action: 'cancel', label: 'Cancel' },
+      ],
+      rejectClose: false,
+    });
+    if (!result || result === 'cancel') return;
+
+    if (result.conscience === 'Conscience' && result.selfControl === 'Self-Control') {
+      await actor.unsetFlag('vtm-v20', 'virtueLabels');
+    } else {
+      await actor.setFlag('vtm-v20', 'virtueLabels', {
+        conscience: result.conscience,
+        selfControl: result.selfControl,
+      });
+    }
+    this.render();
+  }
+
   static async #onManageHealth() {
     if (!game.user.isGM) return;
     const actor = this.document;
@@ -2200,13 +2251,30 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const celInfo = this._celerityDeclInfo(lowestPool, wp);
       const totalPool = celInfo.budget;
       const nonHealCount = actions.filter(a => !a.heal).length;
-      // RAW Celerity turns never split dice: every action keeps its full pool
+      // RAW Celerity: the last rawCel attacks are extras at full pool; the
+      // actions before them stay a vanilla split group
       const rawCel = this.document.getFlag('vtm-v20', 'celerityRawActions') || 0;
+      const rawExtras = new Set();
+      if (rawCel > 0) {
+        const mains = actions.map((a, i) => (!a.heal && !a.defense) ? i : null).filter(i => i !== null);
+        for (const idx of mains.slice(Math.max(mains.length - rawCel, 1))) rawExtras.add(idx);
+      }
+      const baseCount = actions.filter((a, i) => !a.heal && !rawExtras.has(i)).length;
+      let splitBudget = totalPool;
+      if (rawCel > 0) {
+        let lowBase = Infinity;
+        actions.forEach((a, i) => {
+          if (a.heal || rawExtras.has(i)) return;
+          const p = this._declPoolForAction(a);
+          if (p !== undefined && p < lowBase) lowBase = p;
+        });
+        splitBudget = isFinite(lowBase) ? Math.max(lowBase + wp, 1) : 0;
+      }
       // Celerity always uses explicit allocation, even for a single action,
       // so the cap can be respected while distributing the bigger budget
-      const multi = !rawCel && (nonHealCount > 1 || (celInfo.on && nonHealCount > 0));
-      const allocated = actions.reduce((sum, a) => sum + (a.alloc || 0), 0);
-      const remaining = totalPool - allocated;
+      const multi = rawCel > 0 ? baseCount > 1 : (nonHealCount > 1 || (celInfo.on && nonHealCount > 0));
+      const allocated = actions.reduce((sum, a, i) => sum + ((a.heal || rawExtras.has(i)) ? 0 : (a.alloc || 0)), 0);
+      const remaining = splitBudget - allocated;
 
       const actionEntries = actions.map((a, i) => {
         let name = a.text || 'Action';
@@ -2218,7 +2286,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           name = atk?.name || a.attackId;
         }
         const pool = this._declPoolForAction(a);
-        return { i, name, pool, alloc: a.heal ? 0 : (a.alloc || 1), isHeal: !!a.heal };
+        return { i, name, pool, alloc: a.heal ? 0 : (a.alloc || 1), isHeal: !!a.heal, isExtra: rawExtras.has(i) };
       });
 
       if (actionEntries.length) {
@@ -2229,12 +2297,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           if (e.isHeal) {
             h += '<span class="decl-action-pool" style="font-style:italic;opacity:.7">Reflexive</span>';
           } else {
-            h += `<span class="decl-action-pool">Pool ${e.pool}</span>`;
+            h += `<span class="decl-action-pool">Pool ${e.pool}${e.isExtra ? ' (extra, end of round)' : ''}</span>`;
           }
           h += `<button type="button" class="decl-remove" data-action="declRemoveAction" data-index="${e.i}"><i class="fas fa-times"></i></button>`;
-          if (multi && !e.isHeal) {
+          if (multi && !e.isHeal && !e.isExtra) {
             h += `<div class="decl-slider-row">
-              <input type="range" class="decl-alloc-slider" name="alloc-${e.i}" value="${e.alloc}" min="0" max="${totalPool}" step="1" />
+              <input type="range" class="decl-alloc-slider" name="alloc-${e.i}" value="${e.alloc}" min="0" max="${splitBudget}" step="1" />
               <span class="decl-slider-val">${e.alloc}</span>
             </div>`;
           }
@@ -2248,9 +2316,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const overBudget = remaining < 0;
         h += '<div class="decl-split-info">';
         h += celInfo.on
-          ? `<i class="fas fa-wind"></i> Celerity budget${wpBit}: <b>${totalPool}</b>`
-          : `<i class="fas fa-info-circle"></i> Lowest pool${wpBit}: <b>${totalPool}</b>`;
-        h += ` | Allocated: <b class="${overBudget ? 'over-budget' : ''}">${allocated}</b> / ${totalPool}`;
+          ? `<i class="fas fa-wind"></i> Celerity budget${wpBit}: <b>${splitBudget}</b>`
+          : `<i class="fas fa-info-circle"></i> Lowest pool${wpBit}: <b>${splitBudget}</b>`;
+        h += ` | Allocated: <b class="${overBudget ? 'over-budget' : ''}">${allocated}</b> / ${splitBudget}`;
         if (remaining > 0) h += ` (<b>${remaining}</b> unspent)`;
         else if (overBudget) h += ` <span class="over-budget">(${Math.abs(remaining)} over!)</span>`;
         h += '</div>';
@@ -2261,10 +2329,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           : `<div class="decl-split-info celerity-cap-info"><i class="fas fa-wind"></i> Speed Burst active. Budget and cap appear once you declare actions.</div>`;
       }
       if (rawCel) {
-        const over = nonHealCount > 1 + rawCel;
-        h += `<div class="decl-split-info celerity-cap-info"><i class="fas fa-wind"></i> Celerity: <b>1 + ${rawCel}</b> actions, each at its full pool, no splitting.`;
-        if (over) h += ` <span class="over-budget">Too many actions declared (${nonHealCount})!</span>`;
-        h += ' Extra actions resolve at the end of the round and must be physical.</div>';
+        if (rawExtras.size) {
+          h += `<div class="decl-split-info celerity-cap-info"><i class="fas fa-wind"></i> Celerity: the last <b>${rawExtras.size}</b> of your attacks resolve as extra actions at full pool at the end of the round (bought: ${rawCel}). Extras must be physical and cannot be split; your regular turn splits as normal.</div>`;
+        } else {
+          h += `<div class="decl-split-info celerity-cap-info"><i class="fas fa-wind"></i> Celerity: ${rawCel} extra action${rawCel > 1 ? 's' : ''} bought. Declare attacks: the last ${rawCel} become your extras (full pool, end of round).</div>`;
+        }
       }
     }
 
@@ -3492,9 +3561,28 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const nonHealActions = this._declActions.filter(a => !a.heal);
     const celerityOn = !!this.document.getFlag('vtm-v20', 'celerityActions');
     const rawCel = fullDef ? 0 : (this.document.getFlag('vtm-v20', 'celerityRawActions') || 0);
-    if (rawCel > 0 && nonHealActions.length > 1 + rawCel) {
-      ui.notifications.warn(`Celerity grants ${rawCel} extra action${rawCel > 1 ? 's' : ''}: declare at most ${1 + rawCel} actions (you have ${nonHealActions.length}).`);
-      return;
+    // RAW Celerity: the LAST rawCel attacks are the bought extras (full pool,
+    // end of round, never split). Everything before them is the regular turn,
+    // which may still split per the normal multi-action rules.
+    const rawExtraIdxs = new Set();
+    if (rawCel > 0) {
+      const mains = this._declActions.map((a, i) => (!a.heal && !a.defense) ? i : null).filter(i => i !== null);
+      for (const idx of mains.slice(Math.max(mains.length - rawCel, 1))) rawExtraIdxs.add(idx);
+    }
+    const rawBase = this._declActions.filter((a, i) => !a.heal && !rawExtraIdxs.has(i));
+    if (rawCel > 0 && rawBase.length > 1) {
+      let lowBase = Infinity;
+      for (const a of rawBase) {
+        const p = this._declPoolForAction(a);
+        if (p !== undefined && p < lowBase) lowBase = p;
+      }
+      if (!isFinite(lowBase)) lowBase = 0;
+      const baseBudget = Math.max(lowBase + wp, 1);
+      const baseSpent = rawBase.reduce((s, a) => s + (a.alloc || 0), 0);
+      if (baseSpent > baseBudget) {
+        ui.notifications.warn(`Your regular actions split a pool of ${baseBudget} dice; you've allocated ${baseSpent}. Remove ${baseSpent - baseBudget} before confirming.`);
+        return;
+      }
     }
     if (!fullDef && rawCel === 0 && (nonHealActions.length > 1 || (celerityOn && nonHealActions.length > 0))) {
       let lowestCheck = Infinity;
@@ -3536,14 +3624,28 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     let basePool = 0;
     let celerityCap = null;
     if (!fullDef && rawCel > 0) {
-      // RAW Celerity: every action keeps its own full pool, nothing is split.
-      // Captured rolls already carry wounds and gear inside their stored pool.
-      for (const a of this._declActions) {
-        if (a.heal) continue;
+      // RAW Celerity: extras keep their own full pool (wounds and gear in,
+      // never split); the regular group shares a vanilla split budget.
+      // Captured rolls already carry wounds inside their stored pool.
+      let baseBudget = 0;
+      if (rawBase.length) {
+        let lowBase = Infinity;
+        for (const a of rawBase) {
+          const p = this._declPoolForAction(a);
+          if (p !== undefined && p < lowBase) lowBase = p;
+        }
+        if (!isFinite(lowBase)) lowBase = 0;
+        baseBudget = Math.max(lowBase + wp, 1);
+        if (rawBase.length === 1) rawBase[0].alloc = baseBudget;
+      }
+      let extrasTotal = 0;
+      this._declActions.forEach((a, i) => {
+        if (a.heal || !rawExtraIdxs.has(i)) return;
         const p = this._declPoolForAction(a);
         a.alloc = Math.max((p ?? 0) + (a.pool ? 0 : wp), 1);
-        totalPool += a.alloc;
-      }
+        extrasTotal += a.alloc;
+      });
+      totalPool = baseBudget + extrasTotal;
       basePool = totalPool;
     } else if (!fullDef) {
       let lowestPool = Infinity;
@@ -3578,15 +3680,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       resolved: false,
     });
 
-    // RAW Celerity: everything after the first regular action is an extra,
-    // parked as a deferred slot that flushes at the end of the round
-    if (rawCel > 0) {
-      const mains = this._declActions.map((a, i) => (!a.heal && !a.defense) ? i : null).filter(i => i !== null);
-      const extras = mains.slice(1);
-      if (extras.length) {
-        const myInit = combatant.initiative ?? 0;
-        await combatant.setFlag('vtm-v20', 'deferred', extras.map((idx, n) => ({ idx, init: -1000 + myInit - n })));
-      }
+    // RAW Celerity: the extras park as deferred slots that flush at the end
+    // of the round
+    if (rawExtraIdxs.size) {
+      const myInit = combatant.initiative ?? 0;
+      await combatant.setFlag('vtm-v20', 'deferred', [...rawExtraIdxs].map((idx, n) => ({ idx, init: -1000 + myInit - n })));
     }
 
     const intent = text || (fullDef ? 'Entire Turn Defense' : 'No declaration');
@@ -3677,15 +3775,44 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const wp = this.document.system.woundPenalty || 0;
     const executed = new Set(Object.keys(combatant.getFlag('vtm-v20', 'actSpent') || {}).map(Number));
     for (const i of this._resExecuted) executed.add(i);
+    const extras = new Set((combatant.getFlag('vtm-v20', 'deferred') || []).map(e => e.idx));
     const actions = (decl.actions || []).map(a => ({ ...a }));
     let changed = false;
-    let unexec = 0;
+
+    // Extras always re-read their own full pool
     actions.forEach((a, i) => {
-      if (a.heal || a.aborted || executed.has(i)) return;
+      if (a.heal || a.aborted || executed.has(i) || !extras.has(i)) return;
       const p = this._declPoolForAction(a);
       const alloc = Math.max((p ?? 0) + (a.pool ? 0 : wp), 1);
       if (alloc !== a.alloc) { a.alloc = alloc; changed = true; }
-      unexec += alloc;
+    });
+
+    // The regular group lives on a shared budget: refresh it, and trim
+    // allocations from the back if the new budget no longer covers them
+    const baseIdx = actions.map((a, i) => (!a.heal && !a.aborted && !executed.has(i) && !extras.has(i)) ? i : null).filter(i => i !== null);
+    if (baseIdx.length) {
+      let low = Infinity;
+      for (const i of baseIdx) {
+        const p = this._declPoolForAction(actions[i]);
+        if (p !== undefined && p < low) low = p;
+      }
+      const baseBudget = isFinite(low) ? Math.max(low + wp, 1) : 0;
+      if (baseIdx.length === 1) {
+        if (actions[baseIdx[0]].alloc !== baseBudget) { actions[baseIdx[0]].alloc = baseBudget; changed = true; }
+      } else {
+        let sum = baseIdx.reduce((s, i) => s + (actions[i].alloc || 0), 0);
+        for (let k = baseIdx.length - 1; k >= 0 && sum > baseBudget; k--) {
+          const i = baseIdx[k];
+          const cut = Math.min((actions[i].alloc || 0) - 1, sum - baseBudget);
+          if (cut > 0) { actions[i].alloc -= cut; sum -= cut; changed = true; }
+        }
+      }
+    }
+
+    let unexec = 0;
+    actions.forEach((a, i) => {
+      if (a.heal || a.aborted || executed.has(i)) return;
+      unexec += a.alloc || 0;
     });
     const newTotal = this._resSpentTotal() + unexec;
     if (!changed && newTotal === decl.totalPool) return;
@@ -5038,7 +5165,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const n = await new Promise(resolve => {
       let html = '<div style="margin:8px 0;color:#ddd;">';
       html += `<p>One blood point per extra action, up to your Celerity of <b>${cel}</b>. This spending may pass your per-turn generation limit.</p>`;
-      html += '<p>Each action keeps its full dice pool. Extra actions must be physical and resolve at the end of the round; every dot used stops adding to Dexterity rolls this round.</p>';
+      html += '<p>Extra actions use their own full dice pool, must be physical, cannot be split, and resolve at the end of the round. Your regular action may still split as normal. Every dot used stops adding to Dexterity rolls this round.</p>';
       html += `<input type="range" min="1" max="${maxN}" value="${maxN}" class="raw-cel-slider" style="width:100%;" />`;
       html += `<div style="text-align:center;font-size:18px;font-weight:bold;color:var(--vtm-gold,#c9a959);" class="raw-cel-val">${maxN}</div></div>`;
       new Dialog({
