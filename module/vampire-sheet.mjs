@@ -2506,7 +2506,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const isBlocked = (a, i) => cap != null && !a.defense && !a.heal && !a.aborted
       && !this._resExecuted.has(i) && (a.alloc || 1) > capLeft;
     const blocked = actions.map((a, i) => isBlocked(a, i) ? i : null).filter(i => i !== null);
-    const allDone = actions.every((a, i) => a.defense || a.aborted || this._resExecuted.has(i) || blocked.includes(i));
+    // RAW Celerity extras are parked for the end of the round: they never
+    // resolve on the normal turn, so they can't hold End Turn hostage
+    const parked = new Set(decl.celerityRaw ? (this._resCombatant?.getFlag('vtm-v20', 'deferred') || []).map(e => e.idx) : []);
+    const allDone = actions.every((a, i) => a.defense || a.aborted || this._resExecuted.has(i) || blocked.includes(i) || parked.has(i));
 
     let h = '<div class="res-panel active">';
     h += finalCall
@@ -3346,14 +3349,23 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const actions = this._declActions;
     const sys = this.document.system;
     const wp = sys.woundPenalty || 0;
-    let lowestPool = Infinity;
-    for (const a of actions) {
-      const p = this._declPoolForAction(a);
-      if (p < lowestPool) lowestPool = p;
+    // RAW Celerity extras sit outside the split budget: only the regular
+    // group feeds the lowest pool here, same as the confirm math
+    const rawCel = this.document.getFlag('vtm-v20', 'celerityRawActions') || 0;
+    const rawExtras = new Set();
+    if (rawCel > 0) {
+      const mains = actions.map((a, i) => (!a.heal && !a.defense) ? i : null).filter(i => i !== null);
+      for (const idx of mains.slice(Math.max(mains.length - rawCel, 1))) rawExtras.add(idx);
     }
+    let lowestPool = Infinity;
+    actions.forEach((a, i) => {
+      if (rawExtras.has(i)) return;
+      const p = this._declPoolForAction(a);
+      if (p !== undefined && p < lowestPool) lowestPool = p;
+    });
     if (!isFinite(lowestPool)) lowestPool = 0;
     const celInfo = this._celerityDeclInfo(lowestPool, wp);
-    const totalPool = celInfo.budget;
+    const totalPool = rawCel > 0 ? Math.max(lowestPool + wp, 1) : celInfo.budget;
 
     const update = () => {
       let allocated = 0;
