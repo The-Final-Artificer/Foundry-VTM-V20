@@ -140,6 +140,27 @@ export function registerInitiativeHooks() {
       }
     }
   });
+
+  // Flip open combatant sheets into Combat Mode the moment combat begins,
+  // and back out to their full size when the fight ends
+  Hooks.on('combatStart', combat => {
+    if (!game.settings.get('vtm-v20', 'autoCombatMode')) return;
+    for (const c of combat.combatants) {
+      const sheet = c.actor?.sheet;
+      if (sheet?.rendered && typeof sheet.enterCombatMode === 'function') {
+        sheet.enterCombatMode();
+      }
+    }
+  });
+  Hooks.on('deleteCombat', combat => {
+    if (!game.settings.get('vtm-v20', 'autoCombatMode')) return;
+    for (const c of combat.combatants) {
+      const sheet = c.actor?.sheet;
+      if (sheet?.rendered && typeof sheet.exitCombatMode === 'function') {
+        sheet.exitCombatMode();
+      }
+    }
+  });
 }
 
 

@@ -4900,14 +4900,6 @@ textarea#chat-message {
   color: var(--vtm-text-bright);
 }
 
-/* Declaration dialog */
-.declaration-dialog .window-content,
-.resolution-dialog .window-content {
-  background: var(--vtm-bg);
-  color: var(--vtm-text);
-  font-family: 'Cinzel', serif;
-}
-
 .decl-header {
   display: flex;
   align-items: center;
@@ -5848,3 +5840,14 @@ body.vtm-theme-printed .vtm-combat-damage .die.fail {
 }
 body.vtm-theme-printed .vtm-roll .result-success { color: #9c1f2b; }
 body.vtm-theme-printed .vtm-roll .result-botch { color: #701722; }
+
+/* Sheet companions follow the window into minimization: a minimized sheet
+   (e.g. parked by a combat-dock module) takes its drawers and panels along */
+.vtm-v20.sheet.minimized .combat-drawer,
+.vtm-v20.sheet.minimized .movement-drawer,
+.vtm-v20.sheet.minimized .targeting-drawer,
+.vtm-v20.sheet.minimized .blood-buff-drawer,
+.vtm-v20.sheet.minimized .blood-budget-panel,
+.vtm-v20.sheet.minimized .decl-timer-bar {
+  display: none !important;
+}

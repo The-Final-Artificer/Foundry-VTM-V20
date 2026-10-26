@@ -383,6 +383,15 @@ Hooks.once('init', () => {
   });
   applySheetTheme();
 
+  game.settings.register('vtm-v20', 'autoCombatMode', {
+    name: 'Combat Mode on Combat Start',
+    hint: "While combat runs, combatants' sheets open in Combat Mode (the compact combat layout) on their Combat tab, and sheets already open switch over when combat begins.",
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
   game.settings.register('vtm-v20', 'movementBarMigrated', {
     scope: 'world',
     config: false,

@@ -954,6 +954,24 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   // -- Render & listeners -------------------------------------------------
 
+  _onFirstRender(context, options) {
+    super._onFirstRender(context, options);
+    // While a fight runs, combatant sheets open in Combat Mode: the compact
+    // combat layout behind the header's crosshairs toggle, on the combat tab.
+    // This is the one chokepoint every open path goes through.
+    try {
+      if (!this._chargen && game.settings.get('vtm-v20', 'autoCombatMode')) {
+        const combat = game.combat;
+        if (combat?.started && combat.combatants.some(c => c.actor?.id === this.document.id)) {
+          this._compactMode = true;
+          this._fullSize = { width: this.position.width, height: this.position.height };
+          this._tab = 'combat';
+          requestAnimationFrame(() => this.setPosition({ width: 650, height: 598 }));
+        }
+      }
+    } catch { /* settings not ready during very early renders */ }
+  }
+
   async _onRender(context, options) {
     await super._onRender(context, options);
     const el = this.element;
@@ -1816,6 +1834,24 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
   }
 
+  // Same as clicking the header's Combat Mode crosshairs, callable by hooks
+  enterCombatMode() {
+    if (this._chargen || this._compactMode) return;
+    this._compactMode = true;
+    this._fullSize = { width: this.position.width, height: this.position.height };
+    this._tab = 'combat';
+    this.setPosition({ width: 650, height: 598 });
+    this.render();
+  }
+
+  exitCombatMode() {
+    if (!this._compactMode) return;
+    this._compactMode = false;
+    if (this._fullSize) this.setPosition(this._fullSize);
+    this._fullSize = null;
+    this.render();
+  }
+
   static #onToggleCompact() {
     if (this._chargen) return;
     this._compactMode = !this._compactMode;
@@ -2038,37 +2074,45 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     return { size: this._targetingChoice, ...c, headshot, label: headshot ? `${c.label} (Head)` : c.label };
   }
 
+  // All right-side drawers position in one measured pass, in stack order:
+  // declaration/resolution panel first, then targeting, then movement. One
+  // frame, one layout read each, so none of them ever measures a drawer
+  // that hasn't settled yet.
+  _stackSideDrawers() {
+    requestAnimationFrame(() => {
+      if (!this.element?.isConnected) return;
+      const combatTab = this.element.querySelector('.tab.combat');
+      if (!combatTab?.classList.contains('active')) return;
+      const appRect = this.element.getBoundingClientRect();
+      if (!appRect.height) return;
+      const zoom = this._compactMode ? 0.85 : 1;
+
+      let cursor;
+      if (this._combatDrawer?.classList.contains('open')) {
+        cursor = (this._combatDrawer.getBoundingClientRect().bottom - appRect.top) / zoom + 4;
+      } else {
+        const btn = this.element.querySelector('.targeting-toggle');
+        cursor = btn ? (btn.getBoundingClientRect().top - appRect.top) / zoom : 0;
+      }
+      for (const el of [this._targetingDrawer, this._movementDrawer]) {
+        if (!el?.classList.contains('open')) continue;
+        el.style.top = `${cursor}px`;
+        cursor += el.getBoundingClientRect().height / zoom + 4;
+      }
+    });
+  }
+
   _syncTargetingDrawer(open) {
     if (this._targetingDrawer && !this._targetingDrawer.isConnected) {
       this._targetingDrawer = null;
     }
     if (open) {
       if (!this._targetingDrawer) this._buildTargetingDrawer();
-      requestAnimationFrame(() => {
-        if (!this._targetingDrawer) return;
-        const combatTab = this.element.querySelector('.tab.combat');
-        if (combatTab?.classList.contains('active')) {
-          // Below the declaration/resolution panel whenever it's open,
-          // so a tall panel never swallows the drawer
-          if (this._combatDrawer?.classList.contains('open')) {
-            const appRect = this.element.getBoundingClientRect();
-            const drawerRect = this._combatDrawer.getBoundingClientRect();
-            this._targetingDrawer.style.top = `${drawerRect.bottom - appRect.top + 4}px`;
-          } else {
-            const btn = this.element.querySelector('.targeting-toggle');
-            if (btn) {
-              const appRect = this.element.getBoundingClientRect();
-              const btnRect = btn.getBoundingClientRect();
-              const zoom = this._compactMode ? 0.85 : 1;
-              this._targetingDrawer.style.top = `${(btnRect.top - appRect.top) / zoom}px`;
-            }
-          }
-        }
-        this._targetingDrawer.classList.add('open');
-      });
+      this._targetingDrawer.classList.add('open');
     } else if (this._targetingDrawer) {
       this._targetingDrawer.classList.remove('open');
     }
+    this._stackSideDrawers();
   }
 
   _buildTargetingDrawer() {
@@ -2118,31 +2162,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
     if (open) {
       if (!this._movementDrawer) this._buildMovementDrawer();
-      requestAnimationFrame(() => {
-        if (!this._movementDrawer) return;
-        const combatTab = this.element.querySelector('.tab.combat');
-        if (combatTab?.classList.contains('active')) {
-          const appRect = this.element.getBoundingClientRect();
-          const zoom = this._compactMode ? 0.85 : 1;
-          if (this._targetingDrawer?.classList.contains('open')) {
-            const tdRect = this._targetingDrawer.getBoundingClientRect();
-            this._movementDrawer.style.top = `${(tdRect.bottom - appRect.top) / zoom + 4}px`;
-          } else if (this._combatDrawer?.classList.contains('open')) {
-            const cdRect = this._combatDrawer.getBoundingClientRect();
-            this._movementDrawer.style.top = `${(cdRect.bottom - appRect.top) / zoom + 4}px`;
-          } else {
-            const btn = this.element.querySelector('.targeting-toggle');
-            if (btn) {
-              const btnRect = btn.getBoundingClientRect();
-              this._movementDrawer.style.top = `${(btnRect.bottom - appRect.top) / zoom + 4}px`;
-            }
-          }
-        }
-        this._movementDrawer.classList.add('open');
-      });
+      this._movementDrawer.classList.add('open');
     } else if (this._movementDrawer) {
       this._movementDrawer.classList.remove('open');
     }
+    this._stackSideDrawers();
   }
 
   _buildMovementDrawer() {
@@ -2211,16 +2235,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     requestAnimationFrame(() => {
       if (!this._combatDrawer) return;
-      const anchor = this._compactMode
-        ? this.element.querySelector('.sheet-tabs')
-        : (this.element.querySelector('.sheet-lock') || this.element.querySelector('.char-name'));
-      if (anchor) {
-        const appRect = this.element.getBoundingClientRect();
-        const anchorRect = anchor.getBoundingClientRect();
-        const zoom = this._compactMode ? 0.85 : 1;
-        this._combatDrawer.style.top = `${(anchorRect.top - appRect.top) / zoom}px`;
-      }
+      // Flush with the window top, like the blood tracker on the left
+      this._combatDrawer.style.top = '0px';
       this._combatDrawer.classList.add('open');
+      this._stackSideDrawers();
     });
   }
 
