@@ -7,8 +7,9 @@ import { blindedDifficulty, hasStatus, statusIconVisibility, FRENZY_STATUS_ID, R
 import { archetypeInfo } from './archetypes-data.mjs';
 import { archetypeAuthentic, clanAuthentic, traitAuthentic } from './authentic-store.mjs';
 import { clanWeaknessInfo, clanItemInfo, clanOptions } from './clan-weaknesses.mjs';
-import { disciplineLevel, isDisciplineActive, potenceLevel, potenceAutoSuccesses, celerityLevel, celerityRawMode, effectiveTraitValue, effectiveStrength, usesStrengthTrait } from './discipline-effects.mjs';
+import { disciplineLevel, physicalLevel, isDisciplineActive, potenceLevel, potenceAutoSuccesses, celerityLevel, celerityRawMode, effectiveTraitValue, effectiveStrength, usesStrengthTrait } from './discipline-effects.mjs';
 import { exportSheet } from './sheet-export.mjs';
+import { promptElderChoice } from './item-sheet.mjs';
 import { computeCarry } from './movement.mjs';
 import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
 
@@ -141,7 +142,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _getHeaderControls() {
     let controls = super._getHeaderControls();
     if (!game.user.isGM) controls = controls.filter(c => c.action !== 'manageHealth');
-    if (!this.isEditable) controls = controls.filter(c => c.action !== 'manageVirtues');
+    // Ghouls are locked to Humanity, so no Conviction/Instinct swap for them
+    if (!this.isEditable || this.document.type !== 'vampire') controls = controls.filter(c => c.action !== 'manageVirtues');
     return controls;
   }
 
@@ -224,6 +226,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ctx.system = sys;
     ctx.actor = actor;
     ctx.isVampire = actor.type === 'vampire';
+    ctx.isGhoul = actor.type === 'ghoul';
+    // Vampires and ghouls share the blood pool, advantages tab and frenzy machinery
+    ctx.hasBlood = actor.type === 'vampire' || actor.type === 'ghoul';
     ctx.targetingEnabled = actor.getFlag('vtm-v20', 'targetingEnabled') === true;
     const flankMode = actor.getFlag('vtm-v20', 'flankMode');
     ctx.flankAttack = flankMode === 'flank';
@@ -460,7 +465,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (quietus && quietus.system.level >= 5) {
       const sta = effectiveTraitValue(actor, 'attributes.stamina');
       const ath = effectiveTraitValue(actor, 'abilities.athletics');
-      const potLvl = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'potence')?.system.level || 0;
+      const potLvl = physicalLevel(items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'potence'));
       const rangeDots = (sys.attributes?.strength || 0) + potLvl;
       attacks.push({
         id: 'taste-of-death', name: 'Taste of Death',
@@ -753,7 +758,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // Soak
     const stamina = effectiveTraitValue(actor, 'attributes.stamina');
     const fort = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
-    const fortLevel = fort?.system.level || 0;
+    const fortLevel = physicalLevel(fort);
     const armorRating = items
       .filter(i => i.type === 'armor' && i.system.equipped)
       .reduce((sum, i) => sum + (i.system.rating || 0), 0);
@@ -779,7 +784,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ctx.woundPenalty = sys.rawWoundPenalty || sys.woundPenalty || 0;
     const inFrenzy = hasStatus(FRENZY_STATUS_ID, actor);
     const inRotschreck = hasStatus(ROTSCHRECK_STATUS_ID, actor);
-    ctx.frenzied = this.document.type === 'vampire' && (inFrenzy || inRotschreck);
+    ctx.frenzied = ctx.hasBlood && (inFrenzy || inRotschreck);
     ctx.frenzyName = inFrenzy ? 'Frenzy' : 'R\u00f6tschreck';
     // Same art as the token status effect
     const statusImg = id => CONFIG.statusEffects?.find(e => e.id === id)?.img;
@@ -804,6 +809,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     ctx.config = VTM;
     ctx.clanOptions = clanOptions(VTM.clans);
+    ctx.ghoulFamilies = Object.keys(VTM.revenantFamilies);
 
     // Path, bearing, virtues
     const pathKey = sys.pathName || 'Humanity';
@@ -1056,13 +1062,23 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         });
       });
       el.querySelectorAll('.item-dots .dot').forEach(dot => {
-        dot.addEventListener('click', () => {
+        dot.addEventListener('click', async () => {
           const val = parseInt(dot.dataset.value);
           const row = dot.closest('[data-item-id]');
           const item = this.document.items.get(row.dataset.itemId);
           const field = dot.closest('.dot-row').dataset.field;
           const cur = foundry.utils.getProperty(item, field);
-          item.update({ [field]: val === cur ? val - 1 : val });
+          const next = val === cur ? val - 1 : val;
+          if (next > cur && this.document.type === 'ghoul' && item.type === 'discipline' && field === 'system.level') {
+            const cap = this.document.system.discCap || 1;
+            if (next > cap) {
+              return ui.notifications.warn(`A donor of generation ${this.document.system.donorGeneration} caps disciplines at level ${cap}.`);
+            }
+          }
+          await item.update({ [field]: next });
+          if (item.type === 'discipline' && field === 'system.level' && next > 5 && next > cur) {
+            promptElderChoice(item, cur, next);
+          }
         });
       });
     }
@@ -1075,7 +1091,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     // Blood buff UI for physical attributes
-    if (this.document.type === 'vampire') this._renderBloodBuffUI(el, canEdit);
+    if (['vampire', 'ghoul'].includes(this.document.type)) this._renderBloodBuffUI(el, canEdit);
 
     // Health, WP temp, blood (always interactive)
     el.querySelectorAll('.health-box').forEach(box =>
@@ -1237,7 +1253,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     el.querySelector('.rotschreck-btn')?.addEventListener('click', () => this._rollRotschreck());
     el.querySelector('.end-frenzy-btn')?.addEventListener('click', () => this._endFrenzy());
     el.querySelector('.ride-wave-btn')?.addEventListener('click', () => this._rideTheWave());
-    el.classList.toggle('frenzied', this.document.type === 'vampire'
+    el.classList.toggle('frenzied', ['vampire', 'ghoul'].includes(this.document.type)
       && (hasStatus(FRENZY_STATUS_ID, this.document) || hasStatus(ROTSCHRECK_STATUS_ID, this.document)));
 
     el.querySelector('.wp-spend-btn:not(.wp-ignore-wounds-btn)')?.addEventListener('click', () => this._toggleWpSpend());
@@ -1603,7 +1619,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this._syncMovementDrawer(this._movementActive);
 
     this._syncCombatDrawer();
-    if (this.document.type === 'vampire') this._syncBloodBudgetPanel();
+    if (['vampire', 'ghoul'].includes(this.document.type)) this._syncBloodBudgetPanel();
     this._syncDeclTimer();
 
     this._setupPortrait(el);
@@ -1704,7 +1720,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   _openChargen() {
-    if (this._chargen || this.document.type !== 'vampire') return;
+    if (this._chargen || !['vampire', 'ghoul'].includes(this.document.type)) return;
     const body = this.element.querySelector('.window-content') || this.element.querySelector('form');
     if (!body) return;
     body.classList.add('chargen-fade-out');
@@ -4655,7 +4671,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (!dmgType) return;
 
     let fireOrSunlight = false;
-    if (dmgType === 'aggravated' && actor.type === 'vampire') {
+    if (dmgType === 'aggravated' && ['vampire', 'ghoul'].includes(actor.type)) {
       fireOrSunlight = await new Promise(resolve => {
         new Dialog({
           title: 'Aggravated Damage Source',
@@ -5757,8 +5773,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       portraitStyle = `object-position: calc(50% + ${(pFlags.offX * r).toFixed(1)}px) calc(50% + ${(pFlags.offY * r).toFixed(1)}px); transform: scale(${pFlags.scale});`;
     }
 
-    // Mortals cannot soak lethal: the current simply cooks them
-    if (actor.type === 'mortal') {
+    const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
+    const fortLevel = physicalLevel(fort);
+
+    // Mortals cannot soak lethal: the current simply cooks them. Ghouls are
+    // living too, but Fortitude lets them grit through it.
+    if (actor.type === 'mortal' || (actor.type === 'ghoul' && !fortLevel)) {
       await applyHealthDamage(actor, incoming, dmgType);
       await checkIncapacitated(actor);
       const cond = getCondition(actor);
@@ -5770,7 +5790,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         weaponName: src.label, damageType: dmgType,
         dmgPool: incoming, dmgLabel: `${src.label}, per turn of contact`,
         dmgDice: [], dmgSuccesses: incoming,
-        soakPool: 0, soakLabel: 'Mortal cannot soak lethal damage',
+        soakPool: 0, soakLabel: actor.type === 'ghoul' ? 'No Fortitude: ghouls cannot soak lethal with Stamina' : 'Mortal cannot soak lethal damage',
         soakDice: [], soakSuccesses: 0, soakSkipped: true,
         netDamage: incoming, noDamage: false,
         damageAdjustment: cond === 'Incapacitated' ? 'Incapacitated by electricity: possible permanent damage (Storyteller).' : null,
@@ -5785,11 +5805,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return;
     }
 
-    // Vampires soak with Stamina + Fortitude, no armor. A botched soak fries
-    // blood and brain: the whole jolt lands as aggravated.
-    const stamina = effectiveTraitValue(actor, 'attributes.stamina');
-    const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
-    const fortLevel = fort?.system.level || 0;
+    // Vampires soak with Stamina + Fortitude, no armor; ghouls get Fortitude
+    // alone. A botched soak fries blood and brain: the whole jolt lands as aggravated.
+    const stamina = actor.type === 'ghoul' ? 0 : effectiveTraitValue(actor, 'attributes.stamina');
     const pool = Math.max(stamina + fortLevel, 1);
     const soakDiff = actor.getFlag('vtm-v20', 'skinOfTheAdder') ? 5 : 6;
 
@@ -5805,7 +5823,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await checkIncapacitated(actor);
     const cond = getCondition(actor);
 
-    const soakParts = [`Sta ${stamina}`];
+    const soakParts = stamina ? [`Sta ${stamina}`] : [];
     if (fortLevel) soakParts.push(`Fort ${fortLevel}`);
     soakParts.push('no armor');
 
@@ -5897,17 +5915,18 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       portraitStyle = `object-position: calc(50% + ${(pFlags.offX * r).toFixed(1)}px) calc(50% + ${(pFlags.offY * r).toFixed(1)}px); transform: scale(${pFlags.scale});`;
     }
 
-    // Only Fortitude soaks fire; mortals and Fortitude-less Kindred just burn
+    // Only Fortitude soaks fire; mortals and Fortitude-less Kindred just burn.
+    // Ghouls count: their borrowed Fortitude holds against flame too.
     const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
-    const fortLevel = actor.type === 'vampire' ? (fort?.system.level || 0) : 0;
+    const fortLevel = ['vampire', 'ghoul'].includes(actor.type) ? physicalLevel(fort) : 0;
 
     let roll = null;
     let soakDice = [];
     let soaked = 0;
     let soakSkipped = true;
-    let soakLabel = actor.type === 'vampire'
-      ? 'No Fortitude: fire cannot be soaked'
-      : 'Mortals cannot soak fire';
+    let soakLabel = actor.type === 'mortal'
+      ? 'Mortals cannot soak fire'
+      : 'No Fortitude: fire cannot be soaked';
     if (fortLevel > 0) {
       roll = new Roll(`${fortLevel}d10`);
       await roll.evaluate();
@@ -6094,6 +6113,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // Brujah rage runs hotter: +2 difficulty to resist or guide frenzy
     const brujah = /brujah/i.test(actor.system.clan || '');
     const brujahNote = brujah ? `<p style="color:#c41e3a;"><b>Brujah:</b> +2 difficulty (clan weakness), added automatically.</p>` : '';
+    // The Beast runs shallower in ghouls: difficulties drop by three (V20 p. 501)
+    const ghoul = actor.type === 'ghoul';
+    const ghoulNote = ghoul ? `<p><b>Ghoul:</b> -3 difficulty (weaker Beast), applied automatically.</p>` : '';
 
     const provs = VampireSheet.FRENZY_PROVOCATIONS;
     const conscience = actor.system.virtues?.conscience || 0;
@@ -6193,7 +6215,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         content: `<div style="margin:6px 0;color:#ddd;">
           ${progress ? `<p>Accumulated successes: <b>${progress}/5</b>.</p>` : ''}
           <p>${scLabel} roll. Five total successes overcome the urge; fewer hold the Beast off for one turn per success.</p>
-          ${brujahNote}
+          ${brujahNote}${ghoulNote}
           <label style="display:block;margin:6px 0 2px;">Provocation</label>
           <select name="frenzy-prov" style="width:100%;">${options}</select>
           <label style="display:block;margin:6px 0 2px;">Difficulty override (optional)</label>
@@ -6223,7 +6245,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const baseDiff = !isNaN(choice.diff)
       ? Math.min(Math.max(choice.diff, 2), 10)
       : (choice.prov === 'evil' ? evilDiff : (prov?.diff ?? 6));
-    const difficulty = brujah ? Math.min(baseDiff + 2, 10) : baseDiff;
+    let difficulty = brujah ? Math.min(baseDiff + 2, 10) : baseDiff;
+    if (ghoul) difficulty = Math.max(difficulty - 3, 2);
     const provLabel = choice.prov === 'evil' ? 'Blatantly evil act' : (prov?.label ?? 'Provocation');
 
     // Self-Control rolls cap at the current blood pool, same as resisting the Kiss
@@ -6232,14 +6255,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const hum = actor.system.humanity ?? 10;
     if (pool > hum) { pool = hum; hCapped = true; }
     let capped = false;
-    const bp = actor.system.blood?.value || 0;
-    if (bp < pool) { pool = bp; capped = true; }
+    if (!ghoul) {
+      const bp = actor.system.blood?.value || 0;
+      if (bp < pool) { pool = bp; capped = true; }
+    }
     pool = Math.max(pool, 1);
 
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
     const { dice, total, outcome } = this._tallyDice(roll, difficulty);
-    const label = `Resist Frenzy: ${provLabel} (${scLabel}${hCapped ? ', capped by Humanity' : ''}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`;
+    const label = `Resist Frenzy: ${provLabel} (${scLabel}${hCapped ? ', capped by Humanity' : ''}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''}${ghoul ? ', ghoul -3 diff' : ''})`;
 
     if (outcome === 'botch') {
       await this._emitRollCard(actor, { roll, label, pool, difficulty, dice, total: 0, outcome, extra: 'Botch! The Beast takes the wheel.' });
@@ -6437,7 +6462,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     // Only Fortitude stands between a vampire and the sun
     const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
-    const fortLevel = fort?.system.level || 0;
+    const fortLevel = physicalLevel(fort);
 
     let roll = null;
     let soakDice = [];
@@ -6513,15 +6538,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     // Build soak label for the card
-    const stamina = effectiveTraitValue(actor, 'attributes.stamina');
+    const ghoulLethal = actor.type === 'ghoul' && dmgType === 'lethal';
+    const stamina = ghoulLethal ? 0 : effectiveTraitValue(actor, 'attributes.stamina');
     const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
-    const fortLevel = fort?.system.level || 0;
+    const fortLevel = physicalLevel(fort);
     const fullArmor = Array.from(actor.items)
       .filter(i => i.type === 'armor' && i.system.equipped)
       .reduce((sum, i) => sum + (i.system.rating || 0), 0);
     const armorUsed = terminal ? Math.floor(fullArmor / 2) : fullArmor;
 
-    const soakParts = [`Sta ${stamina}`];
+    const soakParts = stamina ? [`Sta ${stamina}`] : [];
     if (fortLevel) soakParts.push(`Fort ${fortLevel}`);
     if (armorUsed) soakParts.push(`Armor ${armorUsed}${terminal ? ' (halved)' : ''}`);
 
@@ -6532,7 +6558,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       portraitStyle = `object-position: calc(50% + ${(pFlags.offX * r).toFixed(1)}px) calc(50% + ${(pFlags.offY * r).toFixed(1)}px); transform: scale(${pFlags.scale});`;
     }
 
-    if (actor.type === 'mortal' && dmgType === 'lethal') {
+    if (dmgType === 'lethal' && (actor.type === 'mortal' || (ghoulLethal && !fortLevel && !armorUsed))) {
       await applyHealthDamage(actor, total, dmgType);
       await checkIncapacitated(actor);
       const cond = getCondition(actor);
@@ -6545,7 +6571,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         weaponName: 'Fall', damageType: dmgType,
         dmgPool: dice, dmgLabel: `${choice.height} ${choice.unit} fall`,
         dmgDice: diceResults, dmgSuccesses: total,
-        soakPool: 0, soakLabel: 'Mortal cannot soak lethal damage',
+        soakPool: 0, soakLabel: actor.type === 'ghoul' ? 'No Fortitude or armor: ghouls cannot soak lethal with Stamina' : 'Mortal cannot soak lethal damage',
         soakDice: [], soakSuccesses: 0, soakSkipped: true,
         netDamage: total, noDamage: total === 0,
         damageAdjustment: null,
@@ -6585,7 +6611,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // Soak roll for falling damage, called from the chat button hook
   async _rollFallingSoak(fallData) {
     const actor = this.document;
-    if (actor.type === 'mortal' && String(fallData.dmgType || '').toLowerCase() === 'lethal') {
+    const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
+    const fortLevel = physicalLevel(fort);
+    const fullArmor = Array.from(actor.items)
+      .filter(i => i.type === 'armor' && i.system.equipped)
+      .reduce((sum, i) => sum + (i.system.rating || 0), 0);
+    const armorUsed = fallData.terminal ? Math.floor(fullArmor / 2) : fullArmor;
+    const lethalFall = String(fallData.dmgType || '').toLowerCase() === 'lethal';
+    const ghoulLethal = actor.type === 'ghoul' && lethalFall;
+
+    if ((actor.type === 'mortal' && lethalFall) || (ghoulLethal && !fortLevel && !armorUsed)) {
       const net = Math.max(Number(fallData.dmgTotal) || 0, 0);
       if (net > 0) await applyHealthDamage(actor, net, fallData.dmgType);
       await checkIncapacitated(actor);
@@ -6607,7 +6642,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         weaponName: 'Fall', damageType: fallData.dmgType,
         dmgPool: fallData.dmgTotal, dmgLabel: `${fallData.dmgTotal} ${fallData.dmgType}`,
         dmgDice: [], dmgSuccesses: fallData.dmgTotal,
-        soakPool: 0, soakLabel: 'Mortal cannot soak lethal damage',
+        soakPool: 0, soakLabel: actor.type === 'ghoul' ? 'No Fortitude or armor: ghouls cannot soak lethal with Stamina' : 'Mortal cannot soak lethal damage',
         soakDice: [], soakSuccesses: 0, soakSkipped: true,
         netDamage: net, noDamage: net === 0,
         damageAdjustment: null,
@@ -6623,14 +6658,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return;
     }
 
-    const stamina = effectiveTraitValue(actor, 'attributes.stamina');
-    const fort = Array.from(actor.items).find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
-    const fortLevel = fort?.system.level || 0;
-    const fullArmor = Array.from(actor.items)
-      .filter(i => i.type === 'armor' && i.system.equipped)
-      .reduce((sum, i) => sum + (i.system.rating || 0), 0);
-    const armorUsed = fallData.terminal ? Math.floor(fullArmor / 2) : fullArmor;
-
+    const stamina = ghoulLethal ? 0 : effectiveTraitValue(actor, 'attributes.stamina');
     const pool = Math.max(stamina + fortLevel + armorUsed, 1);
     const fallSoakDiff = actor.getFlag('vtm-v20', 'skinOfTheAdder') ? 5 : 6;
     const roll = new Roll(`${pool}d10`);
@@ -6645,7 +6673,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const cond = getCondition(actor);
     const pen = actor.system.woundPenalty || 0;
 
-    const soakParts = [`Sta ${stamina}`];
+    const soakParts = stamina ? [`Sta ${stamina}`] : [];
     if (fortLevel) soakParts.push(`Fort ${fortLevel}`);
     if (armorUsed) soakParts.push(`Armor ${armorUsed}${fallData.terminal ? ' (halved)' : ''}`);
 

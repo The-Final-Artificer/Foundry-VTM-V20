@@ -1,3 +1,16 @@
+// V20 p. 142: an elder level of Celerity, Fortitude, or Potence spent on an
+// alternate power forfeits that level's plain benefit (the die, soak, success,
+// and extra-action capacity), so known alternates subtract from the level the
+// engines read. Levels 1-5 are never tradeable.
+export function physicalLevel(item) {
+  const lvl = Math.max(Number(item?.system?.level) || 0, 0);
+  if (lvl <= 5) return lvl;
+  const traded = (item.system.elderPowers || []).filter(p => p?.known && p.level <= lvl).length;
+  return Math.max(lvl - traded, 5);
+}
+
+const PHYSICAL_DISCS = new Set(['celerity', 'fortitude', 'potence']);
+
 export function disciplineLevel(actor, name) {
   const key = String(name || '').toLowerCase();
   if (!actor || !key) return 0;
@@ -5,6 +18,7 @@ export function disciplineLevel(actor, name) {
   const discipline = Array.from(actor.items ?? [])
     .find(item => item.type === 'discipline' && item.name?.toLowerCase() === key);
 
+  if (PHYSICAL_DISCS.has(key)) return physicalLevel(discipline);
   return Math.max(Number(discipline?.system?.level) || 0, 0);
 }
 

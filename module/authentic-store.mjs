@@ -62,6 +62,11 @@ export function applyAuthentic(kind, item, ov) {
       const text = ov[`${kind}:${name}:power:${slot}`];
       if (text) jobs.push(it => { it.system.powers[lvlKey].desc = text; });
     }
+    (item.system?.elderPowers || []).forEach((p, idx) => {
+      const slot = p?.name || `lvl${p?.level}`;
+      const text = ov[`${kind}:${name}:power:${slot}`];
+      if (text) jobs.push(it => { it.system.elderPowers[idx].desc = text; });
+    });
   } else if (kind === 'background') {
     const intro = ov[`background:${name}:intro`];
     if (intro) jobs.push(it => { it.system.description = intro; });

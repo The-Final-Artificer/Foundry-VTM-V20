@@ -34,6 +34,18 @@ export class DisciplineData extends foundry.abstract.TypeDataModel {
         lvl4: power(),
         lvl5: power(),
       }),
+      // Levels 6+: the book offers several powers per level and a vampire
+      // learns one per purchase, so these live in a list with a known flag
+      elderPowers: new f.ArrayField(new f.SchemaField({
+        level: int(6, 6, 10),
+        name: str(''),
+        desc: str(''),
+        primary: str(''),
+        secondary: str(''),
+        difficulty: int(6, 2, 10),
+        cost: str(''),
+        known: new f.BooleanField({ initial: false }),
+      }), { required: true, initial: [] }),
     };
   }
 }

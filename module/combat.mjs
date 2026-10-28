@@ -13,7 +13,7 @@ import {
   hasStatus,
   iterableValues,
 } from './status-effects.mjs';
-import { disciplineLevel, isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, itemTraitBonus, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
+import { disciplineLevel, physicalLevel, isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, itemTraitBonus, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
 import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
 
 const TARGETING_ARMOR_REQUESTS = new Map();
@@ -333,29 +333,44 @@ export function computeSoakPool(actor, { dmgType, fireOrSunlight = false, bypass
   const stamina = effectiveTraitValue(actor, 'attributes.stamina');
   const items = Array.from(actor.items);
   const fort = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
-  const fortLevel = fort?.system.level || 0;
+  const fortLevel = physicalLevel(fort);
   const armorRating = items.filter(i => i.type === 'armor' && i.system.equipped)
     .reduce((s, i) => s + (i.system.rating || 0), 0);
 
   const skinAdder = !!actor.getFlag('vtm-v20', 'skinOfTheAdder');
   const isAgg = dmgType === 'aggravated';
   const isKindred = actor.type === 'vampire';
+  const isGhoul = actor.type === 'ghoul';
   const isMortalLethal = actor.type === 'mortal' && dmgType === 'lethal';
+  // Ghouls are living flesh: Stamina only stops bashing, but Fortitude works (p. 313)
+  const ghoulHardDmg = isGhoul && (isAgg || dmgType === 'lethal');
 
   let useStamina = true;
-  let armor = (bypassArmor || (isAgg && isKindred && fireOrSunlight)) ? 0 : armorRating;
+  let armor = (bypassArmor || (isAgg && (isKindred || isGhoul) && fireOrSunlight)) ? 0 : armorRating;
 
   if (isAgg && isKindred) {
     useStamina = skinAdder && !fireOrSunlight;
   }
+  if (ghoulHardDmg) useStamina = false;
 
   const pool = isMortalLethal ? 0 : Math.max((useStamina ? stamina : 0) + fortLevel + armor, 1);
-  const canSoak = !isMortalLethal && !(isAgg && isKindred && !fortLevel && !skinAdder);
+  let canSoak = !isMortalLethal && !(isAgg && isKindred && !fortLevel && !skinAdder);
+  if (ghoulHardDmg) canSoak = isAgg ? fortLevel > 0 : (fortLevel + armor) > 0;
   const difficulty = skinAdder ? 5 : 6;
 
   const parts = [];
   if (isMortalLethal) {
     parts.push('Mortal cannot soak lethal damage');
+  } else if (ghoulHardDmg && !canSoak) {
+    parts.push(isAgg
+      ? 'No Fortitude, cannot soak aggravated damage'
+      : 'No Fortitude or armor, ghouls cannot soak lethal with Stamina');
+  } else if (ghoulHardDmg) {
+    if (fortLevel) parts.push(`Fort ${fortLevel}`);
+    if (armor) parts.push(`Armor ${armor}`);
+    else if (fireOrSunlight && armorRating) parts.push(`Armor ${armorRating} (fire/sunlight, no protection)`);
+    else if (bypassArmor && armorRating) parts.push(`Armor ${armorRating} bypassed`);
+    parts.push('no Stamina (living)');
   } else if (isAgg && isKindred && !canSoak) {
     parts.push('No Fortitude, cannot soak aggravated damage');
   } else if (isAgg && isKindred) {
@@ -424,7 +439,7 @@ function attackPool(actor, atk) {
 
 function dazeThreshold(actor) {
   const stamina = actor.system.attributes?.stamina || 0;
-  return actor.type === 'mortal' ? stamina : stamina + 2;
+  return actor.type === 'vampire' ? stamina + 2 : stamina;
 }
 
 async function applyDazed(actor) {
@@ -1910,7 +1925,7 @@ export async function rollDamage(msg) {
   const isKindred = defender.type === 'vampire';
   let fireOrSunlight = false;
 
-  if (isAgg && isKindred && !c.isBite) {
+  if (isAgg && (isKindred || defender.type === 'ghoul') && !c.isBite) {
     fireOrSunlight = await new Promise(resolve => {
       new Dialog({
         title: 'Aggravated Damage Source',

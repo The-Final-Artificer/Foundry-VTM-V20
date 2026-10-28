@@ -2850,6 +2850,96 @@ textarea#chat-message {
   outline: none;
 }
 
+/* Elder powers (discipline levels 6+) */
+.vtm-v20.sheet.item .elder-section {
+  margin-top: 14px;
+}
+
+.vtm-v20.sheet.item .elder-title {
+  margin: 0 0 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--vtm-border);
+  color: var(--vtm-text-bright);
+  font-size: 15px;
+}
+
+/* Rows above the character's level stay in the form (a submit replaces the
+   whole array) but out of sight */
+.vtm-v20.sheet.item .elder-power.elder-locked {
+  display: none;
+}
+
+.vtm-v20.sheet.item .elder-power.elder-unknown {
+  opacity: 0.45;
+}
+
+.vtm-v20.sheet.item .elder-power.elder-unknown:hover,
+.vtm-v20.sheet.item .elder-power.elder-unknown:focus-within {
+  opacity: 1;
+}
+
+.vtm-v20.sheet.item .elder-known {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--vtm-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.vtm-v20.sheet.item .elder-remove {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--vtm-text-dim, #777);
+  cursor: pointer;
+}
+
+.vtm-v20.sheet.item .elder-remove:hover {
+  color: var(--vtm-red);
+}
+
+.vtm-v20.sheet.item .elder-add {
+  margin-top: 6px;
+}
+
+/* Elder power pick dialog */
+.vtm-v20.dialog .elder-choice-hint {
+  margin: 6px 0 8px;
+  color: var(--vtm-text, #ccc);
+  font-size: 12px;
+}
+
+.vtm-v20.dialog .elder-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.vtm-v20.dialog .elder-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--vtm-border, #444);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.vtm-v20.dialog .elder-choice:hover {
+  border-color: var(--vtm-red, #8b0000);
+}
+
+.vtm-v20.dialog .elder-choice small {
+  display: block;
+  opacity: 0.75;
+}
+
 /* Ritual casting row: full sheet width, then styled exactly like a
    discipline power row (the form-group select rule would win otherwise) */
 .vtm-v20.sheet.item .ritual-cast-group {

@@ -1,6 +1,7 @@
 import { VTM } from './module/config.mjs';
 import { VampireData } from './module/vampire-data.mjs';
 import { MortalData } from './module/mortal-data.mjs';
+import { GhoulData } from './module/ghoul-data.mjs';
 import { DisciplineData, BackgroundData, MeritData, WeaponData, ArmorData, EquipmentData, ContainerData, PathData, RitualData, ClanData } from './module/item-data.mjs';
 import { VampireSheet } from './module/vampire-sheet.mjs';
 import { VtmItemSheet } from './module/item-sheet.mjs';
@@ -264,6 +265,7 @@ Hooks.once('init', () => {
   CONFIG.Combat.fallbackTurnMarker = 'systems/vtm-v20/VTM icons/VTM Turn Marker.png';
 
   CONFIG.Actor.dataModels.vampire = VampireData;
+  CONFIG.Actor.dataModels.ghoul = GhoulData;
   CONFIG.Actor.dataModels.mortal = MortalData;
   CONFIG.Item.dataModels.discipline = DisciplineData;
   CONFIG.Item.dataModels.background = BackgroundData;
@@ -281,6 +283,10 @@ Hooks.once('init', () => {
       bar: ['blood', 'willpower', 'health', 'movement.current'],
       value: ['movement.jog', 'movement.run', 'movement.walk', 'humanity'],
     },
+    ghoul: {
+      bar: ['blood', 'willpower', 'health', 'movement.current'],
+      value: ['movement.jog', 'movement.run', 'movement.walk', 'humanity'],
+    },
     mortal: {
       bar: ['willpower', 'health', 'movement.current'],
       value: ['movement.jog', 'movement.run', 'movement.walk', 'humanity'],
@@ -288,7 +294,7 @@ Hooks.once('init', () => {
   };
 
   Actors.registerSheet('vtm-v20', VampireSheet, {
-    types: ['vampire', 'mortal'],
+    types: ['vampire', 'ghoul', 'mortal'],
     makeDefault: true,
     label: 'VTM.SheetVampire'
   });

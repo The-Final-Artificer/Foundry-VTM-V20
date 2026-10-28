@@ -41,6 +41,20 @@
         <input type="number" name="system.generation" value="{{system.generation}}" min="3" max="15" />
       </div>
       {{/if}}
+      {{#if isGhoul}}
+      <div class="field">
+        <label>Ghoul Type</label>
+        <select name="system.ghoulType">
+          <option value="vassal" {{#if (eq system.ghoulType 'vassal')}}selected{{/if}}>Vassal</option>
+          <option value="independent" {{#if (eq system.ghoulType 'independent')}}selected{{/if}}>Independent</option>
+          <option value="revenant" {{#if (eq system.ghoulType 'revenant')}}selected{{/if}}>Revenant</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Donor Gen. <span class="arch-info"><i class="fas fa-exclamation-circle"></i><span class="arch-pop"><b>Donor's Generation</b>The potency of the blood a ghoul drinks gates her disciplines: generations 13th-8th cap them at level 1, 7th at 2, 6th at 3, 5th at 4, 4th at 5.</span></span></label>
+        <input type="number" name="system.donorGeneration" value="{{system.donorGeneration}}" min="3" max="15" />
+      </div>
+      {{/if}}
       <div class="field">
         <label>Nature{{#if natureInfo}} <span class="arch-info"><i class="fas fa-exclamation-circle"></i><span class="arch-pop"><b>{{system.nature}}</b>{{natureInfo.body}}{{#if natureInfo.regain}}<span class="arch-regain">{{natureInfo.regain}}</span>{{/if}}</span></span>{{/if}}</label>
         <select name="system.nature">
@@ -66,6 +80,23 @@
         <label>Sire</label>
         <input type="text" name="system.sire" value="{{system.sire}}" />
       </div>
+      {{/if}}
+      {{#if isGhoul}}
+      <div class="field">
+        <label>Domitor</label>
+        <input type="text" name="system.domitor" value="{{system.domitor}}" />
+      </div>
+      {{#if (eq system.ghoulType 'revenant')}}
+      <div class="field">
+        <label>Family</label>
+        <select name="system.family">
+          <option value=""></option>
+          {{#each ghoulFamilies}}
+          <option value="{{this}}" {{#if (eq this ../system.family)}}selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+      </div>
+      {{/if}}
       {{/if}}
       <div class="field">
         <label>Concept</label>
@@ -103,7 +134,7 @@
       <i class="fas fa-shield-alt"></i>
     </button>
   </div>
-  {{#if isVampire}}
+  {{#if hasBlood}}
   <div class="status-block blood-mini">
     <label><i class="fas fa-tint"></i> Blood {{system.blood.value}}/{{system.blood.max}}{{#if hungry}} <span class="hunger-tag" title="Blood pool at or below 7 - {{hungerLabel}} ({{hungerThreshold}}). Hunger frenzy checks apply around blood.">Hungry</span>{{/if}}</label>
     <div class="blood-bar-wrap">
@@ -143,7 +174,7 @@
 {{!-- TABS --}}
 <nav class="sheet-tabs" data-group="primary">
   <a class="item" data-tab="stats"><i class="fas fa-chart-bar"></i> Stats</a>
-  {{#if isVampire}}<a class="item" data-tab="powers"><i class="fas fa-fire"></i> Advantages</a>{{/if}}
+  {{#if hasBlood}}<a class="item" data-tab="powers"><i class="fas fa-fire"></i> Advantages</a>{{/if}}
   <a class="item" data-tab="status"><i class="fas fa-heartbeat"></i> Status</a>
   <a class="item" data-tab="combat"><i class="fas fa-fist-raised"></i> Combat</a>
   <a class="item" data-tab="inventory"><i class="fas fa-suitcase"></i> Inventory</a>
@@ -204,7 +235,7 @@
   </div>
 
   {{!-- POWERS --}}
-  {{#if isVampire}}
+  {{#if hasBlood}}
   <div class="tab powers" data-group="primary" data-tab="powers">
     <div class="trait-columns">
       <div class="trait-column">
@@ -384,7 +415,7 @@
             <button type="button" class="soak-btn" title="Click to roll soak">
               <i class="fas fa-shield-alt"></i> Soak {{soakPool}} ({{soakLabel}})
             </button>
-            {{#if isVampire}}
+            {{#if hasBlood}}
             <button type="button" class="heal-btn" title="Left-click: Spend blood to heal &#10;Right-click: Reflexive heal roll (Stamina + Survival, diff 8)">
               <i class="fas fa-tint"></i> Heal
             </button>
@@ -416,6 +447,18 @@
             <span>Max trait rating: <span class="gen-val">{{traitMax}}</span></span>
             <span class="gen-sep">·</span>
             <span>Blood per turn: <span class="gen-val">{{bloodPerTurn}}</span></span>
+          </div>
+        </div>
+        {{/if}}
+        {{#if isGhoul}}
+        <div class="section-block">
+          <h3>Ghoul Info</h3>
+          <div class="gen-info">
+            <span>Blood per turn: <span class="gen-val">{{bloodPerTurn}}</span></span>
+            <span class="gen-sep">·</span>
+            <span>Max discipline level: <span class="gen-val">{{system.discCap}}</span></span>
+            <span class="gen-sep">·</span>
+            <span>Blood pool max: <input type="number" name="system.blood.max" value="{{system.blood.max}}" min="1" max="20" style="width:44px;" title="2 by default; elder ghouls gain more with age" /></span>
           </div>
         </div>
         {{/if}}
@@ -509,7 +552,11 @@
             <button type="button" class="sit-check-btn fire-btn"><i class="fas fa-fire"></i> Fire</button>
             {{#if isVampire}}
             <button type="button" class="sit-check-btn sunlight-btn"><i class="fas fa-cloud-sun"></i> Sunlight</button>
+            {{/if}}
+            {{#if hasBlood}}
             <button type="button" class="sit-check-btn frenzy-check-btn"><i class="fas fa-paw"></i> Frenzy</button>
+            {{/if}}
+            {{#if isVampire}}
             <button type="button" class="sit-check-btn rotschreck-btn"><i class="fas fa-running"></i> R&ouml;tschreck</button>
             {{/if}}
           </div>

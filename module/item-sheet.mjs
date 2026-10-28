@@ -132,6 +132,55 @@ async function whisperActivation(actor, powerName, detail, costStr, showActivate
   });
 }
 
+// Reaching a discipline level above 5 teaches ONE of that level's powers;
+// the rest cost extra XP. Offer the choice whenever a dot crosses into a
+// level that has elder powers but none marked known yet.
+export async function promptElderChoice(item, fromLevel, toLevel) {
+  if (item.type !== 'discipline') return;
+  const traitLabel = k => {
+    if (!k) return '';
+    const last = k.split('.').pop();
+    return last.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
+  };
+  for (let lvl = Math.max(6, (fromLevel || 0) + 1); lvl <= Math.min(toLevel, 10); lvl++) {
+    const elders = (item.system?.elderPowers || []).map((p, idx) => ({ ...p, idx }));
+    const atLvl = elders.filter(p => p.level === lvl);
+    if (!atLvl.length || atLvl.some(p => p.known)) continue;
+
+    const rows = atLvl.map(p => {
+      const pool = p.primary
+        ? `${traitLabel(p.primary)}${p.secondary ? ' + ' + traitLabel(p.secondary) : ''}, diff ${p.difficulty}`
+        : 'No roll';
+      const cost = p.cost ? `, ${p.cost}` : '';
+      return `<label class="elder-choice"><input type="radio" name="elder-pick" value="${p.idx}" />
+        <span><b>${p.name || 'Unnamed power'}</b><small>${pool}${cost}</small></span></label>`;
+    }).join('');
+
+    const picked = await new Promise(resolve => {
+      new Dialog({
+        title: `${item.name} ${lvl}: Choose a Power`,
+        content: `<p class="elder-choice-hint">Reaching level ${lvl} teaches one of these powers. Others at this level can be bought with experience and toggled on the discipline sheet.</p><div class="elder-choice-list">${rows}</div>`,
+        buttons: {
+          ok: {
+            icon: '<i class="fas fa-check"></i>', label: 'Learn',
+            callback: dlg => {
+              const sel = dlg[0].querySelector('input[name="elder-pick"]:checked');
+              resolve(sel ? parseInt(sel.value, 10) : null);
+            }
+          },
+          later: { icon: '<i class="fas fa-clock"></i>', label: 'Decide Later', callback: () => resolve(null) },
+        },
+        default: 'ok',
+        close: () => resolve(null),
+      }, { classes: ['vtm-v20', 'dialog'], width: 440 }).render(true);
+    });
+    if (picked === null) continue;
+
+    const list = (item.system?.elderPowers || []).map((p, idx) => ({ ...p, known: idx === picked ? true : p.known }));
+    await item.update({ 'system.elderPowers': list });
+  }
+}
+
 export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   static DEFAULT_OPTIONS = {
@@ -222,6 +271,33 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           secondaryOptions: traitOpts.map(o => ({ ...o, selected: o.key === power.secondary })),
         };
       }));
+
+      if (item.type === 'discipline') {
+        const owned = !!item.parent;
+        const curLvl = ctx.system.level || 0;
+        const rows = (ctx.system.elderPowers || []).map((p, idx) => ({ p, idx }));
+        rows.sort((a, b) => (a.p.level - b.p.level) || (a.idx - b.idx));
+        // Locked rows stay in the DOM (hidden by CSS): a form submit replaces
+        // the whole elderPowers array, so every row must keep its inputs
+        ctx.elderPowers = await Promise.all(rows.map(async ({ p, idx }) => ({
+          idx,
+          level: p.level,
+          name: p.name,
+          desc: p.desc,
+          enrichedDesc: await TextEditor.enrichHTML(p.desc || '', { relativeTo: item }),
+          difficulty: p.difficulty, cost: p.cost,
+          primary: p.primary, secondary: p.secondary,
+          known: p.known,
+          locked: owned && p.level > curLvl,
+          hasRoll: !!p.primary && (!owned || p.known),
+          hasActivate: !p.primary && !!p.cost && (!owned || p.known),
+          primaryOptions: traitOpts.map(o => ({ ...o, selected: o.key === p.primary })),
+          secondaryOptions: traitOpts.map(o => ({ ...o, selected: o.key === p.secondary })),
+        })));
+        ctx.ownedDisc = owned;
+        ctx.showElders = ctx.elderPowers.some(e => !e.locked);
+        ctx.canAddElder = ctx.isEditable && (!owned || curLvl >= 6);
+      }
     }
 
     if (item.type === 'ritual') {
@@ -345,13 +421,33 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     // Dot ratings
     el.querySelectorAll('.dot').forEach(dot => {
-      dot.addEventListener('click', () => {
+      dot.addEventListener('click', async () => {
         const val = parseInt(dot.dataset.value);
         const path = dot.closest('.dot-row').dataset.path;
         const cur = foundry.utils.getProperty(this.document, path);
-        this.document.update({ [path]: val === cur ? val - 1 : val });
+        const next = val === cur ? val - 1 : val;
+        await this.document.update({ [path]: next });
+        if (path === 'system.level' && this.document.parent && next > 5 && next > cur) {
+          promptElderChoice(this.document, cur, next);
+        }
       });
     });
+
+    // Elder power rows commit as one array, same pattern as dice bonuses
+    el.querySelector('.elder-add')?.addEventListener('click', () => {
+      const sys = this.document.system;
+      const list = (sys.elderPowers || []).map(p => ({ ...p }));
+      const lvl = this.document.parent ? Math.min(Math.max(sys.level || 6, 6), 10) : 6;
+      list.push({ level: lvl, name: '', desc: '', primary: '', secondary: '', difficulty: 6, cost: '', known: false });
+      this.document.update({ 'system.elderPowers': list });
+    });
+    el.querySelectorAll('.elder-remove').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.dataset.index);
+        const list = (this.document.system.elderPowers || []).map(p => ({ ...p }));
+        if (!isNaN(i)) list.splice(i, 1);
+        this.document.update({ 'system.elderPowers': list });
+      }));
 
     el.querySelector('.aura-chart-btn')?.addEventListener('click', () => this._showAuraChart());
 
@@ -381,7 +477,9 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     el.querySelectorAll('.power-roll').forEach(btn => {
       btn.addEventListener('click', async () => {
         const key = btn.dataset.level;
-        const power = this.document.system.powers[key];
+        const power = key ? this.document.system.powers[key]
+          : this.document.system.elderPowers?.[parseInt(btn.dataset.elder, 10)];
+        if (!power) return;
         const actor = this.document.parent;
         if (!actor) {
           ui.notifications.warn('This item must be on a character to roll.');
@@ -404,7 +502,9 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     el.querySelectorAll('.power-activate').forEach(btn => {
       btn.addEventListener('click', async () => {
         const key = btn.dataset.level;
-        const power = this.document.system.powers[key];
+        const power = key ? this.document.system.powers[key]
+          : this.document.system.elderPowers?.[parseInt(btn.dataset.elder, 10)];
+        if (!power) return;
         const actor = this.document.parent;
         if (!actor) {
           ui.notifications.warn('This item must be on a character to activate.');

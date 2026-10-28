@@ -20,9 +20,12 @@ const traitName = key => {
   return last.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
 };
 
-const powerList = sys => Object.entries(sys?.powers || {})
-  .map(([k, p]) => ({ name: p?.name || '', lvl: parseInt(k.replace('lvl', ''), 10) || 0 }))
-  .filter(p => p.lvl >= 1);
+const powerList = sys => [
+  ...Object.entries(sys?.powers || {})
+    .map(([k, p]) => ({ name: p?.name || '', lvl: parseInt(k.replace('lvl', ''), 10) || 0 })),
+  ...(sys?.elderPowers || [])
+    .map(p => ({ name: p?.name || '', lvl: p?.level || 6, elder: true })),
+].filter(p => p.lvl >= 1);
 
 export function buildCatalog() {
   return {

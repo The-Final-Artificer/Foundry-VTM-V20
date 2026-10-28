@@ -1,7 +1,8 @@
 {
   "Actor": {
-    "types": ["vampire", "mortal"],
+    "types": ["vampire", "ghoul", "mortal"],
     "vampire": {},
+    "ghoul": {},
     "mortal": {}
   },
   "Item": {

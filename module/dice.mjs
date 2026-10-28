@@ -30,9 +30,19 @@ function getOwner(actor) {
 }
 
 // Trigger Dice So Nice with the actor owner's theme instead of the roller's
-export async function showDice(roll, actor) {
+export async function showDice(roll, actor, rollMode = null) {
   if (!game.dice3d) return;
-  await game.dice3d.showForRoll(roll, getOwner(actor), true);
+  // Private and blind rolls keep their 3D dice to the right eyes too
+  let whisper = null;
+  let blind = false;
+  if (rollMode === 'gmroll' || rollMode === 'blindroll') {
+    whisper = game.users.filter(u => u.isGM).map(u => u.id);
+    blind = rollMode === 'blindroll';
+    if (!blind) whisper.push(game.user.id);
+  } else if (rollMode === 'selfroll') {
+    whisper = [game.user.id];
+  }
+  await game.dice3d.showForRoll(roll, getOwner(actor), true, whisper, blind);
 }
 
 // Right-click adjustment dialog for rolls whose pool is already fixed (combat
@@ -492,13 +502,21 @@ export async function rollFixedPool(actor, { pool, difficulty = 6, label = 'Roll
     label, pool, difficulty, specialty, dice, total, outcome, portraitStyle,
   });
 
-  await showDice(roll, actor);
-  await ChatMessage.create({
+  // This roller sits beside the roll-mode toggles, so honor them. Attaching
+  // the roll makes this a real roll message: players outside the whisper get
+  // the standard "privately rolled some dice" notice instead of silence, and
+  // Dice So Nice animates it with the right visibility on its own.
+  const rollMode = game.settings.get('core', 'rollMode');
+  const msgData = {
     user: game.user.id,
     speaker: ChatMessage.getSpeaker({ actor }),
     content: chatHtml,
     style: CONST.CHAT_MESSAGE_STYLES.OTHER,
-  });
+    rolls: [roll],
+  };
+  ChatMessage.applyRollMode(msgData, rollMode);
+
+  await ChatMessage.create(msgData);
 
   return { total, outcome, dice };
 }

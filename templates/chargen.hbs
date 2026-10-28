@@ -16,9 +16,45 @@
     {{#if (eq step 0)}}
     <div class="chargen-step">
       <h2>Character Concept</h2>
+      {{#if isGhoul}}
+      <p class="chargen-hint">Who are you, and whose blood runs in your veins?</p>
+      {{else}}
       <p class="chargen-hint">Who were you in life? What drives you in death?</p>
+      {{/if}}
 
       <div class="chargen-form-grid">
+        {{#if isGhoul}}
+        <div class="field">
+          <label>Ghoul Type <span class="required">*</span></label>
+          <select name="ghoulType">
+            <option value="vassal" {{#if (eq d.ghoulType 'vassal')}}selected{{/if}}>Vassal (bound servant)</option>
+            <option value="independent" {{#if (eq d.ghoulType 'independent')}}selected{{/if}}>Independent (masterless)</option>
+            <option value="revenant" {{#if (eq d.ghoulType 'revenant')}}selected{{/if}}>Revenant (born to it)</option>
+          </select>
+        </div>
+        {{#if (eq d.ghoulType 'vassal')}}
+        <div class="field">
+          <label>Domitor's Clan <span class="required">*</span></label>
+          <input type="text" name="clan" list="chargen-clans" value="{{d.clan}}" placeholder="Choose or type..." />
+          <datalist id="chargen-clans">
+            {{#each clanOptions}}
+            <option value="{{this}}">{{this}}</option>
+            {{/each}}
+          </datalist>
+        </div>
+        {{/if}}
+        {{#if (eq d.ghoulType 'revenant')}}
+        <div class="field">
+          <label>Family <span class="required">*</span></label>
+          <select name="family">
+            <option value="">Choose...</option>
+            {{#each ghoulFamilies}}
+            <option value="{{this}}" {{#if (eq this ../d.family)}}selected{{/if}}>{{this}}</option>
+            {{/each}}
+          </select>
+        </div>
+        {{/if}}
+        {{else}}
         <div class="field">
           <label>Clan <span class="required">*</span></label>
           <input type="text" name="clan" list="chargen-clans" value="{{d.clan}}" placeholder="Choose or type..." />
@@ -28,6 +64,7 @@
             {{/each}}
           </datalist>
         </div>
+        {{/if}}
         <div class="field">
           <label>Nature <span class="required">*</span></label>
           <select name="nature">
@@ -50,10 +87,27 @@
           <label>Concept</label>
           <input type="text" name="concept" value="{{d.concept}}" placeholder="e.g. Disillusioned Cop" />
         </div>
+        {{#if isGhoul}}
+        <div class="field">
+          <label>Domitor</label>
+          <input type="text" name="domitor" value="{{d.domitor}}" placeholder="Your master's name" />
+        </div>
+        <div class="field">
+          <label>Donor's Generation</label>
+          <input type="number" name="donorGeneration" value="{{d.donorGeneration}}" min="3" max="15" />
+        </div>
+        {{#unless (eq d.ghoulType 'revenant')}}
+        <div class="field">
+          <label>Sabbat Ghoul (5 virtue dots)</label>
+          <input type="checkbox" name="sabbat" {{#if d.sabbat}}checked{{/if}} style="width:auto; justify-self:start;" />
+        </div>
+        {{/unless}}
+        {{else}}
         <div class="field">
           <label>Sire</label>
           <input type="text" name="sire" value="{{d.sire}}" placeholder="Your sire's name" />
         </div>
+        {{/if}}
       </div>
     </div>
     {{/if}}
@@ -152,7 +206,9 @@
         {{!-- Disciplines --}}
         <div class="chargen-adv-section">
           <h3>Disciplines <span class="pool-badge"><span class="disc-pool-count">{{discRemaining}}</span> left</span></h3>
-          {{#if clanDiscHint}}
+          {{#if isGhoul}}
+          <p class="clan-disc-hint"><i class="fas fa-info-circle"></i> Potence 1 is free; place one more dot{{#if ghoulDiscHint}} from: {{ghoulDiscHint}}{{/if}}. Disciplines cap at level {{ghoulDiscCap}} (donor's generation).</p>
+          {{else if clanDiscHint}}
           <p class="clan-disc-hint"><i class="fas fa-info-circle"></i> {{d.clan}} typical: {{clanDiscHint}}</p>
           {{/if}}
           {{#each d.disc}}
@@ -161,7 +217,9 @@
             <div class="dot-row disc-dots">
               {{{vtmDots this.dots 5}}}
             </div>
+            {{#unless this.locked}}
             <button type="button" class="disc-remove" data-idx="{{@index}}" title="Remove"><i class="fas fa-times"></i></button>
+            {{/unless}}
           </div>
           {{/each}}
           <div class="chargen-drop-hint"><i class="fas fa-hand-pointer"></i> Drag disciplines here</div>
@@ -186,19 +244,27 @@
         <div class="chargen-adv-section">
           <h3>Virtues <span class="pool-badge"><span class="virtue-pool-count">{{virtueRemaining}}</span> left</span></h3>
           <div class="chargen-trait">
+            {{#if isGhoul}}
+            <span class="trait-name">Conscience</span>
+            {{else}}
             <select class="virtue-name-select" data-key="conscience">
               <option value="Conscience" {{#if (eq virtueLabels.conscience "Conscience")}}selected{{/if}}>Conscience</option>
               <option value="Conviction" {{#if (eq virtueLabels.conscience "Conviction")}}selected{{/if}}>Conviction</option>
             </select>
+            {{/if}}
             <div class="dot-row virtue-dots" data-key="conscience">
               {{{vtmDots d.virtues.conscience 5}}}
             </div>
           </div>
           <div class="chargen-trait">
+            {{#if isGhoul}}
+            <span class="trait-name">Self-Control</span>
+            {{else}}
             <select class="virtue-name-select" data-key="selfControl">
               <option value="Self-Control" {{#if (eq virtueLabels.selfControl "Self-Control")}}selected{{/if}}>Self-Control</option>
               <option value="Instinct" {{#if (eq virtueLabels.selfControl "Instinct")}}selected{{/if}}>Instinct</option>
             </select>
+            {{/if}}
             <div class="dot-row virtue-dots" data-key="selfControl">
               {{{vtmDots d.virtues.selfControl 5}}}
             </div>
@@ -222,18 +288,21 @@
 
       <div class="fb-top-bar">
         <div class="fb-info-row">
+          {{#unless isGhoul}}
           <div class="field fb-gen-field">
             <label>Generation</label>
             <input type="number" name="generation" value="{{d.generation}}" min="3" max="15" />
           </div>
+          {{/unless}}
           <div class="fb-auto-vals">
+            {{#if isGhoul}}<span>Donor Gen. <strong>{{d.donorGeneration}}</strong></span>{{/if}}
             <span>Humanity <strong>{{humanity}}</strong></span>
             <span>Willpower <strong>{{willpower}}</strong></span>
             <span>Blood Pool <strong>{{bloodPool}}</strong></span>
           </div>
         </div>
         <div class="fb-counter">
-          Freebie Points: <strong class="fb-remaining">{{freebiesLeft}}</strong> / 15
+          Freebie Points: <strong class="fb-remaining">{{freebiesLeft}}</strong> / {{freebieMax}}
         </div>
       </div>
 
@@ -279,7 +348,7 @@
         {{!-- Right column: Disciplines, Backgrounds, Virtues, WP, Humanity --}}
         <div class="fb-col">
           {{#if fbData.discs.length}}
-          <h3>Disciplines <span class="fb-cost-tag">7 / dot</span></h3>
+          <h3>Disciplines <span class="fb-cost-tag">{{discCost}} / dot</span></h3>
           {{#each fbData.discs}}
           <div class="fb-row">
             <span class="fb-label">{{this.label}}</span>
@@ -340,7 +409,7 @@
               <button type="button" class="fb-add" data-path="humanity" {{#unless fbData.hum.canAdd}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
             </div>
             {{#if fbData.hum.bonus}}<span class="fb-bonus">+{{fbData.hum.bonus}}</span>{{/if}}
-            <span class="fb-cost-inline">2/dot</span>
+            <span class="fb-cost-inline">{{humCost}}/dot</span>
           </div>
         </div>
       </div>

@@ -39,6 +39,18 @@ VTM.clanDisciplines = {
   'Pander':           [],
 };
 
+VTM.revenantFamilies = {
+  'Bratovitch': ['Animalism', 'Fortitude', 'Vicissitude'],
+  'Ducheski':   ['Auspex', 'Dominate', 'Thaumaturgy'],
+  'Grimaldi':   ['Celerity', 'Dominate', 'Fortitude'],
+  'Obertus':    ['Auspex', 'Obfuscate', 'Vicissitude'],
+  'Oprichniki': ['Animalism', 'Obfuscate', 'Vicissitude'],
+  'Zantosa':    ['Auspex', 'Presence', 'Vicissitude'],
+};
+
+// Donor generation caps how far a ghoul can push any discipline
+VTM.ghoulDiscCaps = { 7: 2, 6: 3, 5: 4, 4: 5, 3: 5 };
+
 VTM.generationTable = {
   3:  { maxBlood: 100, bloodPerTurn: 20, traitMax: 10 },
   4:  { maxBlood: 50,  bloodPerTurn: 10, traitMax: 9 },

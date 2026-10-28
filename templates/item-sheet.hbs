@@ -81,6 +81,68 @@
     </div>
     {{/each}}
   </div>
+
+  {{#if (eq item.type "discipline")}}
+  <div class="elder-section">
+    {{#if showElders}}<h3 class="elder-title">Elder Powers</h3>{{/if}}
+    {{#if elderPowers.length}}
+    <div class="power-list elder-power-list">
+      {{#each elderPowers}}
+      <div class="power-level elder-power{{#if this.locked}} elder-locked{{/if}}{{#unless this.name}} empty-power{{/unless}}{{#if ../ownedDisc}}{{#unless this.known}} elder-unknown{{/unless}}{{/if}}">
+        <div class="power-header">
+          <span class="power-num">{{this.level}}</span>
+          <input type="text" name="system.elderPowers.{{this.idx}}.name" value="{{this.name}}" placeholder="Power Name" class="power-name-input" />
+          {{#if ../ownedDisc}}
+          <label class="elder-known" title="The character has learned this power. One power is learned when the level is reached; more can be bought with experience.">
+            <input type="checkbox" name="system.elderPowers.{{this.idx}}.known" {{#if this.known}}checked{{/if}} /> Known
+          </label>
+          {{/if}}
+          {{#if this.hasRoll}}
+          <button type="button" class="power-roll" data-elder="{{this.idx}}" title="Roll"><i class="fas fa-dice-d20"></i></button>
+          {{/if}}
+          {{#if this.hasActivate}}
+          <button type="button" class="power-activate" data-elder="{{this.idx}}" title="Activate"><i class="fas fa-bolt"></i></button>
+          {{/if}}
+          {{#if ../isEditable}}
+          <button type="button" class="elder-remove" data-index="{{this.idx}}" title="Remove this power"><i class="fas fa-times"></i></button>
+          {{/if}}
+        </div>
+        <div class="power-meta">
+          <label class="power-diff-label">Lvl</label>
+          <input type="number" name="system.elderPowers.{{this.idx}}.level" value="{{this.level}}" min="6" max="10" class="power-diff elder-level" />
+          <select name="system.elderPowers.{{this.idx}}.primary" class="power-trait">
+            <option value="">-- Primary --</option>
+            {{#each this.primaryOptions}}
+            <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+            {{/each}}
+          </select>
+          <span class="power-plus">+</span>
+          <select name="system.elderPowers.{{this.idx}}.secondary" class="power-trait">
+            <option value="">-- Secondary --</option>
+            {{#each this.secondaryOptions}}
+            <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+            {{/each}}
+          </select>
+          <label class="power-diff-label">Diff</label>
+          <input type="number" name="system.elderPowers.{{this.idx}}.difficulty" value="{{this.difficulty}}" min="2" max="10" class="power-diff" />
+          <input type="text" name="system.elderPowers.{{this.idx}}.cost" value="{{this.cost}}" placeholder="Cost" class="power-cost" />
+        </div>
+        <div class="power-desc">
+          {{#if ../isEditable}}
+          <prose-mirror name="system.elderPowers.{{this.idx}}.desc" toggled value="{{this.desc}}" data-document-uuid="{{../item.uuid}}">{{{this.enrichedDesc}}}</prose-mirror>
+          {{else}}
+          {{{this.enrichedDesc}}}
+          {{/if}}
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
+    {{#if canAddElder}}
+    <button type="button" class="elder-add"><i class="fas fa-plus"></i> Add Elder Power</button>
+    {{/if}}
+  </div>
+  {{/if}}
   {{/if}}
 
   {{#if (eq item.type "ritual")}}

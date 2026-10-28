@@ -152,7 +152,19 @@ function itemPopup(item) {
       showDesc = false;
       meta = sys.level ? '●'.repeat(sys.level) : 'Not learned';
       const maxLvl = sys.level > 0 ? sys.level : 5;
-      extra = powerRows(sys.powers || {}, maxLvl);
+      extra = powerRows(sys.powers || {}, Math.min(maxLvl, 5));
+      // Elder powers: only what the character reached and actually knows
+      const elders = (sys.elderPowers || [])
+        .filter(p => p.known && p.level <= maxLvl && (p.name || p.desc))
+        .sort((a, b) => a.level - b.level);
+      if (elders.length) {
+        const rows = elders.map(p =>
+          `<div class="pop-power"><div class="pop-power-head"><span class="pop-lvl">${'●'.repeat(p.level)}</span>` +
+          `<b>${esc(p.name)}</b>${p.cost ? `<span class="pop-cost">${esc(p.cost)}</span>` : ''}` +
+          (p.difficulty ? `<span class="pop-cost">diff ${p.difficulty}</span>` : '') +
+          `</div><div class="pop-power-desc">${p.desc || ''}</div></div>`);
+        extra += `<div class="pop-powers">${rows.join('')}</div>`;
+      }
       break;
     }
     case 'background': {

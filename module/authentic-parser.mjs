@@ -330,7 +330,10 @@ export function parseAuthenticText(raw, catalog) {
   // ── lookahead validators against prose false positives ──────────────────
   const seesBulletPower = (i, powers, limit = 130) => {
     if (!powers?.length) return false;
-    const unnamed = powers.every(p => !p.name);
+    // Celerity-style sections have no named 1-5 powers; elder entries don't
+    // change that, any low-dot bullet nearby still validates the heading
+    const core = powers.filter(p => !p.elder);
+    const unnamed = core.length > 0 && core.every(p => !p.name);
     for (let j = i + 1; j < Math.min(lines.length, i + limit); j++) {
       const b = bulletInfo(lines[j].trim());
       if (!b) continue;
@@ -541,12 +544,6 @@ export function parseAuthenticText(raw, catalog) {
       }
       if (container?.kind === 'discipline' || container?.kind === 'path') {
         const powers = container.data.powers || [];
-        if (b.dots > 5) {
-          const label = b.rest || `level ${b.dots} power`;
-          skipped.push({ name: label, reason: `level ${b.dots}, no slot in system` });
-          openLeftover(label);
-          i++; continue;
-        }
         const named = powers.filter(p => p.name);
         let matched = null;
         let remainder = '';
@@ -560,9 +557,17 @@ export function parseAuthenticText(raw, catalog) {
             break;
           }
         }
-        if (!matched && !named.length && b.dots >= 1 && b.dots <= 5) {
-          matched = powers.find(p => p.lvl === b.dots) || { name: '', lvl: b.dots };
+        // unnamed 1-5 levels (Celerity and friends) land by dot count alone
+        const core = powers.filter(p => !p.elder);
+        if (!matched && core.every(p => !p.name) && b.dots >= 1 && b.dots <= 5) {
+          matched = core.find(p => p.lvl === b.dots) || { name: '', lvl: b.dots };
           remainder = b.rest;
+        }
+        if (!matched && b.dots > 5) {
+          const label = b.rest || `level ${b.dots} power`;
+          skipped.push({ name: label, reason: `level ${b.dots}, no matching elder power in system` });
+          openLeftover(label);
+          i++; continue;
         }
         if (matched) {
           const kind = container.kind;

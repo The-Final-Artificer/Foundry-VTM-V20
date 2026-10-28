@@ -15,8 +15,29 @@ const FB_COST = {
   background: 1, virtue: 2, willpower: 1, humanity: 2,
 };
 
+// Ghouls build on mortal numbers: fewer dots, more freebies, pricier disciplines
+const GHOUL_ATTR_POOLS = [6, 4, 3];
+const GHOUL_ABIL_POOLS = [11, 7, 4];
+const GHOUL_DISC_POOL = 2; // Potence 1 (locked) plus one chosen dot
+const GHOUL_FREEBIE_MAX = 21;
+const GHOUL_FB_COST = {
+  attribute: 5, ability: 2, discipline: 10,
+  background: 1, virtue: 2, willpower: 1, humanity: 1,
+};
+
 function tLabel(key) {
   return game.i18n.localize('VTM.' + key.charAt(0).toUpperCase() + key.slice(1));
+}
+
+// Compendium lookup for entries that were never dragged (the ghoul's free Potence)
+async function packItem(packName, name) {
+  const pack = game.packs.get(`vtm-v20.${packName}`);
+  const entry = pack?.index.find(e => e.name === name);
+  if (!entry) return null;
+  const doc = await pack.getDocument(entry._id);
+  const obj = doc.toObject();
+  delete obj._id;
+  return obj;
 }
 
 // Renders inside VampireSheet, not its own window
@@ -24,6 +45,7 @@ export class ChargenWizard {
   constructor(actor, sheet) {
     this.actor = actor;
     this.sheet = sheet;
+    this.ghoul = actor.type === 'ghoul';
     this.step = 0;
     this._tip = null;
     this._isFinishing = false;
@@ -55,6 +77,7 @@ export class ChargenWizard {
   _initState() {
     const d = this.d = {
       clan: '', nature: '', demeanor: '', concept: '', sire: '',
+      ghoulType: 'vassal', domitor: '', family: '', donorGeneration: 13, sabbat: false,
       attrPri: {},
       attr: {},
       abilPri: {},
@@ -72,6 +95,22 @@ export class ChargenWizard {
       for (const k of keys) d.attr[k] = 1;
     for (const keys of Object.values(VTM.abilities))
       for (const k of keys) d.abil[k] = 0;
+    // Every ghoul knows Potence instinctively
+    if (this.ghoul) d.disc.push({ name: 'Potence', dots: 1, locked: true });
+  }
+
+  _freebieMax() { return this.ghoul ? GHOUL_FREEBIE_MAX : FREEBIE_MAX; }
+  _fbCosts() { return this.ghoul ? GHOUL_FB_COST : FB_COST; }
+  _virtueMax() {
+    return this.ghoul && (this.d.ghoulType === 'revenant' || this.d.sabbat) ? 5 : VIRTUE_POOL;
+  }
+  _discPoolMax() { return this.ghoul ? GHOUL_DISC_POOL : DISC_POOL; }
+  _discCap() { return this.ghoul ? (VTM.ghoulDiscCaps?.[this.d.donorGeneration] || 1) : 5; }
+  _ghoulAllowed() {
+    const d = this.d;
+    if (d.ghoulType === 'independent') return ['Celerity', 'Fortitude', 'Potence'];
+    if (d.ghoulType === 'revenant') return VTM.revenantFamilies[d.family] || null;
+    return clanDisciplinesFor(d.clan, VTM.clanDisciplines) || null;
   }
 
 
@@ -80,6 +119,8 @@ export class ChargenWizard {
   getData() {
     const d = this.d;
     const ctx = { step: this.step, d, config: VTM };
+    ctx.isGhoul = this.ghoul;
+    ctx.ghoulFamilies = Object.keys(VTM.revenantFamilies);
 
     ctx.stepInfo = ['Concept', 'Attributes', 'Abilities', 'Advantages', 'Finishing Touches']
       .map((name, i) => ({ name, num: i + 1, active: i === this.step, done: i < this.step }));
@@ -96,9 +137,16 @@ export class ChargenWizard {
       ctx.discRemaining = this._itemPool('disc');
       ctx.bgRemaining = this._itemPool('bg');
       ctx.virtueRemaining = this._virtuePool();
+      ctx.virtuePoolMax = this._virtueMax();
       ctx.virtueLabels = d.virtueLabels;
-      const clanDisc = clanDisciplinesFor(d.clan, VTM.clanDisciplines);
-      ctx.clanDiscHint = clanDisc?.length ? clanDisc.join(', ') : null;
+      if (this.ghoul) {
+        const allowed = this._ghoulAllowed();
+        ctx.ghoulDiscHint = allowed?.length ? allowed.join(', ') : null;
+        ctx.ghoulDiscCap = this._discCap();
+      } else {
+        const clanDisc = clanDisciplinesFor(d.clan, VTM.clanDisciplines);
+        ctx.clanDiscHint = clanDisc?.length ? clanDisc.join(', ') : null;
+      }
     }
     ctx.clanOptions = clanOptions(VTM.clans);
     if (this.step === 4) {
@@ -106,9 +154,12 @@ export class ChargenWizard {
       const fb = d.fb;
       ctx.humanity = this._totalVal('virtues.conscience') + this._totalVal('virtues.selfControl') + (fb.humanity || 0);
       ctx.willpower = this._totalVal('virtues.courage') + (fb.willpower || 0);
-      ctx.bloodPool = gen.maxBlood || 10;
-      ctx.traitMax = gen.traitMax || 5;
+      ctx.bloodPool = this.ghoul ? '1 / 2' : (gen.maxBlood || 10);
+      ctx.traitMax = this.ghoul ? 5 : (gen.traitMax || 5);
       ctx.freebiesLeft = this._freebiesLeft();
+      ctx.freebieMax = this._freebieMax();
+      ctx.discCost = this._fbCosts().discipline;
+      ctx.humCost = this._fbCosts().humanity;
       ctx.fbData = this._freebieData();
 
       if (d.useMeritsFlaws) {
@@ -139,7 +190,9 @@ export class ChargenWizard {
   _priorityOpts(type) {
     const isAttr = type === 'attr';
     const groupKeys = isAttr ? ['physical', 'social', 'mental'] : ['talents', 'skills', 'knowledges'];
-    const pools = isAttr ? ATTR_POOLS : ABIL_POOLS;
+    const pools = isAttr
+      ? (this.ghoul ? GHOUL_ATTR_POOLS : ATTR_POOLS)
+      : (this.ghoul ? GHOUL_ABIL_POOLS : ABIL_POOLS);
     const pri = isAttr ? this.d.attrPri : this.d.abilPri;
     const taken = new Set(Object.values(pri).filter(v => v != null));
 
@@ -180,13 +233,13 @@ export class ChargenWizard {
   }
 
   _itemPool(type) {
-    const max = type === 'disc' ? DISC_POOL : BG_POOL;
+    const max = type === 'disc' ? this._discPoolMax() : BG_POOL;
     return max - this.d[type].reduce((s, i) => s + i.dots, 0);
   }
 
   _virtuePool() {
     const v = this.d.virtues;
-    return VIRTUE_POOL - (v.conscience - 1) - (v.selfControl - 1) - (v.courage - 1);
+    return this._virtueMax() - (v.conscience - 1) - (v.selfControl - 1) - (v.courage - 1);
   }
 
   _freebiesLeft() {
@@ -198,24 +251,26 @@ export class ChargenWizard {
     if (this.d.useMeritsFlaws) {
       spent += this.d.meritsFlaws.reduce((s, m) => s + m.cost, 0);
     }
-    return FREEBIE_MAX - spent;
+    return this._freebieMax() - spent;
   }
 
   _fbCost(path) {
-    if (path.startsWith('attr.')) return FB_COST.attribute;
-    if (path.startsWith('abil.')) return FB_COST.ability;
-    if (path.startsWith('disc.')) return FB_COST.discipline;
-    if (path.startsWith('bg.')) return FB_COST.background;
-    if (path.startsWith('virtues.')) return FB_COST.virtue;
-    if (path === 'willpower') return FB_COST.willpower;
-    if (path === 'humanity') return FB_COST.humanity;
+    const costs = this._fbCosts();
+    if (path.startsWith('attr.')) return costs.attribute;
+    if (path.startsWith('abil.')) return costs.ability;
+    if (path.startsWith('disc.')) return costs.discipline;
+    if (path.startsWith('bg.')) return costs.background;
+    if (path.startsWith('virtues.')) return costs.virtue;
+    if (path === 'willpower') return costs.willpower;
+    if (path === 'humanity') return costs.humanity;
     return 99;
   }
 
   _freebieData() {
     const fb = this.d.fb;
     const gen = VTM.generationTable[this.d.generation] || {};
-    const tMax = gen.traitMax || 5;
+    const tMax = this.ghoul ? 5 : (gen.traitMax || 5);
+    const FB_COST = this._fbCosts();
     const left = this._freebiesLeft();
 
     const mk = (path, label, base, max, cost) => {
@@ -237,7 +292,7 @@ export class ChargenWizard {
         items: keys.map(k => mk(`abil.${k}`, tLabel(k), this.d.abil[k], 5, FB_COST.ability)),
       })),
       discs: this.d.disc.map((x, i) =>
-        mk(`disc.${i}`, x.name, x.dots, 5, FB_COST.discipline)),
+        mk(`disc.${i}`, x.name, x.dots, this._discCap(), FB_COST.discipline)),
       bgs: this.d.bg.map((x, i) =>
         mk(`bg.${i}`, x.name, x.dots, 5, FB_COST.background)),
       virtues: [
@@ -260,6 +315,17 @@ export class ChargenWizard {
     const sourceData = itemData || (item.toObject instanceof Function ? item.toObject() : null);
     if (this.step === 3) {
       if (item.type === 'discipline') {
+        if (this.ghoul) {
+          if (item.name === 'Potence') {
+            ui.notifications.warn('Every ghoul already starts with Potence 1.');
+            return true;
+          }
+          const allowed = this._ghoulAllowed();
+          if (allowed && !allowed.includes(item.name)) {
+            ui.notifications.warn(`${item.name} is not available to this ghoul. Choose from: ${allowed.join(', ')}.`);
+            return true;
+          }
+        }
         if (this.d.disc.some(d => d.name === item.name)) {
           ui.notifications.warn(`${item.name} is already added.`);
           return true;
@@ -348,7 +414,12 @@ export class ChargenWizard {
   _listenConcept(el) {
     el.querySelectorAll('.chargen-form-grid select, .chargen-form-grid input').forEach(input => {
       input.addEventListener('change', () => {
-        if (input.name) this.d[input.name] = input.value;
+        if (!input.name) return;
+        if (input.type === 'checkbox') this.d[input.name] = input.checked;
+        else if (input.name === 'donorGeneration') this.d.donorGeneration = parseInt(input.value) || 13;
+        else this.d[input.name] = input.value;
+        // Ghoul type decides which follow-up fields show
+        if (input.name === 'ghoulType') this.sheet.render();
       });
     });
   }
@@ -476,12 +547,14 @@ export class ChargenWizard {
 
     el.querySelectorAll('.disc-remove').forEach(btn => {
       btn.addEventListener('click', () => {
-        this.d.disc.splice(parseInt(btn.dataset.idx), 1);
+        const idx = parseInt(btn.dataset.idx);
+        if (this.d.disc[idx]?.locked) return;
+        this.d.disc.splice(idx, 1);
         this.sheet.render();
       });
     });
     el.querySelectorAll('.disc-dots .dot').forEach(dot => {
-      dot.addEventListener('click', ev => this._advDotClick(ev, 'disc', DISC_POOL));
+      dot.addEventListener('click', ev => this._advDotClick(ev, 'disc', this._discPoolMax()));
     });
 
     el.querySelectorAll('.bg-remove').forEach(btn => {
@@ -525,9 +598,11 @@ export class ChargenWizard {
     const idx = parseInt(entry.dataset.idx);
     const val = parseInt(ev.currentTarget.dataset.value);
     const items = this.d[type];
+    if (type === 'disc' && items[idx].locked) return;
     const cur = items[idx].dots;
     const next = val === cur ? val - 1 : val;
-    if (next < 0 || next > 5) return;
+    const cap = type === 'disc' ? this._discCap() : 5;
+    if (next < 0 || next > cap) return;
 
     const otherTotal = items.reduce((s, d, i) => i === idx ? s : s + d.dots, 0);
     if (otherTotal + next > maxPool) return;
@@ -590,10 +665,10 @@ export class ChargenWizard {
 
   _canBumpFb(path) {
     const gen = VTM.generationTable[this.d.generation] || {};
-    const tMax = gen.traitMax || 5;
+    const tMax = this.ghoul ? 5 : (gen.traitMax || 5);
     if (path.startsWith('attr.')) return this._totalVal(path) < tMax;
     if (path.startsWith('abil.')) return this._totalVal(path) < 5;
-    if (path.startsWith('disc.')) return this._totalVal(path) < 5;
+    if (path.startsWith('disc.')) return this._totalVal(path) < this._discCap();
     if (path.startsWith('bg.')) return this._totalVal(path) < 5;
     if (path.startsWith('virtues.')) return this._totalVal(path) < 5;
     if (path === 'willpower') {
@@ -623,7 +698,12 @@ export class ChargenWizard {
     const d = this.d;
     switch (this.step) {
       case 0:
-        if (!d.clan) return 'Choose a Clan before proceeding.';
+        if (this.ghoul) {
+          if (d.ghoulType === 'vassal' && !d.clan) return "Pick your domitor's Clan: it decides which disciplines a vassal may learn.";
+          if (d.ghoulType === 'revenant' && !d.family) return 'Choose a revenant family before proceeding.';
+        } else if (!d.clan) {
+          return 'Choose a Clan before proceeding.';
+        }
         if (!d.nature) return 'Choose a Nature before proceeding.';
         if (!d.demeanor) return 'Choose a Demeanor before proceeding.';
         return null;
@@ -650,14 +730,19 @@ export class ChargenWizard {
         return null;
       }
       case 3: {
+        if (this.ghoul && d.disc.length < 2) return 'Drag a second discipline from the compendium (Potence 1 is already yours).';
         if (!d.disc.length) return 'Drag at least one discipline from the compendium.';
         const discSpent = d.disc.reduce((s, x) => s + x.dots, 0);
-        if (discSpent < DISC_POOL) return `Assign all ${DISC_POOL} discipline dots.`;
+        if (discSpent < this._discPoolMax()) {
+          return this.ghoul
+            ? 'Place your free discipline dot (Potence 1 comes on top of it).'
+            : `Assign all ${DISC_POOL} discipline dots.`;
+        }
         if (!d.bg.length) return 'Drag at least one background from the compendium.';
         const bgSpent = d.bg.reduce((s, x) => s + x.dots, 0);
         if (bgSpent < BG_POOL) return `Assign all ${BG_POOL} background dots.`;
         const vSpent = (d.virtues.conscience - 1) + (d.virtues.selfControl - 1) + (d.virtues.courage - 1);
-        if (vSpent < VIRTUE_POOL) return `Spend all ${VIRTUE_POOL} virtue dots.`;
+        if (vSpent < this._virtueMax()) return `Spend all ${this._virtueMax()} virtue dots.`;
         return null;
       }
       default: return null;
@@ -672,13 +757,20 @@ export class ChargenWizard {
     const fb = d.fb;
 
     const update = {
-      'system.clan': d.clan,
       'system.nature': d.nature,
       'system.demeanor': d.demeanor,
       'system.concept': d.concept,
-      'system.sire': d.sire,
-      'system.generation': d.generation,
     };
+    if (this.ghoul) {
+      update['system.ghoulType'] = d.ghoulType;
+      update['system.domitor'] = d.domitor;
+      update['system.family'] = d.ghoulType === 'revenant' ? d.family : '';
+      update['system.donorGeneration'] = d.donorGeneration;
+    } else {
+      update['system.clan'] = d.clan;
+      update['system.sire'] = d.sire;
+      update['system.generation'] = d.generation;
+    }
 
     for (const k of Object.values(VTM.attributes).flat())
       update[`system.attributes.${k}`] = d.attr[k] + (fb[`attr.${k}`] || 0);
@@ -697,10 +789,16 @@ export class ChargenWizard {
     update['system.willpower.max'] = wpTotal;
     update['system.willpower.value'] = wpTotal;
 
-    const gen = VTM.generationTable[d.generation];
-    if (gen) update['system.blood.value'] = gen.maxBlood;
+    if (this.ghoul) {
+      // Book values: one blood point in the tank, capacity two
+      update['system.blood.value'] = 1;
+      update['system.blood.max'] = 2;
+    } else {
+      const gen = VTM.generationTable[d.generation];
+      if (gen) update['system.blood.value'] = gen.maxBlood;
+    }
 
-    if (d.virtueLabels.conscience !== 'Conscience' || d.virtueLabels.selfControl !== 'Self-Control') {
+    if (!this.ghoul && (d.virtueLabels.conscience !== 'Conscience' || d.virtueLabels.selfControl !== 'Self-Control')) {
       update['flags.vtm-v20.virtueLabels'] = { ...d.virtueLabels };
     }
 
@@ -729,6 +827,12 @@ export class ChargenWizard {
         obj.system.level = totalDots;
         delete obj._id;
         items.push(obj);
+        continue;
+      }
+      const packed = await packItem('disciplines', x.name);
+      if (packed) {
+        packed.system.level = totalDots;
+        items.push(packed);
         continue;
       }
       items.push({ name: x.name, type: 'discipline', system: { level: totalDots } });
