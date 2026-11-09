@@ -53,4 +53,12 @@
     </button>
   </div>
   {{/if}}
+
+  {{#if resistBtn}}
+  <div class="combat-actions">
+    <button type="button" class="{{resistBtn.cls}}">
+      <i class="fas {{resistBtn.icon}}"></i> {{resistBtn.label}}
+    </button>
+  </div>
+  {{/if}}
 </div>

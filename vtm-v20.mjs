@@ -2,11 +2,12 @@ import { VTM } from './module/config.mjs';
 import { VampireData } from './module/vampire-data.mjs';
 import { MortalData } from './module/mortal-data.mjs';
 import { GhoulData } from './module/ghoul-data.mjs';
-import { DisciplineData, BackgroundData, MeritData, WeaponData, ArmorData, EquipmentData, ContainerData, PathData, RitualData, ClanData } from './module/item-data.mjs';
+import { DisciplineData, BackgroundData, MeritData, WeaponData, ArmorData, EquipmentData, ContainerData, PathData, RitualData, ClanData, EnlightenmentData } from './module/item-data.mjs';
 import { VampireSheet } from './module/vampire-sheet.mjs';
 import { VtmItemSheet } from './module/item-sheet.mjs';
 import { rollDicePool, promptChatRoll } from './module/dice.mjs';
 import { rollAttack, bindCombatButtons, bindCombatSocketHandlers, clearClinchForActor, clearHoldForActor } from './module/combat.mjs';
+import { bindElderPowerButtons } from './module/elder-powers.mjs';
 import { registerInitiativeHooks, bindInitiativeSocketHandlers, renderInitiativeTracker } from './module/initiative.mjs';
 import { populateCompendiums, registerCompendiumSettings, WEAPONS } from './module/compendiums.mjs';
 import { registerAuthenticSettings } from './module/authentic-store.mjs';
@@ -23,6 +24,7 @@ import {
   FULL_IMMOBILIZED_STATUS_ID,
   STRUGGLING_IMMOBILIZED_STATUS_ID,
   FRENZY_STATUS_ID,
+  CONTROLLED_FRENZY_STATUS_ID,
   ROTSCHRECK_STATUS_ID,
   iterableValues,
 } from './module/status-effects.mjs';
@@ -138,6 +140,15 @@ const OTHER_STATUS_EFFECTS = [
     img: 'systems/vtm-v20/VTM icons/frenzy-status.svg',
     origin: 'status',
     statuses: [FRENZY_STATUS_ID],
+  },
+  {
+    id: CONTROLLED_FRENZY_STATUS_ID,
+    name: 'Controlled Frenzy',
+    label: 'Controlled Frenzy',
+    icon: 'systems/vtm-v20/VTM icons/frenzy-status.svg',
+    img: 'systems/vtm-v20/VTM icons/frenzy-status.svg',
+    origin: 'status',
+    statuses: [CONTROLLED_FRENZY_STATUS_ID],
   },
   {
     id: ROTSCHRECK_STATUS_ID,
@@ -277,6 +288,7 @@ Hooks.once('init', () => {
   CONFIG.Item.dataModels.path = PathData;
   CONFIG.Item.dataModels.ritual = RitualData;
   CONFIG.Item.dataModels.clan = ClanData;
+  CONFIG.Item.dataModels.enlightenment = EnlightenmentData;
 
   CONFIG.Actor.trackableAttributes = {
     vampire: {
@@ -795,7 +807,10 @@ Hooks.on('renderTokenHUD', (hud, html) => {
   }
 });
 
-Hooks.on('renderChatMessageHTML', (msg, html) => bindCombatButtons(msg, html));
+Hooks.on('renderChatMessageHTML', (msg, html) => {
+  bindCombatButtons(msg, html);
+  bindElderPowerButtons(msg, html);
+});
 
 // Wire the "Catch a Ledge" button on a failed jump card
 Hooks.on('renderChatMessageHTML', (msg, html) => {

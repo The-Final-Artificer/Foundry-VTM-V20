@@ -45,6 +45,15 @@ export class MortalData extends foundry.abstract.TypeDataModel {
         science: int(0), technology: int(0),
       }),
 
+      // V20 p. 103/106/109: Hobby Talents, Professional Skills, and Expert
+      // Knowledges are player-named abilities beside the fixed thirty
+      customAbilities: new f.ArrayField(new f.SchemaField({
+        id: str(),
+        name: str(),
+        group: str('talents'),
+        rating: int(0, 0, 10),
+      }), { required: true, nullable: false, initial: [] }),
+
       willpower: new f.SchemaField({
         value: int(1, 0, 10),
         max: int(1, 0, 10),

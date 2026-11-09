@@ -1,6 +1,7 @@
 import { VTM } from './config.mjs';
 import { applyHealthDamage } from './combat.mjs';
 import { DISCIPLINES } from './compendiums.mjs';
+import { elderPowerAction } from './elder-powers.mjs';
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ItemSheetV2 } = foundry.applications.sheets;
@@ -15,7 +16,7 @@ function parseCost(str) {
   return (blood || wp) ? { blood, wp, variable } : null;
 }
 
-async function confirmAndSpend(actor, costStr, powerName) {
+export async function confirmAndSpend(actor, costStr, powerName) {
   const cost = parseCost(costStr);
   if (!cost) return true;
 
@@ -93,7 +94,7 @@ async function confirmAndSpend(actor, costStr, powerName) {
   return true;
 }
 
-async function whisperActivation(actor, powerName, detail, costStr, showActivated = true) {
+export async function whisperActivation(actor, powerName, detail, costStr, showActivated = true) {
   const pFlags = actor.getFlag('vtm-v20', 'portrait') || {};
   let portraitStyle = '';
   if ((pFlags.scale ?? 1) > 1 || pFlags.offX || pFlags.offY) {
@@ -483,6 +484,12 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const actor = this.document.parent;
         if (!actor) {
           ui.notifications.warn('This item must be on a character to roll.');
+          return;
+        }
+        // Powers with their own machinery (targets, soak, statuses) divert here
+        const special = elderPowerAction(this.document, power);
+        if (special) {
+          await special(actor, this.document, power);
           return;
         }
         if (power.cost) {

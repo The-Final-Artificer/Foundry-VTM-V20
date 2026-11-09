@@ -194,6 +194,28 @@
   </div>
   {{/if}}
 
+  {{#if (eq item.type "enlightenment")}}
+  <div class="form-group">
+    <label>Bearing</label>
+    <input type="text" name="system.bearing" value="{{system.bearing}}" placeholder="e.g. Resolve" />
+  </div>
+  <div class="form-group">
+    <label>Virtues</label>
+    <select name="system.conscience">
+      <option value="Conscience" {{#if (eq system.conscience "Conscience")}}selected{{/if}}>Conscience</option>
+      <option value="Conviction" {{#if (eq system.conscience "Conviction")}}selected{{/if}}>Conviction</option>
+    </select>
+    <select name="system.selfControl">
+      <option value="Self-Control" {{#if (eq system.selfControl "Self-Control")}}selected{{/if}}>Self-Control</option>
+      <option value="Instinct" {{#if (eq system.selfControl "Instinct")}}selected{{/if}}>Instinct</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Bearing Description</label>
+  </div>
+  <textarea name="system.bearingNote" class="clan-weakness" rows="3" placeholder="Shown under the bearing on the sheet, e.g. 'The bearing modifier applies to Social rolls for...'">{{system.bearingNote}}</textarea>
+  {{/if}}
+
   {{#if (eq item.type "background")}}
   <div class="form-group">
     <label>Rating</label>

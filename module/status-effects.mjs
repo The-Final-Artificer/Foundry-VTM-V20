@@ -13,6 +13,7 @@ export function statusIconVisibility() {
 export const PRONE_STATUS_ID = 'vtm-prone';
 export const KNOCKDOWN_STATUS_ID = 'vtm-knockdown';
 export const FRENZY_STATUS_ID = 'vtm-frenzy';
+export const CONTROLLED_FRENZY_STATUS_ID = 'vtm-frenzy-controlled';
 export const ROTSCHRECK_STATUS_ID = 'vtm-rotschreck';
 
 export function iterableValues(value) {

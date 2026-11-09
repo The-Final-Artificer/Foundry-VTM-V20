@@ -228,6 +228,14 @@
             </div>
           </div>
           {{/each}}
+          {{#each this.customs}}
+          <div class="trait-row custom-ability">
+            <span class="trait-label rollable" data-roll="{{this.rollKey}}" data-label="{{this.label}}">{{this.label}}</span>
+            <div class="dot-row" data-path="{{this.path}}">
+              {{{vtmDots this.value @root.traitMax}}}
+            </div>
+          </div>
+          {{/each}}
         </div>
         {{/each}}
       </div>
@@ -523,8 +531,8 @@
             {{/if}}
             {{/if}}
           </div>
-          {{#if humanityTip}}
-          <div class="bearing-note">The bearing modifier applies to Social rolls for appearing normal and winning sympathy.</div>
+          {{#if bearingNote}}
+          <div class="bearing-note">{{bearingNote}}</div>
           {{/if}}
         </div>
 

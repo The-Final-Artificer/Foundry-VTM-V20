@@ -1357,7 +1357,143 @@ const RITUAL_CATEGORIES = [
   }
 ];
 
-const COMPENDIUM_VERSION = 70;
+// Chapter Nine's mortal antagonist templates (p. 369-377), ready to drop on
+// the table. Gear comes embedded so the combat tab works out of the box.
+const NPC_TEMPLATES = [
+  {
+    name: 'Inquisitor', type: 'mortal', img: 'icons/svg/mystery-man.svg',
+    system: {
+      concept: 'Society of Leopold witch-hunter',
+      attributes: { strength: 2, dexterity: 3, stamina: 3, charisma: 4, manipulation: 3, appearance: 2, perception: 3, intelligence: 3, wits: 3 },
+      abilities: { academics: 3, alertness: 2, athletics: 2, brawl: 2, drive: 1, expression: 2, leadership: 3, melee: 3, occult: 3, stealth: 2 },
+      willpower: { value: 9, max: 9 },
+      humanity: 7,
+      bio: `<p><b>Humanity:</b> anywhere from 5 to 10; the Society's hunters come both saintly and cruel.</p>
+<p><b>Note:</b> Some Inquisitors carry True Faith 1 or higher, most often those at Humanity 9 or above.</p>
+<p><b>Equipment:</b> Sword-cane, rosaries, crucifix, stakes, Bible, propane torch.</p>`,
+    },
+    flags: { 'vtm-v20': { specialties: {
+      'abilities--academics': [{ name: 'Theology', desc: '' }],
+      'abilities--melee': [{ name: 'Sword-Cane', desc: '' }],
+    } } },
+    items: [
+      { name: 'Sword-Cane', type: 'weapon', img: 'icons/svg/sword.svg',
+        system: { weight: 1, damage: 'Str+2', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '', equipped: true,
+          description: '<p>A blade sheathed in a gentleman\'s cane. Saber stats; passes casual inspection while sheathed.</p>' } },
+      { name: 'Stake', type: 'weapon', img: 'icons/svg/sword.svg',
+        system: { weight: 0.2, damage: 'Str+1', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '',
+          description: '<p>Sharpened wood. Through the heart (called shot at +3 difficulty, 3 successes) it pins a vampire helpless until pulled free.</p>' } },
+      { name: 'Rosary, Crucifix & Bible', type: 'equipment', img: 'icons/svg/book.svg',
+        system: { weight: 0.5, description: '<p>Instruments of the hunt. Holy symbols only repel the Damned in the hands of True Faith.</p>' } },
+      { name: 'Propane Torch', type: 'equipment', img: 'icons/svg/fire.svg',
+        system: { weight: 1, description: '<p>For burning out havens. Use the fire rules when it touches anything that matters.</p>' } },
+    ],
+  },
+  {
+    name: 'Government Agent', type: 'mortal', img: 'icons/svg/mystery-man.svg',
+    system: {
+      concept: 'FBI Special Affairs / NSA field agent',
+      attributes: { strength: 3, dexterity: 2, stamina: 3, charisma: 2, manipulation: 3, appearance: 2, perception: 3, intelligence: 3, wits: 3 },
+      abilities: { alertness: 3, athletics: 3, brawl: 3, computer: 1, drive: 3, firearms: 3, investigation: 4, melee: 2, occult: 1, politics: 2, stealth: 2 },
+      willpower: { value: 7, max: 7 },
+      humanity: 7,
+      bio: `<p><b>Humanity:</b> 6 to 8.</p>
+<p><b>Equipment:</b> Heavy pistol, black suit, sunglasses, badge and ID, surveillance electronics.</p>`,
+    },
+    items: [
+      { name: 'Heavy Pistol', type: 'weapon', img: 'icons/svg/sword.svg',
+        system: { firearm: true, weight: 1.1, damage: '5', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '30', capacity: '7+1', rate: '3', equipped: true,
+          description: '<p>A heavy semi-automatic pistol (.45 ACP, 10mm).</p>' } },
+      { name: 'Badge & Credentials', type: 'equipment', img: 'icons/svg/item-bag.svg',
+        system: { weight: 0.1, description: '<p>Federal identification. Opens doors; raises questions when the wrong people see it.</p>' } },
+      { name: 'Surveillance Kit', type: 'equipment', img: 'icons/svg/item-bag.svg',
+        system: { weight: 2, description: '<p>Wires, cameras, directional microphone, trackers.</p>' } },
+    ],
+  },
+  {
+    name: 'Arcanum Scholar', type: 'mortal', img: 'icons/svg/mystery-man.svg',
+    system: {
+      concept: 'Occult researcher of the Arcanum',
+      attributes: { strength: 2, dexterity: 2, stamina: 2, charisma: 2, manipulation: 2, appearance: 2, perception: 4, intelligence: 4, wits: 3 },
+      abilities: { academics: 4, athletics: 1, computer: 3, drive: 1, etiquette: 2, expression: 2, investigation: 3, melee: 1, occult: 4, science: 3 },
+      willpower: { value: 7, max: 7 },
+      humanity: 8,
+      bio: `<p><b>Abilities note:</b> Academics may run higher than 4 for senior members.</p>
+<p><b>Equipment:</b> Laptop, an extensive library, a sedan, collected occult paraphernalia, and a sizable bank account.</p>`,
+    },
+    items: [
+      { name: 'Laptop', type: 'equipment', img: 'icons/svg/item-bag.svg',
+        system: { weight: 2, description: '<p>Research notes, scanned folios, and correspondence with chapter houses.</p>' } },
+      { name: 'Occult Paraphernalia', type: 'equipment', img: 'icons/svg/book.svg',
+        system: { weight: 3, description: '<p>Collected charms, references, and oddities. Mostly inert; occasionally not.</p>' } },
+    ],
+  },
+  {
+    name: 'Typical Thug', type: 'mortal', img: 'icons/svg/mystery-man.svg',
+    system: {
+      concept: 'Gangbanger or corner muscle',
+      attributes: { strength: 3, dexterity: 2, stamina: 3, charisma: 2, manipulation: 2, appearance: 2, perception: 2, intelligence: 2, wits: 2 },
+      abilities: { alertness: 2, athletics: 2, brawl: 2, drive: 1, firearms: 1, intimidation: 2, larceny: 1, melee: 1, streetwise: 2 },
+      willpower: { value: 4, max: 4 },
+      humanity: 6,
+      bio: `<p>Street muscle, well below the enforcer tier. Dangerous mostly in numbers.</p>
+<p><b>Equipment:</b> Cheap revolver, knife.</p>`,
+    },
+    items: [
+      { name: 'Saturday Night Special', type: 'weapon', img: 'icons/svg/sword.svg',
+        system: { firearm: true, weight: 0.5, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '12', capacity: '6', rate: '3', equipped: true,
+          description: '<p>A cheap small-caliber revolver. Unreliable, easy to get, easier to throw away.</p>' } },
+      { name: 'Knife', type: 'weapon', img: 'icons/svg/sword.svg',
+        system: { weight: 0.3, damage: 'Str+1', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '',
+          description: '<p>A fighting knife for when the gun would make too much noise.</p>' } },
+    ],
+  },
+  {
+    name: 'Criminal Enforcer', type: 'mortal', img: 'icons/svg/mystery-man.svg',
+    system: {
+      concept: 'Underworld muscle',
+      attributes: { strength: 4, dexterity: 3, stamina: 3, charisma: 3, manipulation: 4, appearance: 1, perception: 2, intelligence: 2, wits: 3 },
+      abilities: { alertness: 2, athletics: 3, brawl: 3, drive: 2, finance: 2, firearms: 3, larceny: 3, melee: 2, stealth: 2, streetwise: 3, subterfuge: 2 },
+      willpower: { value: 6, max: 6 },
+      humanity: 6,
+      bio: `<p>A tough, savvy mid-level operator.</p>
+<p><b>Abilities note:</b> Firearms and Streetwise can run higher. <b>Humanity:</b> 6, often lower.</p>
+<p><b>Equipment:</b> SMG, bulletproof vest, midsized car, knife, records of the operation.</p>`,
+    },
+    items: [
+      { name: 'SMG', type: 'weapon', img: 'icons/svg/sword.svg',
+        system: { firearm: true, hands: 2, weight: 3.5, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'T', range: '50', capacity: '30+1', rate: '21', burst: true, equipped: true,
+          description: '<p>Full-size submachine gun. Fires three-round bursts and full auto.</p>' } },
+      { name: 'Knife', type: 'weapon', img: 'icons/svg/sword.svg',
+        system: { weight: 0.3, damage: 'Str+1', damageType: 'lethal', difficulty: 6, conceal: 'J', range: '',
+          description: '<p>A fighting knife for when the gun would make too much noise.</p>' } },
+      { name: 'Kevlar Vest', type: 'armor', img: 'icons/svg/shield.svg',
+        system: { weight: 2.5, rating: 3, penalty: -1, equipped: true,
+          description: '<p>Law-enforcement body armor covering the torso; stops most small arms.</p>' } },
+    ],
+  },
+  {
+    name: 'Criminal Boss', type: 'mortal', img: 'icons/svg/mystery-man.svg',
+    system: {
+      concept: 'Mafia Don, kingpin, or cartel chief',
+      attributes: { strength: 2, dexterity: 2, stamina: 3, charisma: 3, manipulation: 4, appearance: 2, perception: 3, intelligence: 3, wits: 4 },
+      abilities: { alertness: 2, athletics: 1, brawl: 2, drive: 2, etiquette: 2, finance: 3, firearms: 2, intimidation: 3, larceny: 2, law: 2, leadership: 3, melee: 1, politics: 2, stealth: 1, streetwise: 3, subterfuge: 3 },
+      willpower: { value: 7, max: 7 },
+      humanity: 5,
+      bio: `<p>The enforcer scaled upward: sharper mind, broader Knowledges, less muscle of his own. His real armor is the people between him and you.</p>
+<p><b>Equipment:</b> Holdout revolver, ledger of the whole operation, luxury car, bodyguards (use Criminal Enforcer).</p>`,
+    },
+    items: [
+      { name: 'Holdout Revolver', type: 'weapon', img: 'icons/svg/sword.svg',
+        system: { firearm: true, weight: 0.6, damage: '4', damageType: 'lethal', difficulty: 6, conceal: 'P', range: '12', capacity: '6', rate: '3', equipped: true,
+          description: '<p>A rounded-hammer snub revolver made for fast draws from a tailored jacket.</p>' } },
+      { name: 'Operations Ledger', type: 'equipment', img: 'icons/svg/book.svg',
+        system: { weight: 0.5, description: '<p>Accounts, routes, names. Worth more than the man carrying it.</p>' } },
+    ],
+  },
+];
+
+const COMPENDIUM_VERSION = 73;
 
 export { DISCIPLINES, BACKGROUNDS, MERITS, FLAWS, RITUAL_CATEGORIES };
 
@@ -1467,6 +1603,40 @@ export async function populateCompendiums({ force = false } = {}) {
       await pack.configure({ locked: true });
       ui.notifications.info(`VtM V20: Loaded ${docs.length} ${label}.`);
       console.log(`VtM V20 | Populated ${label} (${docs.length} items)`);
+    } catch (err) {
+      console.error(`VtM V20 | Failed to populate ${name}:`, err);
+      ui.notifications.error(`VtM V20: Failed to load ${label}. Check console.`);
+    }
+  }
+
+  // Actor packs go through Actor document calls, so they get their own loop
+  const actorPacks = [
+    { name: 'npc-templates', label: 'NPC Templates', data: NPC_TEMPLATES },
+  ];
+
+  for (const { name, label, data } of actorPacks) {
+    const packId = `vtm-v20.${name}`;
+    let pack = game.packs.get(packId);
+    if (!pack) pack = game.packs.find(p => p.metadata.name === name);
+    if (!pack) {
+      console.warn(`VtM V20 | Pack "${name}" not found. Available:`, [...game.packs.keys()]);
+      continue;
+    }
+
+    try {
+      await pack.configure({ locked: false });
+
+      const idx = await pack.getIndex();
+      if (idx.size > 0) {
+        const ids = idx.contents.map(e => e._id);
+        await Actor.deleteDocuments(ids, { pack: pack.collection });
+        console.log(`VtM V20 | Cleared ${ids.length} old ${label}`);
+      }
+
+      const docs = await Actor.createDocuments(data, { pack: pack.collection });
+      await pack.configure({ locked: true });
+      ui.notifications.info(`VtM V20: Loaded ${docs.length} ${label}.`);
+      console.log(`VtM V20 | Populated ${label} (${docs.length} actors)`);
     } catch (err) {
       console.error(`VtM V20 | Failed to populate ${name}:`, err);
       ui.notifications.error(`VtM V20: Failed to load ${label}. Check console.`);

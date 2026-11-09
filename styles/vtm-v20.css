@@ -3816,6 +3816,7 @@ textarea#chat-message {
 
 .vtm-combat .combat-defend-btn,
 .vtm-combat .combat-damage-btn,
+.vtm-combat .taunt-resist-btn,
 .vtm-combat-damage .kiss-resist-btn,
 .vtm-roll .fall-soak-btn {
   background: #2a2a2a;
@@ -3830,11 +3831,13 @@ textarea#chat-message {
 }
 
 .vtm-combat .combat-defend-btn:hover,
+.vtm-combat .taunt-resist-btn:hover,
 .vtm-combat-damage .kiss-resist-btn:hover { border-color: #4caf50; color: #4caf50; }
 .vtm-combat .combat-damage-btn:hover { border-color: #ff4444; color: #ff4444; }
 
 .vtm-combat .combat-defend-btn:disabled,
 .vtm-combat .combat-damage-btn:disabled,
+.vtm-combat .taunt-resist-btn:disabled,
 .vtm-combat-damage .kiss-resist-btn:disabled,
 .vtm-roll .fall-soak-btn:disabled {
   opacity: 0.5;

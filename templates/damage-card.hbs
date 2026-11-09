@@ -14,7 +14,7 @@
 
   <div class="combat-damage-section">
     <div class="damage-row">
-      <span class="damage-header"><i class="fas fa-crosshairs"></i> Damage ({{dmgLabel}}), Pool {{dmgPool}}{{#if dmgDifficulty}}, Diff {{dmgDifficulty}}{{/if}}</span>
+      <span class="damage-header"><i class="fas fa-crosshairs"></i> Damage ({{dmgLabel}}){{#if dmgPool}}, Pool {{dmgPool}}{{/if}}{{#if dmgDifficulty}}, Diff {{dmgDifficulty}}{{/if}}</span>
       <div class="roll-dice">
         {{#each dmgDice}}
         <span class="die {{this.status}}">{{this.value}}</span>

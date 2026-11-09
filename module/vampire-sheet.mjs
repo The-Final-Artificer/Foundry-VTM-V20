@@ -3,7 +3,8 @@ import { showDice, promptRollAdjust, gearPenalty } from './dice.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
 import { ChargenWizard } from './chargen.mjs';
 import { applyHealthDamage, checkIncapacitated, computeSoakPool, finalDamageAfterSoak, getCondition, clinchInflictDamage, clinchEscape, holdEscape, standUp } from './combat.mjs';
-import { blindedDifficulty, hasStatus, statusIconVisibility, FRENZY_STATUS_ID, ROTSCHRECK_STATUS_ID } from './status-effects.mjs';
+import { blindedDifficulty, hasStatus, statusIconVisibility, FRENZY_STATUS_ID, CONTROLLED_FRENZY_STATUS_ID, ROTSCHRECK_STATUS_ID } from './status-effects.mjs';
+import { elderPowerAction } from './elder-powers.mjs';
 import { archetypeInfo } from './archetypes-data.mjs';
 import { archetypeAuthentic, clanAuthentic, traitAuthentic } from './authentic-store.mjs';
 import { clanWeaknessInfo, clanItemInfo, clanOptions } from './clan-weaknesses.mjs';
@@ -110,6 +111,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         { icon: "fas fa-magic", label: "Chargen", action: "toggleChargen" },
         { icon: "fas fa-file-export", label: "Export Sheet", action: "exportSheet" },
         { icon: "fas fa-heart-circle-plus", label: "Health Levels", action: "manageHealth" },
+        { icon: "fas fa-pen-nib", label: "Custom Abilities", action: "manageCustomAbilities" },
         { icon: "fas fa-scale-balanced", label: "Virtues", action: "manageVirtues" },
       ]
     },
@@ -135,6 +137,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       toggleCompact: VampireSheet.#onToggleCompact,
       exportSheet: VampireSheet.#onExportSheet,
       manageHealth: VampireSheet.#onManageHealth,
+      manageCustomAbilities: VampireSheet.#onManageCustomAbilities,
       manageVirtues: VampireSheet.#onManageVirtues,
     }
   };
@@ -142,6 +145,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _getHeaderControls() {
     let controls = super._getHeaderControls();
     if (!game.user.isGM) controls = controls.filter(c => c.action !== 'manageHealth');
+    if (!this.isEditable) controls = controls.filter(c => c.action !== 'manageCustomAbilities');
     // Ghouls are locked to Humanity, so no Conviction/Instinct swap for them
     if (!this.isEditable || this.document.type !== 'vampire') controls = controls.filter(c => c.action !== 'manageVirtues');
     return controls;
@@ -246,10 +250,14 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       { label: game.i18n.localize('VTM.Social'), traits: this._prep(VTM.attributes.social, sys.attributes, 'attributes') },
       { label: game.i18n.localize('VTM.Mental'), traits: this._prep(VTM.attributes.mental, sys.attributes, 'attributes') },
     ];
+    // Hobby Talents, Professional Skills, Expert Knowledges land under their column
+    const customFor = group => (sys.customAbilities || [])
+      .filter(a => a.group === group && a.name)
+      .map(a => ({ label: a.name, value: a.rating || 0, rollKey: `custom.${a.id}`, path: `custom:${a.id}` }));
     ctx.abilGroups = [
-      { label: game.i18n.localize('VTM.Talents'), traits: this._prep(VTM.abilities.talents, sys.abilities, 'abilities') },
-      { label: game.i18n.localize('VTM.Skills'), traits: this._prep(VTM.abilities.skills, sys.abilities, 'abilities') },
-      { label: game.i18n.localize('VTM.Knowledges'), traits: this._prep(VTM.abilities.knowledges, sys.abilities, 'abilities') },
+      { label: game.i18n.localize('VTM.Talents'), traits: this._prep(VTM.abilities.talents, sys.abilities, 'abilities'), customs: customFor('talents') },
+      { label: game.i18n.localize('VTM.Skills'), traits: this._prep(VTM.abilities.skills, sys.abilities, 'abilities'), customs: customFor('skills') },
+      { label: game.i18n.localize('VTM.Knowledges'), traits: this._prep(VTM.abilities.knowledges, sys.abilities, 'abilities'), customs: customFor('knowledges') },
     ];
 
     const items = Array.from(actor.items);
@@ -476,6 +484,34 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         poolTraits: ['attributes.stamina', 'abilities.athletics'],
         isRanged: true, range: `${rangeDots * 10}ft`,
         tasteOfDeath: true,
+      });
+    }
+    const animalism = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'animalism');
+    const knownElder = name => (animalism?.system.elderPowers || [])
+      .some(p => p.known && (p.name || '').toLowerCase() === name);
+    if (knownElder('taunt the caged beast')) {
+      const manip = effectiveTraitValue(actor, 'attributes.manipulation');
+      const emp = effectiveTraitValue(actor, 'abilities.empathy');
+      attacks.push({
+        id: 'taunt-caged-beast', name: 'Taunt the Caged Beast',
+        icon: 'fa-hand-sparkles',
+        pool: `Man + Empathy (${manip + emp})`,
+        hideDamage: true, damageFormula: 'special', isRanged: false,
+        elderPower: { disc: 'animalism', power: 'taunt the caged beast' },
+        note: '1 WP, touch. Victim resists with Self-Control or frenzies.',
+      });
+    }
+    if (knownElder('unchain the beast')) {
+      const manip = effectiveTraitValue(actor, 'attributes.manipulation');
+      const intim = effectiveTraitValue(actor, 'abilities.intimidation');
+      attacks.push({
+        id: 'unchain-beast', name: 'Unchain the Beast',
+        icon: 'fa-eye',
+        pool: `Man + Intimidation (${manip + intim})`,
+        damage: 'successes', damageType: 'aggravated',
+        damageFormula: 'special', isRanged: false,
+        elderPower: { disc: 'animalism', power: 'unchain the beast' },
+        note: '3 blood, eye contact. Soaked normally.',
       });
     }
     attacks.push({
@@ -782,7 +818,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ctx.bloodPerTurn = sys.bloodPerTurn || 1;
     ctx.traitMax = sys.traitMax || 5;
     ctx.woundPenalty = sys.rawWoundPenalty || sys.woundPenalty || 0;
-    const inFrenzy = hasStatus(FRENZY_STATUS_ID, actor);
+    // A controlled frenzy wears the same face on the sheet as a true one
+    const inFrenzy = hasStatus(FRENZY_STATUS_ID, actor) || hasStatus(CONTROLLED_FRENZY_STATUS_ID, actor);
     const inRotschreck = hasStatus(ROTSCHRECK_STATUS_ID, actor);
     ctx.frenzied = ctx.hasBlood && (inFrenzy || inRotschreck);
     ctx.frenzyName = inFrenzy ? 'Frenzy' : 'R\u00f6tschreck';
@@ -811,10 +848,22 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ctx.clanOptions = clanOptions(VTM.clans);
     ctx.ghoulFamilies = Object.keys(VTM.revenantFamilies);
 
-    // Path, bearing, virtues
+    // Path, bearing, virtues. GM-made Path of Enlightenment items extend the
+    // built-in list and win over it when the names collide.
     const pathKey = sys.pathName || 'Humanity';
-    const pathInfo = VTM.paths[pathKey] || VTM.paths['Humanity'];
+    const worldPaths = game.items?.filter(i => i.type === 'enlightenment') ?? [];
+    const pathItem = worldPaths.find(i => i.name === pathKey);
+    const pathInfo = pathItem
+      ? {
+        virtues: {
+          conscience: pathItem.system.conscience || 'Conviction',
+          selfControl: pathItem.system.selfControl || 'Self-Control',
+        },
+        bearing: pathItem.system.bearing || '',
+      }
+      : (VTM.paths[pathKey] || VTM.paths['Humanity']);
     ctx.pathChoices = Object.keys(VTM.paths);
+    for (const p of worldPaths) if (!ctx.pathChoices.includes(p.name)) ctx.pathChoices.push(p.name);
     const flagLabels = actor.getFlag('vtm-v20', 'virtueLabels');
     ctx.virtueLabels = flagLabels
       ? { conscience: flagLabels.conscience, selfControl: flagLabels.selfControl, courage: 'Courage' }
@@ -826,6 +875,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     else if (mod < 0) ctx.bearingMod = `${mod} difficulty`;
     else if (mod > 0) ctx.bearingMod = `+${mod} difficulty`;
     else ctx.bearingMod = '';
+    if (this.document.type === 'vampire') {
+      const itemNote = pathItem?.system.bearingNote?.trim();
+      if (itemNote) {
+        ctx.bearingNote = itemNote;
+      } else if (pathKey === 'Humanity') {
+        ctx.bearingNote = 'The bearing modifier applies to Social rolls for appearing normal and winning sympathy.';
+      } else if (pathKey === 'Path of Typhon') {
+        ctx.bearingNote = 'The bearing modifier aids attempts to win converts and rolls to resist powers based on other faiths.';
+      }
+    }
 
     ctx.wpAdjective = TRAIT_DESCRIPTIONS.willpower[sys.willpower.max - 1] || '';
     ctx.wpSpent = !!actor.getFlag('vtm-v20', 'wpSpent');
@@ -1007,11 +1066,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // Bio pages work for all users (editing gated inside the method)
     this._setupBioPages(el);
 
-    if (!this.isEditable) return;
-
-    const canEdit = game.user.isGM || !locked;
-
-    // Tabs
+    // Tabs switch for everyone: read-only viewers (observers, compendium
+    // entries) still need to see the pages
     el.querySelectorAll('.sheet-tabs .item[data-tab]').forEach(tab => {
       tab.classList.toggle('active', tab.dataset.tab === this._tab);
       tab.addEventListener('click', ev => {
@@ -1023,6 +1079,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     el.querySelectorAll('.sheet-body > .tab').forEach(p =>
       p.classList.toggle('active', p.dataset.tab === this._tab));
     el.querySelector('.sheet-body')?.classList.toggle('bio-active', this._tab === 'bio');
+
+    if (!this.isEditable) return;
+
+    const canEdit = game.user.isGM || !locked;
 
     // Lock
     el.querySelector('.sheet-lock')?.addEventListener('click', () => {
@@ -1055,6 +1115,16 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         dot.addEventListener('click', () => {
           const val = parseInt(dot.dataset.value);
           const path = dot.closest('.dot-row').dataset.path;
+          // Custom abilities live in an array, so the whole list goes back in one piece
+          if (path?.startsWith('custom:')) {
+            const id = path.slice(7);
+            const list = (this.document.system.customAbilities || []).map(a => ({ ...a }));
+            const entry = list.find(a => a.id === id);
+            if (!entry) return;
+            entry.rating = val === entry.rating ? val - 1 : val;
+            this.document.update({ 'system.customAbilities': list });
+            return;
+          }
           // Nosferatu can't change Appearance
           if (path === 'system.attributes.appearance' && this.document.system.clan?.toLowerCase() === 'nosferatu') return;
           const cur = foundry.utils.getProperty(this.document, path);
@@ -1153,7 +1223,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const key = lbl.dataset.roll;
         const label = lbl.dataset.label || key;
         const isAttr = key.startsWith('attributes.');
-        const isAbil = key.startsWith('abilities.');
+        const isAbil = key.startsWith('abilities.') || key.startsWith('custom.');
 
         // Virtues / other: direct roll, no selection
         if (!isAttr && !isAbil) {
@@ -1254,7 +1324,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     el.querySelector('.end-frenzy-btn')?.addEventListener('click', () => this._endFrenzy());
     el.querySelector('.ride-wave-btn')?.addEventListener('click', () => this._rideTheWave());
     el.classList.toggle('frenzied', ['vampire', 'ghoul'].includes(this.document.type)
-      && (hasStatus(FRENZY_STATUS_ID, this.document) || hasStatus(ROTSCHRECK_STATUS_ID, this.document)));
+      && (hasStatus(FRENZY_STATUS_ID, this.document) || hasStatus(CONTROLLED_FRENZY_STATUS_ID, this.document) || hasStatus(ROTSCHRECK_STATUS_ID, this.document)));
 
     el.querySelector('.wp-spend-btn:not(.wp-ignore-wounds-btn)')?.addEventListener('click', () => this._toggleWpSpend());
     el.querySelector('.wp-ignore-wounds-btn')?.addEventListener('click', () => this._toggleWpIgnoreWounds());
@@ -1373,6 +1443,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             await this._rollTasteOfDeath();
             return;
           }
+          if (atk.elderPower) {
+            await this._rollElderPower(atk.elderPower.disc, atk.elderPower.power);
+            return;
+          }
           if (atk.clinchAction) {
             if (atk.clinchAction === 'damage') await clinchInflictDamage(this.document);
             else if (atk.clinchAction === 'hold-escape') await holdEscape(this.document);
@@ -1401,7 +1475,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (this._declCombat && !this._declFullDefense) return;
         const attackId = btn.dataset.attackId;
         const atk = this._attacks?.find(a => a.id === attackId);
-        if (!atk || atk.horridReality || atk.tasteOfDeath || atk.clinchAction) return;
+        if (!atk || atk.horridReality || atk.tasteOfDeath || atk.elderPower || atk.clinchAction) return;
         btn.disabled = true;
         try {
           if (this._resCombat && this._resCombatant) {
@@ -1848,6 +1922,75 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       if (!count) return ui.notifications.warn('No extra health levels to remove.');
       await actor.update(rebuildTrack(sys, countDamage(sys), count - 1));
     }
+  }
+
+  static async #onManageCustomAbilities() {
+    if (!this.isEditable) return;
+    await this._manageCustomAbilities();
+  }
+
+  // V20 p. 103/106/109: player-named abilities beside the fixed thirty.
+  // Names and columns are managed here; the dots are set on the sheet.
+  async _manageCustomAbilities() {
+    const actor = this.document;
+    const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const groups = [
+      ['talents', 'Talent (Hobby)'],
+      ['skills', 'Skill (Professional)'],
+      ['knowledges', 'Knowledge (Expert)'],
+    ];
+    const opts = sel => groups.map(([v, l]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${l}</option>`).join('');
+    const row = a => `
+      <div class="custom-abil-row" data-id="${a.id}" style="display:flex;gap:6px;align-items:center;margin:4px 0;">
+        <input type="text" class="ca-name" value="${esc(a.name)}" placeholder="Name (e.g. Carousing)" style="flex:1;" />
+        <select class="ca-group" style="width:150px;">${opts(a.group)}</select>
+        <button type="button" class="ca-remove" title="Remove" style="width:26px;flex:none;"><i class="fas fa-times"></i></button>
+      </div>`;
+    const content = `
+      <div class="custom-abil-manager">
+        <p style="font-size:11px;color:#999;margin:4px 0 8px;">Hobby Talents, Professional Skills, and Expert Knowledges (V20 p. 103, 106, 109).
+        If it fits an existing Ability, take a specialty there instead. Dots are set on the sheet.</p>
+        <div class="ca-rows">${(actor.system.customAbilities || []).map(row).join('')}</div>
+        <button type="button" class="ca-add" style="margin-top:6px;"><i class="fas fa-plus"></i> Add Ability</button>
+      </div>`;
+
+    const result = await new Promise(resolve => {
+      new Dialog({
+        title: `${actor.name}: Custom Abilities`,
+        content,
+        buttons: {
+          save: {
+            icon: '<i class="fas fa-check"></i>', label: 'Save',
+            callback: dlg => resolve(Array.from(dlg[0].querySelectorAll('.custom-abil-row')).map(r => ({
+              id: r.dataset.id || foundry.utils.randomID(),
+              name: r.querySelector('.ca-name').value.trim(),
+              group: r.querySelector('.ca-group').value,
+            })).filter(a => a.name)),
+          },
+          cancel: { icon: '<i class="fas fa-times"></i>', label: 'Cancel', callback: () => resolve(null) },
+        },
+        default: 'save',
+        render: html => {
+          const el = html[0];
+          el.querySelector('.ca-add').addEventListener('click', () => {
+            const holder = document.createElement('div');
+            holder.innerHTML = row({ id: foundry.utils.randomID(), name: '', group: 'talents' });
+            el.querySelector('.ca-rows').appendChild(holder.firstElementChild);
+          });
+          el.addEventListener('click', ev => {
+            const btn = ev.target.closest('.ca-remove');
+            if (btn) btn.closest('.custom-abil-row').remove();
+          });
+        },
+        close: () => resolve(null),
+      }, { classes: ['vtm-v20', 'dialog'], width: 440 }).render(true);
+    });
+    if (!result) return;
+
+    // Keep ratings for entries that survived the edit
+    const prev = actor.system.customAbilities || [];
+    const next = result.map(a => ({ ...a, rating: prev.find(p => p.id === a.id)?.rating || 0 }));
+    await actor.update({ 'system.customAbilities': next });
   }
 
   // Same as clicking the header's Combat Mode crosshairs, callable by hooks
@@ -4349,6 +4492,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         await this._rollHorridReality();
       } else if (action.attackId === 'taste-of-death') {
         await this._rollTasteOfDeath(poolForAction);
+      } else if (action.attackId === 'taunt-caged-beast') {
+        await this._rollElderPower('animalism', 'taunt the caged beast');
+      } else if (action.attackId === 'unchain-beast') {
+        await this._rollElderPower('animalism', 'unchain the beast');
       } else if (action.attackId === 'unarmed' || action.attackId === 'kick') {
         const isKick = action.attackId === 'kick';
         const atk = {
@@ -4521,6 +4668,17 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
   }
 
+
+  async _rollElderPower(discName, powerName) {
+    const item = this.document.items.find(i => i.type === 'discipline' && i.name.toLowerCase() === discName);
+    const power = (item?.system.elderPowers || []).find(p => (p.name || '').toLowerCase() === powerName);
+    const handler = power ? elderPowerAction(item, power) : null;
+    if (!handler) {
+      ui.notifications.warn('That elder power is not on this character.');
+      return;
+    }
+    await handler(this.document, item, power);
+  }
 
   async _rollHorridReality() {
     const actor = this.document;
@@ -6029,9 +6187,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   async _endFrenzy() {
     const actor = this.document;
-    const name = hasStatus(FRENZY_STATUS_ID, actor) ? 'Frenzy' : 'R\u00f6tschreck';
+    const name = hasStatus(FRENZY_STATUS_ID, actor) || hasStatus(CONTROLLED_FRENZY_STATUS_ID, actor) ? 'Frenzy' : 'R\u00f6tschreck';
     const ids = Array.from(actor.effects)
-      .filter(e => e.statuses?.has?.(FRENZY_STATUS_ID) || e.statuses?.has?.(ROTSCHRECK_STATUS_ID))
+      .filter(e => e.statuses?.has?.(FRENZY_STATUS_ID) || e.statuses?.has?.(CONTROLLED_FRENZY_STATUS_ID) || e.statuses?.has?.(ROTSCHRECK_STATUS_ID))
       .map(e => e.id);
     if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
     await actor.unsetFlag('vtm-v20', 'frenzyDiff');
@@ -6102,7 +6260,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   async _rollFrenzy() {
     const actor = this.document;
-    if (hasStatus(FRENZY_STATUS_ID, actor)) {
+    if (hasStatus(FRENZY_STATUS_ID, actor) || hasStatus(CONTROLLED_FRENZY_STATUS_ID, actor)) {
       ui.notifications.info('Already in frenzy. Use End Frenzy on the banner.');
       return;
     }
@@ -6307,7 +6465,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   async _rollRotschreck() {
     const actor = this.document;
-    if (hasStatus(FRENZY_STATUS_ID, actor)) {
+    if (hasStatus(FRENZY_STATUS_ID, actor) || hasStatus(CONTROLLED_FRENZY_STATUS_ID, actor)) {
       ui.notifications.info('Frenzied characters are immune to R\u00f6tschreck.');
       return;
     }

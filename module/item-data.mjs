@@ -207,3 +207,17 @@ export class ClanData extends foundry.abstract.TypeDataModel {
     };
   }
 }
+
+export class EnlightenmentData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    return {
+      bearing: str(''),
+      // Shown under the bearing line on the sheet, like Humanity's note
+      // about appearing normal and winning sympathy
+      bearingNote: str(''),
+      conscience: str('Conviction'),
+      selfControl: str('Self-Control'),
+      description: new f.HTMLField({ initial: '' }),
+    };
+  }
+}

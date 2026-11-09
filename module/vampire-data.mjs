@@ -1,5 +1,5 @@
 import { computeMovement } from './movement.mjs';
-import { FRENZY_STATUS_ID, ROTSCHRECK_STATUS_ID } from './status-effects.mjs';
+import { FRENZY_STATUS_ID, CONTROLLED_FRENZY_STATUS_ID, ROTSCHRECK_STATUS_ID } from './status-effects.mjs';
 
 const f = foundry.data.fields;
 
@@ -47,6 +47,15 @@ export class VampireData extends foundry.abstract.TypeDataModel {
         law: int(0), medicine: int(0), occult: int(0), politics: int(0),
         science: int(0), technology: int(0),
       }),
+
+      // V20 p. 103/106/109: Hobby Talents, Professional Skills, and Expert
+      // Knowledges are player-named abilities beside the fixed thirty
+      customAbilities: new f.ArrayField(new f.SchemaField({
+        id: str(),
+        name: str(),
+        group: str('talents'),
+        rating: int(0, 0, 10),
+      }), { required: true, nullable: false, initial: [] }),
 
       virtues: new f.SchemaField({
         conscience: int(1, 0, 5),
@@ -122,8 +131,8 @@ export class VampireData extends foundry.abstract.TypeDataModel {
     }
     this.rawWoundPenalty = this.woundPenalty;
     if (this.parent?.getFlag('vtm-v20', 'wpIgnoreWounds')) this.woundPenalty = 0;
-    // The Beast feels no pain: frenzy and the Red Fear ignore wound penalties
-    if (this.parent?.statuses?.has(FRENZY_STATUS_ID) || this.parent?.statuses?.has(ROTSCHRECK_STATUS_ID)) this.woundPenalty = 0;
+    // The Beast feels no pain: frenzy, controlled or not, and the Red Fear ignore wound penalties
+    if (this.parent?.statuses?.has(FRENZY_STATUS_ID) || this.parent?.statuses?.has(CONTROLLED_FRENZY_STATUS_ID) || this.parent?.statuses?.has(ROTSCHRECK_STATUS_ID)) this.woundPenalty = 0;
 
     if (this.parent) this.movement = computeMovement(this.parent);
   }

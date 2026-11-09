@@ -182,6 +182,10 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   for (const bg of actor.items.filter(i => i.type === 'background' && i.system.rating > 0)) {
     allTraits[`bg.${bg.id}`] = { label: bg.name, value: bg.system.rating, group: 'backgrounds' };
   }
+  for (const ca of sys.customAbilities || []) {
+    if (!ca.name) continue;
+    allTraits[`custom.${ca.id}`] = { label: ca.name, value: Number(ca.rating) || 0, group: 'abilities' };
+  }
 
   const groupOpts = (g) => Object.entries(allTraits)
     .filter(([, v]) => v.group === g)

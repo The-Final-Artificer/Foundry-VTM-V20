@@ -17,8 +17,9 @@ import { disciplineLevel, physicalLevel, isStrengthDamageFormula, effectiveTrait
 import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
 
 const TARGETING_ARMOR_REQUESTS = new Map();
+const WOUND_ACKS = new Map();
 
-function portraitStyle(actor) {
+export function portraitStyle(actor) {
   const p = actor.getFlag('vtm-v20', 'portrait') || {};
   const s = p.scale ?? 1, ox = p.offX ?? 0, oy = p.offY ?? 0;
   if (s <= 1 && !ox && !oy) return '';
@@ -26,7 +27,7 @@ function portraitStyle(actor) {
   return `object-position: calc(50% + ${(ox * r).toFixed(1)}px) calc(50% + ${(oy * r).toFixed(1)}px); transform: scale(${s});`;
 }
 
-function evalPool(roll, diff, specialty = false) {
+export function evalPool(roll, diff, specialty = false) {
   let succ = 0, ones = 0;
   const dice = roll.terms[0].results.map(r => {
     const v = r.result;
@@ -49,6 +50,13 @@ function evalPool(roll, diff, specialty = false) {
 function firstActiveGm() {
   const activeGms = game.users?.filter(user => user.active && user.isGM) ?? [];
   return activeGms[0] ?? null;
+}
+
+// Relayed writes run one at a time on the GM client: two damage cards hitting
+// the same actor must not interleave their read-modify-write on the track
+let relayedWrites = Promise.resolve();
+function queueRelayedWrite(job) {
+  relayedWrites = relayedWrites.then(job).catch(err => console.error('VtM V20 | Relayed combat write failed', err));
 }
 
 async function promptTargetingArmorChoice({ attackerName, defenderName, weaponName, targeting }) {
@@ -157,6 +165,38 @@ export function bindCombatSocketHandlers() {
       else if (data.action === 'clinchClear') await clearClinchPairLocal(data);
       else if (data.action === 'holdSet') await applyHoldPairLocal(data);
       else await clearHoldPairLocal(data);
+      return;
+    }
+
+    if (data.action === 'woundApply') {
+      if (game.user.id !== firstActiveGm()?.id) return;
+      queueRelayedWrite(async () => {
+        const actor = getActor(data.actorId, data.tokenId);
+        if (actor) await applyWounds(actor, getToken(data.tokenId), data);
+        game.socket.emit('system.vtm-v20', {
+          action: 'woundApplied',
+          requestId: data.requestId,
+          requestingUserId: data.requestingUserId,
+        });
+      });
+      return;
+    }
+
+    if (data.action === 'woundApplied') {
+      if (data.requestingUserId !== game.user.id) return;
+      const resolve = WOUND_ACKS.get(data.requestId);
+      if (!resolve) return;
+      WOUND_ACKS.delete(data.requestId);
+      resolve(true);
+      return;
+    }
+
+    if (data.action === 'knockdownResult') {
+      if (game.user.id !== firstActiveGm()?.id) return;
+      queueRelayedWrite(async () => {
+        const actor = getActor(data.actorId, data.tokenId);
+        if (actor) await applyKnockdownResult(actor, data);
+      });
       return;
     }
 
@@ -391,7 +431,7 @@ export function computeSoakPool(actor, { dmgType, fireOrSunlight = false, bypass
 }
 
 // Resolve actor through its token first (handles unlinked tokens with their own data)
-function getActor(actorId, tokenId) {
+export function getActor(actorId, tokenId) {
   if (tokenId && canvas.tokens) {
     const tok = canvas.tokens.get(tokenId);
     if (tok?.actor) return tok.actor;
@@ -401,6 +441,12 @@ function getActor(actorId, tokenId) {
 
 function getToken(tokenId) {
   return tokenId && canvas.tokens ? canvas.tokens.get(tokenId) : null;
+}
+
+function tokenFor(actor) {
+  if (!canvas.tokens) return null;
+  if (actor.isToken) return canvas.tokens.get(actor.token.id) ?? null;
+  return canvas.tokens.placeables.find(t => t.actor === actor) ?? null;
 }
 
 function attackPool(actor, atk) {
@@ -437,7 +483,7 @@ function attackPool(actor, atk) {
   return { pool: Math.max(total, 1), parts, autoSuccesses: autoSucc };
 }
 
-function dazeThreshold(actor) {
+export function dazeThreshold(actor) {
   const stamina = actor.system.attributes?.stamina || 0;
   return actor.type === 'vampire' ? stamina + 2 : stamina;
 }
@@ -463,7 +509,9 @@ function isIncapacitated(actor) {
 }
 
 export async function checkIncapacitated(actor) {
-  if (isIncapacitated(actor)) await applyIncapacitated(actor);
+  if (!isIncapacitated(actor)) return;
+  if (!actor.isOwner) return applyWounds(actor, tokenFor(actor), { checkIncap: true });
+  await applyIncapacitated(actor);
 }
 
 async function applyIncapacitated(actor) {
@@ -1379,11 +1427,9 @@ async function resolveDirectDamage(source, target, targetToken, { weaponName, dm
 
   const rawNet = Math.max(dmgTotal - soak.total, 0);
   const net = finalDamageAfterSoak(target, rawNet, dt);
-  if (net > 0) await applyHealthDamage(target, net, dt);
-  await checkIncapacitated(target);
   const threshold = dazeThreshold(target);
   const dazed = rawNet > 0 && rawNet > threshold;
-  if (dazed && !isDazed(targetToken, target)) await applyDazed(target);
+  await applyWounds(target, targetToken, { amount: net, type: dt, dazed });
 
   // Same armor-destruction rule as regular damage
   let armorDestroyedNotice = null;
@@ -1962,10 +2008,8 @@ export async function rollDamage(msg) {
   const threshold = dazeThreshold(defender);
   let dazed = false;
   if (!kissMode) {
-    if (net > 0) await applyHealthDamage(defender, net, dt);
-    await checkIncapacitated(defender);
     dazed = rawNet > 0 && rawNet > threshold;
-    if (dazed && !isDazed(defenderToken, defender)) await applyDazed(defender);
+    await applyWounds(defender, defenderToken, { amount: net, type: dt, dazed });
   }
 
   // Bone Quills: melee attackers take their Str in lethal unless they scored 3+ attack successes
@@ -2072,7 +2116,50 @@ export async function rollDamage(msg) {
 
 // ── Health Damage Application ───────────────────────────────────────
 
+// Rolled damage usually lands on an actor the clicking player doesn't own
+// (the defender, a riposted attacker), and only owners may write to a
+// document. When we lack permission the whole result goes to the GM client
+// over the socket, same relay the clinch and hold flags use. It's one bundle
+// rather than three emits because the incapacitation check reads the track
+// the damage write just changed. The caller awaits the GM's confirmation so
+// condition readouts after this see the updated actor.
+export async function applyWounds(actor, token, { amount = 0, type = 'lethal', dazed = false, checkIncap = true }) {
+  if (actor.isOwner) {
+    if (amount > 0) await applyHealthDamage(actor, amount, type);
+    if (checkIncap) await checkIncapacitated(actor);
+    if (dazed && !isDazed(token, actor)) await applyDazed(actor);
+    return;
+  }
+
+  if (!firstActiveGm()) {
+    ui.notifications.warn(`No GM online: damage to ${actor.name} was not applied.`);
+    return;
+  }
+
+  const requestId = foundry.utils.randomID();
+  const done = new Promise(resolve => {
+    WOUND_ACKS.set(requestId, resolve);
+    window.setTimeout(() => {
+      if (!WOUND_ACKS.delete(requestId)) return;
+      ui.notifications.warn(`The GM client did not confirm damage to ${actor.name}. Check their health track.`);
+      resolve(false);
+    }, 10000);
+  });
+
+  game.socket.emit('system.vtm-v20', {
+    action: 'woundApply',
+    requestId,
+    requestingUserId: game.user.id,
+    actorId: actor.id,
+    tokenId: token?.id ?? null,
+    amount, type, dazed, checkIncap,
+  });
+  await done;
+}
+
 export async function applyHealthDamage(actor, amount, type) {
+  if (!actor.isOwner) return applyWounds(actor, tokenFor(actor), { amount, type, checkIncap: false });
+
   const sys = actor.system;
   const cap = trackSize(sys);
   let { bash, leth, agg } = countDamage(sys);
@@ -2104,7 +2191,7 @@ export async function applyHealthDamage(actor, amount, type) {
 
 // ── Sweep & Knockdown ──────────────────────────────────────────────
 
-function statusEffectData(id, fallbackName, fallbackImg) {
+export function statusEffectData(id, fallbackName, fallbackImg) {
   const existing = CONFIG.statusEffects.find(e => e.id === id);
   return {
     name: existing?.name ?? fallbackName,
@@ -2113,6 +2200,17 @@ function statusEffectData(id, fallbackName, fallbackImg) {
     statuses: [id],
     ...statusIconVisibility(),
   };
+}
+
+async function applyKnockdownResult(victim, { fell, unbalancedRound }) {
+  if (fell) {
+    const has = id => Array.from(victim.effects).some(e => e.statuses?.has?.(id));
+    const toAdd = [];
+    if (!has(PRONE_STATUS_ID)) toAdd.push(statusEffectData(PRONE_STATUS_ID, 'Prone', 'systems/vtm-v20/VTM icons/prone.svg'));
+    if (!has(KNOCKDOWN_STATUS_ID)) toAdd.push(statusEffectData(KNOCKDOWN_STATUS_ID, 'Knockdown', 'systems/vtm-v20/VTM icons/falling-status.svg'));
+    if (toAdd.length) await victim.createEmbeddedDocuments('ActiveEffect', toAdd);
+  }
+  if (unbalancedRound != null) await victim.setFlag('vtm-v20', 'unbalancedRound', unbalancedRound);
 }
 
 // Reflexive Dex + Athletics save against the trip, auto-rolled like soak.
@@ -2127,19 +2225,24 @@ async function knockdownSave(victim, { difficulty = 8, unbalancedOnSuccess = fal
   const res = evalPool(roll, difficulty);
   const kept = res.outcome === 'success';
 
-  if (!kept) {
-    const has = id => Array.from(victim.effects).some(e => e.statuses?.has?.(id));
-    const toAdd = [];
-    if (!has(PRONE_STATUS_ID)) toAdd.push(statusEffectData(PRONE_STATUS_ID, 'Prone', 'systems/vtm-v20/VTM icons/prone.svg'));
-    if (!has(KNOCKDOWN_STATUS_ID)) toAdd.push(statusEffectData(KNOCKDOWN_STATUS_ID, 'Knockdown', 'systems/vtm-v20/VTM icons/falling-status.svg'));
-    if (toAdd.length) await victim.createEmbeddedDocuments('ActiveEffect', toAdd);
+  const unbalancedRound = kept && unbalancedOnSuccess && game.combat ? game.combat.round + 1 : null;
+  if (!kept || unbalancedRound !== null) {
+    if (victim.isOwner) {
+      await applyKnockdownResult(victim, { fell: !kept, unbalancedRound });
+    } else if (firstActiveGm()) {
+      game.socket.emit('system.vtm-v20', {
+        action: 'knockdownResult',
+        actorId: victim.id,
+        tokenId: tokenFor(victim)?.id ?? null,
+        fell: !kept, unbalancedRound,
+      });
+    } else {
+      ui.notifications.warn(`No GM online: ${victim.name}'s knockdown was not applied.`);
+    }
   }
 
   let keptLabel = `${victim.name} keeps their footing!`;
-  if (kept && unbalancedOnSuccess) {
-    if (game.combat) await victim.setFlag('vtm-v20', 'unbalancedRound', game.combat.round + 1);
-    keptLabel += ' Still unbalanced: +1 difficulty to actions next round.';
-  }
+  if (kept && unbalancedOnSuccess) keptLabel += ' Still unbalanced: +1 difficulty to actions next round.';
 
   const html = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
     actorImg: victim.img, actorName: victim.name,

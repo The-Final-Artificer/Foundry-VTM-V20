@@ -6,7 +6,7 @@
     "mortal": {}
   },
   "Item": {
-    "types": ["discipline", "background", "merit", "weapon", "armor", "equipment", "container", "path", "ritual", "clan"],
+    "types": ["discipline", "background", "merit", "weapon", "armor", "equipment", "container", "path", "ritual", "clan", "enlightenment"],
     "discipline": {},
     "background": {},
     "merit": {},
@@ -16,6 +16,7 @@
     "container": {},
     "path": {},
     "ritual": {},
-    "clan": {}
+    "clan": {},
+    "enlightenment": {}
   }
 }
