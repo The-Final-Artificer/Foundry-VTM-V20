@@ -78,20 +78,56 @@ export function baseTraitValue(actor, path) {
   return actor.system[category]?.[key] || 0;
 }
 
-// Trait value with passive discipline bonuses baked in.
-// Passive potence adds dice to Strength. When activated, the bonus
-// comes as auto-successes instead, so it's excluded here.
-export function effectiveTraitValue(actor, path) {
-  let val = baseTraitValue(actor, path);
-  if (path === 'attributes.strength' && !isDisciplineActive(actor, 'potence')) {
-    val += potenceLevel(actor);
+// Shape-changes that rewrite attributes on the sheet and keep the originals
+// in a flag of the same name
+const FORM_FLAGS = [
+  ['horridForm', 'Horrid Form'],
+  ['batForm', 'Bat Form'],
+  ['skinOfTheAdder', 'Skin of the Adder'],
+];
+
+// Which disciplines are feeding a trait right now, and by how much. The one
+// source both the math and the roll displays read, so a discipline that
+// should show up and doesn't is visibly missing. `baked` entries already
+// live in the stored attribute and are listed for display only.
+export function traitBoosts(actor, path) {
+  const out = [];
+  if (!actor || !path?.startsWith?.('attributes.')) return out;
+  const attr = path.split('.')[1];
+  // Passive potence adds dice to Strength. When activated, the bonus comes
+  // as auto-successes instead, so it's excluded here.
+  if (attr === 'strength' && !isDisciplineActive(actor, 'potence')) {
+    const n = potenceLevel(actor);
+    if (n) out.push({ label: 'Potence', value: n });
   }
   // Extra Actions redirects the dots into speed: no passive dice while active.
   // Under RAW, each extra action bought eats one dot of the passive instead.
-  if (path === 'attributes.dexterity' && !actor.getFlag?.('vtm-v20', 'celerityActions')) {
+  if (attr === 'dexterity' && !actor.getFlag?.('vtm-v20', 'celerityActions')) {
     const rawSpent = actor.getFlag?.('vtm-v20', 'celerityRawActions') || 0;
-    val += Math.max(celerityLevel(actor) - rawSpent, 0);
+    const n = Math.max(celerityLevel(actor) - rawSpent, 0);
+    if (n) out.push({ label: 'Celerity', value: n });
   }
+  const cur = actor.system?.attributes?.[attr] ?? 0;
+  for (const [flag, label] of FORM_FLAGS) {
+    const saved = actor.getFlag?.('vtm-v20', flag);
+    if (saved && typeof saved === 'object' && saved[attr] !== undefined && saved[attr] !== cur) {
+      out.push({ label, value: cur - saved[attr], baked: true });
+    }
+  }
+  return out;
+}
+
+// A trait split the way roll displays print it: the character's own dots,
+// the discipline parts listed apart. Item bonuses have their own line.
+export function naturalTraitValue(actor, path) {
+  const boosted = traitBoosts(actor, path).reduce((sum, b) => sum + b.value, 0);
+  return effectiveTraitValue(actor, path) - itemTraitBonus(actor, path) - boosted;
+}
+
+// Trait value with passive discipline bonuses baked in.
+export function effectiveTraitValue(actor, path) {
+  let val = baseTraitValue(actor, path);
+  for (const b of traitBoosts(actor, path)) if (!b.baked) val += b.value;
   const attr = path.split('.').pop();
   if (['strength', 'dexterity', 'stamina'].includes(attr)) {
     val += (actor.getFlag('vtm-v20', 'bloodBuffs')?.[attr] || 0);

@@ -2,9 +2,10 @@ import { VTM } from './config.mjs';
 import { showDice, promptRollAdjust, gearPenalty } from './dice.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
 import { ChargenWizard } from './chargen.mjs';
-import { applyHealthDamage, checkIncapacitated, computeSoakPool, finalDamageAfterSoak, getCondition, clinchInflictDamage, clinchEscape, holdEscape, standUp } from './combat.mjs';
+import { applyHealthDamage, checkIncapacitated, combatantFor, computeSoakPool, finalDamageAfterSoak, getCondition, clinchInflictDamage, clinchEscape, holdEscape, standUp } from './combat.mjs';
 import { blindedDifficulty, hasStatus, statusIconVisibility, FRENZY_STATUS_ID, CONTROLLED_FRENZY_STATUS_ID, ROTSCHRECK_STATUS_ID } from './status-effects.mjs';
 import { elderPowerAction } from './elder-powers.mjs';
+import { importStatBlockDialog } from './statblock-import.mjs';
 import { archetypeInfo } from './archetypes-data.mjs';
 import { archetypeAuthentic, clanAuthentic, traitAuthentic } from './authentic-store.mjs';
 import { clanWeaknessInfo, clanItemInfo, clanOptions } from './clan-weaknesses.mjs';
@@ -99,6 +100,8 @@ function poolDisplay(actor, primary, secondary, accuracyMod = 0) {
   return `${parts.join(' + ')} (${total})`;
 }
 
+const COMPACT_SIZE = { width: 650, height: 598 };
+
 export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   static DEFAULT_OPTIONS = {
@@ -110,6 +113,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       controls: [
         { icon: "fas fa-magic", label: "Chargen", action: "toggleChargen" },
         { icon: "fas fa-file-export", label: "Export Sheet", action: "exportSheet" },
+        { icon: "fas fa-file-import", label: "Import Stat Block", action: "importStatBlock" },
         { icon: "fas fa-heart-circle-plus", label: "Health Levels", action: "manageHealth" },
         { icon: "fas fa-pen-nib", label: "Custom Abilities", action: "manageCustomAbilities" },
         { icon: "fas fa-scale-balanced", label: "Virtues", action: "manageVirtues" },
@@ -136,6 +140,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       resDeferredNow: VampireSheet.#onResDeferredNow,
       toggleCompact: VampireSheet.#onToggleCompact,
       exportSheet: VampireSheet.#onExportSheet,
+      importStatBlock: VampireSheet.#onImportStatBlock,
       manageHealth: VampireSheet.#onManageHealth,
       manageCustomAbilities: VampireSheet.#onManageCustomAbilities,
       manageVirtues: VampireSheet.#onManageVirtues,
@@ -144,7 +149,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   _getHeaderControls() {
     let controls = super._getHeaderControls();
-    if (!game.user.isGM) controls = controls.filter(c => c.action !== 'manageHealth');
+    if (!game.user.isGM) controls = controls.filter(c => c.action !== 'manageHealth' && c.action !== 'importStatBlock');
     if (!this.isEditable) controls = controls.filter(c => c.action !== 'manageCustomAbilities');
     // Ghouls are locked to Humanity, so no Conviction/Instinct swap for them
     if (!this.isEditable || this.document.type !== 'vampire') controls = controls.filter(c => c.action !== 'manageVirtues');
@@ -157,7 +162,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   _tab = "stats";
   _compactMode = false;
+  _compactAuto = false;
   _fullSize = null;
+  _pendingSize = null;
   _chargen = null;
   _closingChargen = false;
   _fadeInAfterChargen = false;
@@ -170,6 +177,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _rollQuickEl = null;
   _healAnimPlaying = false;
   _declActions = [];
+  _declUnspentAck = null;
   _declFullDefense = false;
   _declCapturing = false;
   _declCombat = null;
@@ -453,6 +461,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         damage: 'successes', damageType: 'lethal',
         damageFormula: 'special', isRanged: false,
         horridReality: true,
+        note: this._knowsElder('chimerstry', 'shared nightmare') ? 'Shared Nightmare: target several victims, 1 blood each.' : '',
       });
     }
     const serpentis = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'serpentis');
@@ -639,32 +648,9 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       this._resBloodSpent = 0;
     }
 
-    // Recover combat phase state from the active combat if we lost it (e.g. sheet was closed and reopened)
-    if (!this._declCombat && !this._resCombat && game.combat) {
-      const combat = game.combat;
-      const combatant = combat.combatants.find(c => c.actor?.id === actor.id);
-      if (combatant) {
-        const phase = combat.getFlag('vtm-v20', 'phase');
-        if (phase === 'declaration' && !combatant.getFlag('vtm-v20', 'declaration')) {
-          // Everyone enters declaration for the whole phase (not just current declarer)
-          this._declCombat = combat;
-          this._declCombatant = combatant;
-        } else if (phase === 'resolution') {
-          // Everyone is in resolution mode for the whole round
-          this._resCombat = combat;
-          this._resCombatant = combatant;
-          const resolved = combatant.getFlag('vtm-v20', 'resolved');
-          if (resolved) this._resTurnDone = true;
-          // Rebuild local execution state from the synced mirror (e.g. after F5)
-          const acted = combatant.getFlag('vtm-v20', 'actSpent') || {};
-          for (const [i, n] of Object.entries(acted)) {
-            this._resExecuted.add(Number(i));
-            this._resSpent.set(Number(i), n);
-          }
-        }
-      }
-    }
-
+    // Drop phase state the combat has moved past before looking for the
+    // current one. A sheet still holding last round's resolution would
+    // otherwise need a second render to pick up the new declaration.
     if (this._declCombat) {
       const phase = this._declCombat.getFlag('vtm-v20', 'phase');
       if (phase !== 'declaration') {
@@ -684,9 +670,6 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         game.vtm._captureAction = null;
       }
     }
-    ctx.declaring = !!this._declCombat;
-
-    // Resolution phase
     if (this._resCombat) {
       const resPhase = this._resCombat.getFlag('vtm-v20', 'phase');
       if (resPhase !== 'resolution') {
@@ -701,6 +684,28 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         this._resBloodSpent = 0;
       }
     }
+
+    // Recover combat phase state from the active combat if we lost it (e.g. sheet was closed and reopened)
+    if (!this._declCombat && !this._resCombat && game.combat) {
+      const combat = game.combat;
+      const combatant = combatantFor(combat, actor);
+      if (combatant) {
+        const phase = combat.getFlag('vtm-v20', 'phase');
+        if (phase === 'declaration' && !combatant.getFlag('vtm-v20', 'declaration')) {
+          // Everyone enters declaration for the whole phase (not just current declarer)
+          this._declCombat = combat;
+          this._declCombatant = combatant;
+          this._declUnspentAck = null;
+        } else if (phase === 'resolution') {
+          // Everyone is in resolution mode for the whole round
+          this._resCombat = combat;
+          this._resCombatant = combatant;
+          this._adoptResLedger(combatant);
+        }
+      }
+    }
+
+    ctx.declaring = !!this._declCombat;
     ctx.resolving = !!this._resCombat;
     ctx.resTurnDone = this._resTurnDone;
     if (ctx.resolving) {
@@ -1025,16 +1030,30 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // combat layout behind the header's crosshairs toggle, on the combat tab.
     // This is the one chokepoint every open path goes through.
     try {
-      if (!this._chargen && game.settings.get('vtm-v20', 'autoCombatMode')) {
-        const combat = game.combat;
-        if (combat?.started && combat.combatants.some(c => c.actor?.id === this.document.id)) {
+      const fighting = !this._chargen && game.settings.get('vtm-v20', 'autoCombatMode') && this._inStartedCombat();
+      if (fighting) {
+        if (!this._compactMode) {
+          this._rememberFullSize();
           this._compactMode = true;
-          this._fullSize = { width: this.position.width, height: this.position.height };
-          this._tab = 'combat';
-          requestAnimationFrame(() => this.setPosition({ width: 650, height: 598 }));
+          this._pendingSize = COMPACT_SIZE;
         }
+        this._compactAuto = true;
+        this._tab = 'combat';
+      } else if (this._compactMode && this._compactAuto) {
+        // The fight ended while this sheet was closed: come back at full size
+        this._compactMode = false;
+        this._compactAuto = false;
+        this._pendingSize = this._fullSize ?? this._defaultSize();
+        this._fullSize = null;
       }
     } catch { /* settings not ready during very early renders */ }
+
+    // Sizes decided while the window was closed land now that it has an element
+    if (this._pendingSize) {
+      const size = this._pendingSize;
+      this._pendingSize = null;
+      requestAnimationFrame(() => this.setPosition(size));
+    }
   }
 
   async _onRender(context, options) {
@@ -1898,6 +1917,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this.render();
   }
 
+  static #onImportStatBlock() {
+    if (!game.user.isGM) return;
+    importStatBlockDialog({ actor: this.document });
+  }
+
   static async #onManageHealth() {
     if (!game.user.isGM) return;
     const actor = this.document;
@@ -1993,35 +2017,78 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await actor.update({ 'system.customAbilities': next });
   }
 
-  // Same as clicking the header's Combat Mode crosshairs, callable by hooks
-  enterCombatMode() {
-    if (this._chargen || this._compactMode) return;
-    this._compactMode = true;
-    this._fullSize = { width: this.position.width, height: this.position.height };
-    this._tab = 'combat';
-    this.setPosition({ width: 650, height: 598 });
-    this.render();
+  // True while the viewed combat has started and lists this actor
+  _inStartedCombat(ignore = null) {
+    const combat = game.combat;
+    if (!combat?.started || combat === ignore) return false;
+    return !!combatantFor(combat, this.document);
   }
 
+  _defaultSize() {
+    const { width, height } = this.options.position;
+    return { width, height };
+  }
+
+  // The size to come back to after Combat Mode. A window already sitting at
+  // the compact footprint (closed mid-fight, reopened later) has no full size
+  // worth remembering, so that case falls back to the sheet default.
+  _rememberFullSize() {
+    const isCompact = s => s?.width === COMPACT_SIZE.width && s?.height === COMPACT_SIZE.height;
+    if (this._fullSize && !isCompact(this._fullSize)) return;
+    const { width, height } = this._pendingSize ?? this.position;
+    this._fullSize = isCompact({ width, height }) ? this._defaultSize() : { width, height };
+  }
+
+  // setPosition only sticks on an open, unfolded window: a minimized one
+  // restores its pre-fold size on maximize and a closed one has no element,
+  // so those get the size once they are back
+  _applySize(size) {
+    if (this.rendered && !this.minimized) return void this.setPosition(size);
+    this._pendingSize = size;
+    if (!this.rendered) {
+      try { Object.assign(this.position, size); } catch { /* applied on next open */ }
+    }
+  }
+
+  async maximize() {
+    await super.maximize();
+    if (!this._pendingSize) return;
+    const size = this._pendingSize;
+    this._pendingSize = null;
+    this.setPosition(size);
+  }
+
+  // Same as clicking the header's Combat Mode crosshairs, callable by hooks
+  enterCombatMode() {
+    if (this._chargen) return;
+    this._compactAuto = true;
+    if (this._compactMode) return;
+    this._rememberFullSize();
+    this._compactMode = true;
+    this._tab = 'combat';
+    this._applySize(COMPACT_SIZE);
+    if (this.rendered) this.render();
+  }
+
+  // Works on closed and minimized sheets too, so a fight ending never leaves
+  // one stranded in the compact layout
   exitCombatMode() {
     if (!this._compactMode) return;
     this._compactMode = false;
-    if (this._fullSize) this.setPosition(this._fullSize);
+    this._compactAuto = false;
+    const full = this._fullSize ?? this._defaultSize();
     this._fullSize = null;
-    this.render();
+    this._applySize(full);
+    if (this.rendered) this.render();
   }
 
   static #onToggleCompact() {
     if (this._chargen) return;
-    this._compactMode = !this._compactMode;
-
-    if (this._compactMode) {
-      this._fullSize = { width: this.position.width, height: this.position.height };
-      this.setPosition({ width: 650, height: 598 });
-    } else {
-      if (this._fullSize) this.setPosition(this._fullSize);
-      this._fullSize = null;
-    }
+    if (this._compactMode) return this.exitCombatMode();
+    this._rememberFullSize();
+    this._compactMode = true;
+    this._compactAuto = false;
+    this._applySize(COMPACT_SIZE);
     this.render();
   }
 
@@ -3382,9 +3449,19 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // -- Declaration (inline in combat tab) ------------------------------------
 
   startDeclaration(combat, combatant) {
-    if (this._declCombat) return; // already in declaration mode
+    if (this._declCombat) {
+      // Already planning. A prompt that names the combatant is the authority,
+      // and when it arrives the panel has to actually be in front of the player.
+      this._declCombatant = combatant;
+      if (!this.rendered || this._tab !== 'combat') {
+        this._tab = 'combat';
+        this.render(true);
+      }
+      return;
+    }
     this._declCombat = combat;
     this._declCombatant = combatant;
+    this._declUnspentAck = null;
     this._resBloodSpent = 0;
     this._tab = 'combat';
     this.render(true);
@@ -3392,6 +3469,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   _endDeclaration() {
     this._stopDeclTimer();
+    this._declUnspentAck = null;
     this._declCombat = null;
     this._declCombatant = null;
     this._declActions = [];
@@ -3759,6 +3837,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       for (const idx of mains.slice(Math.max(mains.length - rawCel, 1))) rawExtraIdxs.add(idx);
     }
     const rawBase = this._declActions.filter((a, i) => !a.heal && !rawExtraIdxs.has(i));
+    // Dice a split leaves unassigned: allowed, but confirmed before locking in
+    let unspent = 0;
     if (rawCel > 0 && rawBase.length > 1) {
       let lowBase = Infinity;
       for (const a of rawBase) {
@@ -3772,6 +3852,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         ui.notifications.warn(`Your regular actions split a pool of ${baseBudget} dice; you've allocated ${baseSpent}. Remove ${baseSpent - baseBudget} before confirming.`);
         return;
       }
+      unspent = baseBudget - baseSpent;
     }
     if (!fullDef && rawCel === 0 && (nonHealActions.length > 1 || (celerityOn && nonHealActions.length > 0))) {
       let lowestCheck = Infinity;
@@ -3795,6 +3876,21 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           return;
         }
       }
+      // With Celerity the per-action cap can make part of the budget unreachable
+      const usable = info.on ? Math.min(budget, info.cap * nonHealActions.length) : budget;
+      unspent = usable - spent;
+    }
+
+    // First press warns, a second press with the same leftover goes through.
+    // No dialog on purpose: a blocking question under the declaration timer
+    // could cost the whole turn.
+    if (unspent > 0 && this._declUnspentAck !== unspent) {
+      this._declUnspentAck = unspent;
+      ui.notifications.warn(`You still have ${unspent} ${unspent === 1 ? 'die' : 'dice'} not assigned to any action. Press Confirm again to lock in anyway.`);
+      const btn = this._combatDrawer?.querySelector('[data-action="declConfirm"]')
+        ?? el.querySelector('[data-action="declConfirm"]');
+      if (btn) btn.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Confirm Anyway (${unspent} unassigned)`;
+      return;
     }
 
     if (fullDef) {
@@ -3890,6 +3986,19 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   // -- Resolution (inline in combat tab) -------------------------------------
 
+  // Take over a combatant's synced resolution ledger: after F5 or a reopen,
+  // or when a prompt names a different combatant than the one we held
+  _adoptResLedger(combatant) {
+    this._resExecuted = new Set();
+    this._resSpent = new Map();
+    this._resTurnDone = !!combatant.getFlag('vtm-v20', 'resolved');
+    const acted = combatant.getFlag('vtm-v20', 'actSpent') || {};
+    for (const [i, n] of Object.entries(acted)) {
+      this._resExecuted.add(Number(i));
+      this._resSpent.set(Number(i), n);
+    }
+  }
+
   // Called once when the resolution phase begins for ALL combatants
   enterResolutionPhase(combat, combatant) {
     if (this._resCombat) return; // already in resolution mode
@@ -3910,6 +4019,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       this._resCombatant = combatant;
       this._resExecuted = new Set();
       this._resSpent = new Map();
+    } else if (this._resCombatant?.id !== combatant.id) {
+      // We were tracking someone else (copies of one NPC share an actor id):
+      // the prompt says whose turn this really is
+      this._resCombat = combat;
+      this._resCombatant = combatant;
+      this._adoptResLedger(combatant);
     }
     this._resTurnDone = false;
     this._tab = 'combat';
@@ -4680,8 +4795,17 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await handler(this.document, item, power);
   }
 
+  _knowsElder(discName, powerName) {
+    const item = this.document.items.find(i => i.type === 'discipline' && i.name.toLowerCase() === discName);
+    return (item?.system.elderPowers || []).some(p => p.known && (p.name || '').toLowerCase() === powerName);
+  }
+
   async _rollHorridReality() {
     const actor = this.document;
+    // Several targets and Shared Nightmare known: the crowd version takes over
+    if (game.user.targets.size > 1 && this._knowsElder('chimerstry', 'shared nightmare')) {
+      return this._rollElderPower('chimerstry', 'shared nightmare');
+    }
     const target = game.user.targets.size ? game.user.targets.first()?.actor : null;
     if (!target) {
       ui.notifications.warn('Target a token first.');

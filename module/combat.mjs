@@ -13,7 +13,7 @@ import {
   hasStatus,
   iterableValues,
 } from './status-effects.mjs';
-import { disciplineLevel, physicalLevel, isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, itemTraitBonus, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
+import { disciplineLevel, physicalLevel, isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, itemTraitBonus, naturalTraitValue, potenceAutoSuccesses, traitBoosts, usesStrengthTrait } from './discipline-effects.mjs';
 import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
 
 const TARGETING_ARMOR_REQUESTS = new Map();
@@ -443,6 +443,16 @@ function getToken(tokenId) {
   return tokenId && canvas.tokens ? canvas.tokens.get(tokenId) : null;
 }
 
+// The combatant standing for this exact actor. Unlinked tokens all carry
+// their base actor's id, so three copies of one NPC can only be told apart
+// by identity or token; the id match is kept for sheets of world actors.
+export function combatantFor(combat, actor) {
+  if (!combat || !actor) return null;
+  const list = combat.combatants;
+  if (actor.isToken) return list.find(c => c.actor === actor || c.tokenId === actor.token?.id) ?? null;
+  return list.find(c => c.actor === actor) ?? list.find(c => c.actor?.id === actor.id) ?? null;
+}
+
 function tokenFor(actor) {
   if (!canvas.tokens) return null;
   if (actor.isToken) return canvas.tokens.get(actor.token.id) ?? null;
@@ -453,9 +463,11 @@ function attackPool(actor, atk) {
   const traits = Array.isArray(atk.poolTraits) && atk.poolTraits.length
     ? atk.poolTraits.filter(Boolean)
     : ['attributes.dexterity', atk.skill].filter(Boolean);
-  // Item bonuses print as their own part so the card says where the dice came from
+  // Discipline dice and item bonuses print as their own parts so the card
+  // says where the dice came from
   const itemB = traits.reduce((s, path) => s + itemTraitBonus(actor, path), 0);
-  const parts = traits.map(path => `${traitLabel(path)} ${traitValue(actor, path) - itemTraitBonus(actor, path)}`);
+  const parts = traits.map(path => `${traitLabel(path)} ${naturalTraitValue(actor, path)}`);
+  for (const b of traits.flatMap(path => traitBoosts(actor, path))) parts.push(`${b.label} ${signed(b.value)}`);
   let total = traits.reduce((sum, path) => sum + traitValue(actor, path), 0);
   if (itemB) parts.push(`item ${signed(itemB)}`);
 
@@ -530,7 +542,7 @@ async function applyIncapacitated(actor) {
   // Mark combatant as defeated so they're skipped in init/declaration/resolution
   const combat = game.combat;
   if (combat) {
-    const combatant = combat.combatants.find(c => c.actorId === actor.id);
+    const combatant = combatantFor(combat, actor);
     if (combatant && !combatant.defeated) {
       await combatant.update({ defeated: true });
       ui.notifications.warn(`${actor.name} is incapacitated and out of combat.`);
@@ -1072,7 +1084,7 @@ export async function rollDefense(msg) {
   }
 
   const combat = game.combat;
-  const combatant = combat?.combatants.find(cb => cb.actor?.id === defender.id);
+  const combatant = combatantFor(combat, defender);
   const decl = combatant?.getFlag('vtm-v20', 'declaration');
   const isFullDef = decl?.fullDefense;
   const sheet = defender.sheet;
@@ -1108,6 +1120,8 @@ export async function rollDefense(msg) {
 
   // Build the dialog buttons
   let choice, pool;
+  // True when the pool is read off the traits now, not a declared allocation
+  let poolFromTraits = false;
 
   // Locked in a clinch or a hold: no actions of any kind, defenses included
   const inClinch = !!(defender.getFlag('vtm-v20', 'clinch') || defender.getFlag('vtm-v20', 'held'));
@@ -1150,6 +1164,7 @@ export async function rollDefense(msg) {
       // Re-read the count in case another attack card was answered meanwhile
       const cur = combatant?.getFlag('vtm-v20', 'fullDefCount') || 0;
       pool = Math.max(baseFor(choice) - cur, 1);
+      poolFromTraits = true;
       if (combatant) await combatant.setFlag('vtm-v20', 'fullDefCount', cur + 1);
     }
 
@@ -1282,6 +1297,7 @@ export async function rollDefense(msg) {
       const wpen = defender.system.woundPenalty || 0;
       const ap = gearPenalty(defender);
       pool = Math.max(av + sv + wpen + ap, 1);
+      poolFromTraits = true;
     }
   }
 
@@ -1349,6 +1365,9 @@ export async function rollDefense(msg) {
 
   const sl = game.i18n.localize(`VTM.${def.skill.charAt(0).toUpperCase() + def.skill.slice(1)}`);
   const defContext = [];
+  if (poolFromTraits) {
+    for (const b of traitBoosts(defender, `attributes.${def.attr}`)) defContext.push(`${b.label} ${signed(b.value)}`);
+  }
   if (defBlinded) defContext.push('blinded +2 diff');
   if (defEncumbered) defContext.push('encumbered +1 diff');
   if (defMultiOpp) defContext.push(`outnumbered +${defMultiOpp} diff`);

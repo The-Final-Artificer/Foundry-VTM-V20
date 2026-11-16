@@ -1,7 +1,7 @@
 import { VTM } from './config.mjs';
 import { applyHealthDamage } from './combat.mjs';
 import { DISCIPLINES } from './compendiums.mjs';
-import { elderPowerAction } from './elder-powers.mjs';
+import { costWaiver, elderPowerAction } from './elder-powers.mjs';
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ItemSheetV2 } = foundry.applications.sheets;
@@ -492,7 +492,7 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           await special(actor, this.document, power);
           return;
         }
-        if (power.cost) {
+        if (power.cost && !costWaiver(this.document, key)) {
           const ok = await confirmAndSpend(actor, power.cost, power.name || this.document.name);
           if (!ok) return;
           await whisperActivation(actor, `${this.document.name}: ${power.name}`, null, power.cost, false);
@@ -695,7 +695,9 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           return;
         }
 
-        const ok = await confirmAndSpend(actor, power.cost, pName);
+        const waiver = costWaiver(this.document, key);
+        const cost = waiver ? '' : power.cost;
+        const ok = await confirmAndSpend(actor, cost, pName);
         if (!ok) return;
 
         if (weap) {
@@ -725,7 +727,7 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           return;
         }
 
-        await whisperActivation(actor, pName, null, power.cost);
+        await whisperActivation(actor, pName, waiver, cost);
       });
     });
   }

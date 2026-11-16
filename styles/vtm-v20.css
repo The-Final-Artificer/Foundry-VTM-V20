@@ -1345,28 +1345,6 @@ textarea#chat-message {
   text-decoration: line-through;
 }
 
-.vtm-v20 .soak-mini .soak-btn {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  background: var(--vtm-surface);
-  border: 1px solid var(--vtm-border);
-  border-radius: 3px;
-  color: var(--vtm-text);
-  line-height: 1;
-  text-indent: 0;
-}
-.vtm-v20 .soak-mini .soak-btn i {
-  margin: 0;
-  padding: 0;
-  width: auto;
-  text-align: center;
-}
 .vtm-v20 .soak-btn,
 .vtm-v20 .jump-btn {
   padding: 5px 12px;

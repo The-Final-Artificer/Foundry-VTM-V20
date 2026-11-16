@@ -1,6 +1,6 @@
 // Find an active player who owns this actor (prefer non-GM so dice match the player's theme)
 import { blindedDifficulty } from './status-effects.mjs';
-import { effectiveTraitValue, itemTraitBonus, potenceAutoSuccesses, usesStrengthTrait } from './discipline-effects.mjs';
+import { effectiveTraitValue, itemTraitBonus, naturalTraitValue, potenceAutoSuccesses, traitBoosts, usesStrengthTrait } from './discipline-effects.mjs';
 import { computeCarry } from './movement.mjs';
 
 const PHYSICAL_ATTRS = new Set(['attributes.strength', 'attributes.dexterity', 'attributes.stamina']);
@@ -142,14 +142,17 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   const baseDifficulty = Number(difficulty) || 6;
 
   const allTraits = {};
-  // Item bonuses show as their own line, so the trait values here stay clean of them
+  // Item bonuses and discipline dice show as their own lines, so the trait
+  // values here stay clean of them
   const itemBonusFor = k => (k ? itemTraitBonus(actor, k) : 0);
+  const boostsFor = k => (k ? traitBoosts(actor, k) : []);
+  const signedVal = n => (n > 0 ? `+${n}` : `${n}`);
   if (sys.attributes) {
     for (const k of Object.keys(sys.attributes)) {
       const path = `attributes.${k}`;
       allTraits[path] = {
         label: game.i18n.localize(`VTM.${k.charAt(0).toUpperCase() + k.slice(1)}`),
-        value: effectiveTraitValue(actor, path) - itemTraitBonus(actor, path), group: 'attributes'
+        value: naturalTraitValue(actor, path), group: 'attributes'
       };
     }
   }
@@ -213,7 +216,6 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   const shadowPlay = !!actor.getFlag('vtm-v20', 'shadowPlay');
   const isStealth = k => k === 'abilities.stealth';
   const isIntimidation = k => k === 'abilities.intimidation';
-  const shadowPlayPool = shadowPlay && (isStealth(trait) || isStealth(trait2) || isIntimidation(trait) || isIntimidation(trait2)) ? 1 : 0;
 
   const encumbered = isEncumbered(actor);
   const encumbranceDiff = encumbered && (PHYSICAL_ATTRS.has(trait) || PHYSICAL_ATTRS.has(trait2)) ? 1 : 0;
@@ -222,7 +224,7 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   if (unbalanced) dialogDifficulty = Math.min(dialogDifficulty + 1, 10);
 
   const dlgHtml = await renderTemplate('systems/vtm-v20/templates/roll-dialog.hbs', {
-    trait, trait2, label, difficulty: dialogDifficulty, woundPen, armorPen, blindedPenalty, wolfPerceptionBonus, batPerceptionBonus, shadowPlayPool, potenceAuto, encumbered, unbalanced,
+    trait, trait2, label, difficulty: dialogDifficulty, woundPen, armorPen, blindedPenalty, wolfPerceptionBonus, batPerceptionBonus, potenceAuto, encumbered, unbalanced,
     attrOpts: groupOpts('attributes'),
     abilOpts: groupOpts('abilities'),
     virtOpts: groupOpts('virtues'),
@@ -254,6 +256,10 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
             let parts = [];
             if (pri && allTraits[pri]) { total += allTraits[pri].value; parts.push(allTraits[pri].label); }
             if (sec && allTraits[sec]) { total += allTraits[sec].value; parts.push(allTraits[sec].label); }
+            for (const b of [...boostsFor(pri), ...boostsFor(sec)]) {
+              total += b.value;
+              parts.push(`${b.label} ${signedVal(b.value)}`);
+            }
             if (mod > 0) parts.push(`+${mod}`);
             else if (mod < 0) parts.push(`${mod}`);
             if (wp) parts.push(`wound ${wp}`);
@@ -286,13 +292,18 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
 
             let rollLabel = parts.join(' + ') || label;
             if (bloodCapped) rollLabel += ` | capped by blood pool (${actor.system.blood.value})`;
+            if (blindedPenalty && !selectedBlindedImmune) rollLabel += ` | blinded diff +${blindedPenalty}`;
+            // The shapes' sharper senses moved the difficulty, say so on the card
+            const perceiving = isPerception(pri) || isPerception(sec);
+            if (wolfForm && perceiving) rollLabel += ' | Wolf Form diff -2';
+            if (batForm && perceiving) rollLabel += ' | Bat Form diff -3';
             resolve({
               pool: total,
               difficulty: diff,
               specialty: spec,
               autoSuccesses: autoSucc,
               traits: [pri, sec].filter(Boolean),
-              label: blindedPenalty && !selectedBlindedImmune ? `${rollLabel} | blinded diff +${blindedPenalty}` : rollLabel,
+              label: rollLabel,
             });
           }
         },
@@ -331,6 +342,27 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
           };
           updItem();
           html.find('[name="primary"], [name="secondary"]').change(updItem);
+        }
+
+        // Discipline dice follow whichever traits are selected
+        const boostBox = html.find('.disc-boost-rows');
+        if (boostBox.length) {
+          // Own class on purpose: the wound and potence toggles below hide
+          // rows by class and would swallow these
+          const row = (name, val) => `<div class="form-group disc-boost-row"><label>${name}</label><span class="wound-pen-val">${val}</span></div>`;
+          const updBoosts = () => {
+            const picked = [html.find('[name="primary"]').val(), html.find('[name="secondary"]').val()];
+            const rows = [];
+            for (const k of picked) {
+              for (const b of boostsFor(k)) rows.push(row(`${b.label} (${allTraits[k]?.label ?? ''})`, signedVal(b.value)));
+            }
+            if (shadowPlay && picked.some(k => isStealth(k) || isIntimidation(k))) {
+              rows.push(row('Shadow Play (Stealth/Intimidation)', '+1'));
+            }
+            boostBox.html(rows.join(''));
+          };
+          updBoosts();
+          html.find('[name="primary"], [name="secondary"]').change(updBoosts);
         }
 
         // Willpower and Virtue rolls ignore wound penalties, so hide the row for them

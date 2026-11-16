@@ -8,6 +8,7 @@ import {
 } from './combat.mjs';
 import { confirmAndSpend, whisperActivation } from './item-sheet.mjs';
 import { hasStatus, FRENZY_STATUS_ID, CONTROLLED_FRENZY_STATUS_ID } from './status-effects.mjs';
+import { effectiveTraitValue } from './discipline-effects.mjs';
 
 async function enterFrenzy(actor, difficulty, note) {
   await actor.unsetFlag('vtm-v20', 'frenzyResist');
@@ -213,16 +214,119 @@ async function rollUnchainTheBeast(actor, item, power) {
   }
 }
 
+// The same two questions Horrid Reality asks: the player may cap the damage
+// or soften it to bashing before the dice are rolled
+function promptNightmare(title) {
+  const content = `
+    <div style="margin:6px 0">
+      <div class="form-group" style="margin-bottom:6px">
+        <label>Damage Type</label>
+        <select id="sn-dmg-type" style="width:100%">
+          <option value="lethal">Lethal</option>
+          <option value="bashing">Bashing</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Damage Limit (0 = no limit)</label>
+        <input id="sn-limit" type="number" value="0" min="0" max="20" style="width:100%" />
+      </div>
+    </div>`;
+  return new Promise(resolve => {
+    new Dialog({
+      title,
+      content,
+      buttons: {
+        roll: { icon: '<i class="fas fa-dice-d20"></i>', label: 'Roll', callback: dlg => resolve({
+          dmgType: dlg[0].querySelector('#sn-dmg-type').value,
+          limit: parseInt(dlg[0].querySelector('#sn-limit').value) || 0,
+        }) },
+      },
+      close: () => resolve(null),
+    }, { classes: ['vtm-v20', 'dialog'], width: 300 }).render(true);
+  });
+}
+
+// Shared Nightmare: Horrid Reality turned on a crowd. 2 WP plus one blood per
+// victim, then a single Man + Subterfuge roll read against each victim's own
+// Perception + Self-Control. Unsoakable, like the single-target power.
+async function rollSharedNightmare(actor, item, power) {
+  const tokens = Array.from(game.user.targets).filter(t => t.actor);
+  if (!tokens.length) {
+    ui.notifications.warn('Target the victims first.');
+    return;
+  }
+
+  const opts = await promptNightmare(power.name);
+  if (!opts) return;
+
+  // The 2 WP is what sets Horrid Reality in motion for the scene. With it
+  // already running, only the blood per victim is left to pay.
+  const running = actor.getFlag('vtm-v20', 'horridReality');
+  const cost = `${running ? '' : '2 Willpower, '}${tokens.length} blood`;
+  const ok = await confirmAndSpend(actor, cost, power.name);
+  if (!ok) return;
+  await whisperActivation(actor, `${item.name}: ${power.name}`,
+    `${tokens.length} victim${tokens.length > 1 ? 's' : ''}, 1 blood each.`, cost, false);
+
+  const manip = effectiveTraitValue(actor, 'attributes.manipulation');
+  const sub = effectiveTraitValue(actor, 'abilities.subterfuge');
+  const pool = Math.max(manip + sub, 1);
+  const roll = new Roll(`${pool}d10`);
+  await roll.evaluate();
+  await showDice(roll, actor);
+
+  // One set of dice, counted again at every victim's difficulty
+  for (const token of tokens) {
+    const victim = token.actor;
+    const perc = victim.system.attributes?.perception || 0;
+    const sc = victim.system.virtues?.selfControl || 0;
+    const difficulty = Math.min(Math.max(perc + sc, 3), 10);
+    const res = evalPool(roll, difficulty);
+    const dmg = opts.limit > 0 ? Math.min(res.total, opts.limit) : res.total;
+    if (dmg > 0) await applyWounds(victim, token, { amount: dmg, type: opts.dmgType });
+
+    const capped = dmg < res.total ? ` (limit ${opts.limit})` : '';
+    const html = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
+      actorImg: actor.img, actorName: actor.name,
+      portraitStyle: portraitStyle(actor),
+      targetImg: victim.img, targetPortraitStyle: portraitStyle(victim),
+      label: `${power.name} vs ${victim.name}`,
+      sublabel: `Man ${manip} + Sub ${sub} vs Perc ${perc} + SC ${sc}`,
+      pool, difficulty,
+      dice: res.dice, total: res.total, outcome: res.outcome,
+      hitLabel: dmg > 0 ? `${dmg} ${opts.dmgType} damage${capped}, no soak` : null,
+    });
+    await ChatMessage.create({
+      user: game.user.id,
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: html,
+      style: CONST.CHAT_MESSAGE_STYLES.OTHER,
+    });
+  }
+}
+
 const ELDER_ACTIONS = {
   'animalism:conquer the beast': rollConquerTheBeast,
   'animalism:taunt the caged beast': rollTauntCagedBeast,
   'animalism:unchain the beast': rollUnchainTheBeast,
+  'chimerstry:shared nightmare': rollSharedNightmare,
 };
 
 export function elderPowerAction(item, power) {
   if (item?.type !== 'discipline') return null;
   const key = `${(item.name || '').toLowerCase()}:${(power?.name || '').toLowerCase().trim()}`;
   return ELDER_ACTIONS[key] ?? null;
+}
+
+// Fatuus Mastery (Chimerstry 6): the first three levels cost no Willpower or
+// blood. Returns the note for the activation card, or null when the cost stands.
+export function costWaiver(item, key) {
+  if (item?.type !== 'discipline' || (item.name || '').toLowerCase() !== 'chimerstry') return null;
+  if (!['lvl1', 'lvl2', 'lvl3'].includes(key)) return null;
+  const lvl = Number(item.system.level) || 0;
+  const mastery = (item.system.elderPowers || [])
+    .some(p => p?.known && p.level <= lvl && (p.name || '').toLowerCase().trim() === 'fatuus mastery');
+  return mastery ? 'Fatuus Mastery: no cost.' : null;
 }
 
 // Taunt's resist button, bound from the chat render hook beside bindCombatButtons

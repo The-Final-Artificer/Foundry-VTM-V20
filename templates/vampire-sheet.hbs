@@ -129,11 +129,6 @@
       {{/each}}
     </div>
   </div>
-  <div class="status-block soak-mini">
-    <button type="button" class="soak-btn" title="Soak {{soakPool}} ({{soakLabel}})">
-      <i class="fas fa-shield-alt"></i>
-    </button>
-  </div>
   {{#if hasBlood}}
   <div class="status-block blood-mini">
     <label><i class="fas fa-tint"></i> Blood {{system.blood.value}}/{{system.blood.max}}{{#if hungry}} <span class="hunger-tag" title="Blood pool at or below 7 - {{hungerLabel}} ({{hungerThreshold}}). Hunger frenzy checks apply around blood.">Hungry</span>{{/if}}</label>

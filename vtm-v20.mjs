@@ -11,6 +11,7 @@ import { bindElderPowerButtons } from './module/elder-powers.mjs';
 import { registerInitiativeHooks, bindInitiativeSocketHandlers, renderInitiativeTracker } from './module/initiative.mjs';
 import { populateCompendiums, registerCompendiumSettings, WEAPONS } from './module/compendiums.mjs';
 import { registerAuthenticSettings } from './module/authentic-store.mjs';
+import { registerStatblockImport } from './module/statblock-import.mjs';
 import { AuthenticTextManager } from './module/authentic-manager.mjs';
 import { ChargenWizard } from './module/chargen.mjs';
 import { countDamage, rebuildTrack } from './module/health-track.mjs';
@@ -317,6 +318,7 @@ Hooks.once('init', () => {
   });
 
   registerCompendiumSettings();
+  registerStatblockImport();
   registerAuthenticSettings();
 
   game.settings.registerMenu('vtm-v20', 'authenticTextMenu', {

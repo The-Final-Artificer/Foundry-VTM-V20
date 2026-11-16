@@ -154,11 +154,19 @@ export function registerInitiativeHooks() {
   });
   Hooks.on('deleteCombat', combat => {
     if (!game.settings.get('vtm-v20', 'autoCombatMode')) return;
+    // Closed sheets count too: one left in Combat Mode would reopen that way
+    const sheets = new Set();
     for (const c of combat.combatants) {
-      const sheet = c.actor?.sheet;
-      if (sheet?.rendered && typeof sheet.exitCombatMode === 'function') {
-        sheet.exitCombatMode();
-      }
+      if (c.actor?.sheet) sheets.add(c.actor.sheet);
+    }
+    // Combatants removed mid-fight are off the list but may still be compact
+    for (const app of foundry.applications.instances.values()) {
+      if (app._compactAuto) sheets.add(app);
+    }
+    for (const sheet of sheets) {
+      if (typeof sheet.exitCombatMode !== 'function') continue;
+      if (sheet._inStartedCombat?.(combat)) continue;
+      sheet.exitCombatMode();
     }
   });
 }
@@ -251,6 +259,8 @@ async function beginDeclaration(combat) {
     const sheet = cb.actor.sheet;
     if (sheet) sheet.startDeclaration(combat, cb);
   }
+
+  if (first) promptDeclaration(combat, first);
 }
 
 // Advance to the next declarer
@@ -266,6 +276,10 @@ async function advanceDeclaration(combat) {
       turn: turnIdx,
       'flags.vtm-v20.currentDeclarer': next.id,
     });
+    // Whoever plays them gets the panel put in front of them. Someone who
+    // joined after the phase began has no other way to receive one, and
+    // without it nobody is the active declarer.
+    promptDeclaration(combat, next);
   } else {
     await beginResolution(combat);
   }
