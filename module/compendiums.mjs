@@ -1369,7 +1369,7 @@ const NPC_TEMPLATES = [
       willpower: { value: 9, max: 9 },
       humanity: 7,
       bio: `<p><b>Humanity:</b> anywhere from 5 to 10; the Society's hunters come both saintly and cruel.</p>
-<p><b>Note:</b> Some Inquisitors carry True Faith 1 or higher, most often those at Humanity 9 or above.</p>
+<p><b>Note:</b> Some Inquisitors carry True Faith 1 or higher, most often those at Humanity 9 or above. You can find True Faith in the merits compendium.</p>
 <p><b>Equipment:</b> Sword-cane, rosaries, crucifix, stakes, Bible, propane torch.</p>`,
     },
     flags: { 'vtm-v20': { specialties: {
@@ -1493,7 +1493,7 @@ const NPC_TEMPLATES = [
   },
 ];
 
-const COMPENDIUM_VERSION = 73;
+const COMPENDIUM_VERSION = 74;
 
 export { DISCIPLINES, BACKGROUNDS, MERITS, FLAWS, RITUAL_CATEGORIES };
 

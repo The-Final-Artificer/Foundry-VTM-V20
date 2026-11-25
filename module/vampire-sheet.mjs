@@ -1,5 +1,5 @@
 import { VTM } from './config.mjs';
-import { showDice, promptRollAdjust, gearPenalty } from './dice.mjs';
+import { showDice, postRollCard, promptRollAdjust, gearPenalty } from './dice.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
 import { ChargenWizard } from './chargen.mjs';
 import { applyHealthDamage, checkIncapacitated, combatantFor, computeSoakPool, finalDamageAfterSoak, getCondition, clinchInflictDamage, clinchEscape, holdEscape, standUp } from './combat.mjs';
@@ -9,7 +9,7 @@ import { importStatBlockDialog } from './statblock-import.mjs';
 import { archetypeInfo } from './archetypes-data.mjs';
 import { archetypeAuthentic, clanAuthentic, traitAuthentic } from './authentic-store.mjs';
 import { clanWeaknessInfo, clanItemInfo, clanOptions } from './clan-weaknesses.mjs';
-import { disciplineLevel, physicalLevel, isDisciplineActive, potenceLevel, potenceAutoSuccesses, celerityLevel, celerityRawMode, effectiveTraitValue, effectiveStrength, usesStrengthTrait } from './discipline-effects.mjs';
+import { disciplineLevel, physicalLevel, isDisciplineActive, potenceLevel, potenceAutoSuccesses, celerityLevel, celerityRawMode, effectiveTraitValue, effectiveStrength, faithLevel, usesStrengthTrait } from './discipline-effects.mjs';
 import { exportSheet } from './sheet-export.mjs';
 import { promptElderChoice } from './item-sheet.mjs';
 import { computeCarry } from './movement.mjs';
@@ -165,6 +165,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _compactAuto = false;
   _fullSize = null;
   _pendingSize = null;
+  _foldSize = null;
+  _unfolding = false;
   _chargen = null;
   _closingChargen = false;
   _fadeInAfterChargen = false;
@@ -188,6 +190,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _resSpent = new Map();
   _resTurnDone = false;
   _resBloodSpent = 0;
+  _repriceQueue = null;
+  _repriceTimer = null;
   _targetingChoice = 'medium';
   _targetingHeadshot = false;
   _targetingDrawer = null;
@@ -270,10 +274,14 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const items = Array.from(actor.items);
     const potAuto = potenceAutoSuccesses(actor);
+    // True Faith sits in this list for its dots and level texts, but it is
+    // no blood power: no activation, and it sleeps below Humanity 9
+    const isFaith = d => d.name.toLowerCase() === 'true faith';
     ctx.disciplines = items.filter(i => i.type === 'discipline').sort((a, b) => a.sort - b.sort).map(d => ({
       _id: d._id, name: d.name, img: d.img, system: d.system,
-      activatable: true,
+      activatable: !isFaith(d),
       active: isDisciplineActive(actor, d.name),
+      dormant: isFaith(d) && (sys.humanity ?? 0) < 9,
     }));
     ctx.backgrounds = items.filter(i => i.type === 'background').sort((a, b) => a.sort - b.sort);
 
@@ -1051,8 +1059,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // Sizes decided while the window was closed land now that it has an element
     if (this._pendingSize) {
       const size = this._pendingSize;
-      this._pendingSize = null;
-      requestAnimationFrame(() => this.setPosition(size));
+      // A sheet closed while folded still counts as minimized to core, which
+      // unfolds it to its old folded-away size about a second from now.
+      // The size stays pending so maximize() can put it back after that.
+      if (!this.minimized) this._pendingSize = null;
+      requestAnimationFrame(() => { if (this.rendered) this.setPosition(size); });
     }
   }
 
@@ -1572,6 +1583,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const result = await game.vtm.rollDicePool(this.document, {
           trait: 'attributes.dexterity', trait2: skill,
           label, difficulty: action.actionDifficulty || 6,
+          open: true,
         });
         if (actionId === 'get-up' && result?.outcome === 'success') await standUp(this.document);
       }));
@@ -2035,27 +2047,46 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _rememberFullSize() {
     const isCompact = s => s?.width === COMPACT_SIZE.width && s?.height === COMPACT_SIZE.height;
     if (this._fullSize && !isCompact(this._fullSize)) return;
-    const { width, height } = this._pendingSize ?? this.position;
+    // position can't be trusted on a folded window: any setPosition call
+    // there clamps the stored size down to the pill
+    const { width, height } = this._pendingSize ?? (this.minimized ? this._foldSize : null) ?? this.position;
     this._fullSize = isCompact({ width, height }) ? this._defaultSize() : { width, height };
   }
 
-  // setPosition only sticks on an open, unfolded window: a minimized one
-  // restores its pre-fold size on maximize and a closed one has no element,
-  // so those get the size once they are back
+  // setPosition only sticks on an open, settled window. A folded one gets
+  // core's own idea of its size back when it unfolds and a closed one has no
+  // element, so there the size waits in _pendingSize until the window is back.
   _applySize(size) {
-    if (this.rendered && !this.minimized) return void this.setPosition(size);
-    this._pendingSize = size;
+    const open = this.rendered && !this.minimized;
+    if (open) this.setPosition(size);
+    if (!open || this._unfolding) this._pendingSize = size;
     if (!this.rendered) {
       try { Object.assign(this.position, size); } catch { /* applied on next open */ }
     }
   }
 
+  async minimize() {
+    if (this.rendered && !this.minimized) {
+      const { width, height } = this._pendingSize ?? this.position;
+      this._foldSize = { width, height };
+    }
+    return super.minimize();
+  }
+
+  // Core ends every unfold by restoring the on-screen size it measured when
+  // the window was folded. That is stale if Combat Mode flipped in between,
+  // drifts on a zoomed sheet, and a sheet closed while folded still counts as
+  // minimized, so core "unfolds" it about a second after it reopens. In every
+  // case the size the sheet is meant to have goes back on afterwards.
   async maximize() {
-    await super.maximize();
-    if (!this._pendingSize) return;
-    const size = this._pendingSize;
+    const folded = this.minimized;
+    if (folded) this._unfolding = true;
+    try { await super.maximize(); }
+    finally { if (folded) this._unfolding = false; }
+    if (this._unfolding || !this.rendered || this.minimized) return;
+    const size = this._pendingSize ?? (folded ? this._foldSize : null);
     this._pendingSize = null;
-    this.setPosition(size);
+    if (size) this.setPosition(size);
   }
 
   // Same as clicking the header's Combat Mode crosshairs, callable by hooks
@@ -3281,7 +3312,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     return { dice, total: Math.max(successes, 0), outcome };
   }
 
-  async _emitRollCard(actor, { roll, label, pool, difficulty, dice, total, outcome, extra = '', ledgeBtn = false, flags = {}, autoSuccesses = 0, autoLabel = '', diceTotal = 0 }) {
+  async _emitRollCard(actor, { roll, label, pool, difficulty, dice, total, outcome, extra = '', ledgeBtn = false, flags = {}, autoSuccesses = 0, autoLabel = '', diceTotal = 0, open = false }) {
     const pFlags = actor.getFlag('vtm-v20', 'portrait') || {};
     let portraitStyle = '';
     if ((pFlags.scale ?? 1) > 1 || pFlags.offX || pFlags.offY) {
@@ -3297,14 +3328,13 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       autoSuccesses, autoLabel, diceTotal,
     });
 
-    await showDice(roll, actor);
-    await ChatMessage.create({
+    await postRollCard(roll, actor, {
       user: game.user.id,
       speaker: ChatMessage.getSpeaker({ actor }),
       content: chatHtml,
       style: CONST.CHAT_MESSAGE_STYLES.OTHER,
       flags,
-    });
+    }, { open });
   }
 
   _attackTraitOptions(selected = '', allowBlank = false) {
@@ -3785,6 +3815,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         alloc: 1,
       };
       if (rollData.source) action.source = rollData.source;
+      // Kept so a blood raise during resolution knows whether this pool moves
+      if (rollData.traits?.length) action.traits = rollData.traits;
       this._declActions.push(action);
       this.render();
       ui.notifications.info(`Captured: ${rollData.label} (pool ${rollData.pool})`);
@@ -4123,6 +4155,115 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await combatant.setFlag('vtm-v20', 'declaration', { ...decl, actions, totalPool: newTotal, basePool: newTotal });
   }
 
+  // Lowest pool among the actions sharing a split, the number V20 p. 248 has
+  // you divide. `only` narrows it to part of the declaration.
+  _lowestPool(actions, only = null) {
+    let low = Infinity;
+    actions.forEach((a, i) => {
+      if (a.heal || a.aborted || (only && !only.has(i))) return;
+      const p = this._declPoolForAction(a);
+      if (p !== undefined && p < low) low = p;
+    });
+    return isFinite(low) ? low : 0;
+  }
+
+  // RAW Celerity extras sit outside the split, and that mode only prices the
+  // split from actions not rolled yet
+  _splitLow(combatant, decl) {
+    if (!decl.celerityRaw) return this._lowestPool(decl.actions);
+    const extras = new Set((combatant.getFlag('vtm-v20', 'deferred') || []).map(e => e.idx));
+    const only = new Set(decl.actions.map((a, i) => i).filter(i => !extras.has(i) && !this._resExecuted.has(i)));
+    return this._lowestPool(decl.actions, only);
+  }
+
+  // Null when there is no declaration being resolved to reprice
+  _splitLowNow() {
+    const combatant = this._resCombat ? this._resCombatant : null;
+    const decl = combatant?.getFlag('vtm-v20', 'declaration');
+    if (!decl?.actions?.length || decl.fullDefense || decl.basePool === undefined) return null;
+    return this._splitLow(combatant, decl);
+  }
+
+  // Blood clicks come in bursts (Dexterity up by two or three). They settle
+  // into one reprice, so the player places the new dice once and two windows
+  // never overwrite each other.
+  _queueReprice(attr, step, lowBefore) {
+    const q = this._repriceQueue ??= { low: lowBefore, steps: {} };
+    q.steps[attr] = (q.steps[attr] || 0) + step;
+    clearTimeout(this._repriceTimer);
+    this._repriceTimer = setTimeout(() => this._flushReprice(), 600);
+  }
+
+  async _flushReprice() {
+    clearTimeout(this._repriceTimer);
+    const q = this._repriceQueue;
+    this._repriceQueue = null;
+    if (q) await this._repriceDeclaration(q.steps, q.low);
+  }
+
+  // Blood moved attributes after the declaration was priced. Only a change
+  // in the lowest pool changes the split budget, so a raise that leaves the
+  // lowest pool alone adds nothing. `steps` is dots moved per attribute and
+  // lowBefore the lowest pool from before any of them.
+  async _repriceDeclaration(steps, lowBefore) {
+    const combatant = this._resCombatant;
+    const decl = combatant?.getFlag('vtm-v20', 'declaration');
+    if (!decl?.actions?.length) return;
+
+    // Captured rolls are stored as a bare number of dice; the ones built on
+    // a moved attribute move with it
+    let touched = false;
+    const actions = decl.actions.map(a => {
+      const step = (a.traits || []).reduce((n, t) => n + (steps[t.split('.')[1]] || 0), 0);
+      if (!a.pool || a.aborted || !step) return a;
+      touched = true;
+      return { ...a, pool: Math.max(a.pool + step, 1) };
+    });
+    const priced = { ...decl, actions };
+    const delta = this._splitLow(combatant, priced) - lowBefore;
+
+    if (decl.celerityRaw) return this._repriceRawTurn(combatant, priced, delta, touched);
+
+    const celOn = decl.celerityCap != null;
+    const cel = celOn ? celerityLevel(this.document) : 0;
+    const worth = base => base + (celOn ? Math.floor(base / 2) * cel : 0);
+    const newBase = decl.basePool + delta;
+    const newTotal = Math.max(decl.totalPool + worth(newBase) - worth(decl.basePool), 1);
+    const newCap = celOn ? Math.max(decl.celerityCap + delta, 1) : null;
+    const gain = newTotal - decl.totalPool;
+    priced.basePool = newBase;
+
+    const free = actions.map((a, i) => i).filter(i => !actions[i].heal && !actions[i].aborted && !this._resExecuted.has(i));
+    if (!gain || !free.length || (gain > 0 && free.length === 1)) {
+      // One action left takes the new dice by itself, nothing to choose
+      if (gain > 0 && free.length) {
+        const a = actions[free[0]];
+        actions[free[0]] = { ...a, alloc: Math.min((a.alloc || 0) + gain, newCap ?? Infinity) };
+      }
+      if (delta || touched) {
+        await combatant.setFlag('vtm-v20', 'declaration', { ...priced, totalPool: newTotal, celerityCap: newCap });
+        this.render();
+      }
+      return;
+    }
+    await this._promptReallocation(combatant, priced, newTotal, newCap, { reason: 'attribute' });
+  }
+
+  // RAW Celerity turn: extras reread their own full pool and a lone regular
+  // action follows by itself; a regular group of several gets to place a gain
+  async _repriceRawTurn(combatant, priced, delta, touched) {
+    if (touched) await combatant.setFlag('vtm-v20', 'declaration', priced);
+    await this._rawRecomputeAllocs(combatant);
+    const decl = combatant.getFlag('vtm-v20', 'declaration') || {};
+    const extras = new Set((combatant.getFlag('vtm-v20', 'deferred') || []).map(e => e.idx));
+    const regular = (decl.actions || []).filter((a, i) => !a.heal && !a.aborted && !extras.has(i) && !this._resExecuted.has(i));
+    if (delta > 0 && regular.length > 1) {
+      const total = decl.totalPool + delta;
+      return this._promptReallocation(combatant, { ...decl, basePool: total }, total, null, { reason: 'attribute', fixed: extras });
+    }
+    this.render();
+  }
+
   async _promptReallocation(combatant, decl, newTotal, newCap = null, opts = {}) {
     const actions = decl.actions || [];
     // After an abort decl.totalPool is already the new value, so the caller
@@ -4130,8 +4271,12 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const oldTotal = opts.oldTotal ?? decl.totalPool;
     const diff = oldTotal - newTotal;
 
+    // Actions a caller pins keep their dice out of the pot being redistributed
+    const fixed = opts.fixed ?? new Set();
+    const pinnedDice = [...fixed].reduce((s, i) =>
+      s + ((this._resExecuted.has(i) || actions[i]?.aborted) ? 0 : (actions[i]?.alloc || 0)), 0);
     const lockedDice = this._resSpentTotal();
-    const budget = Math.max(newTotal - lockedDice, 0);
+    const budget = Math.max(newTotal - lockedDice - pinnedDice, 0);
 
     const entries = actions.map((a, i) => {
       let name = a.text || 'Action';
@@ -4140,9 +4285,10 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const resolved = this._getAttackById(a.attackId);
         if (resolved?.name) name = resolved.name;
       }
-      const executed = this._resExecuted.has(i) || !!a.aborted;
+      const pinned = fixed.has(i) && !this._resExecuted.has(i) && !a.aborted;
+      const executed = this._resExecuted.has(i) || !!a.aborted || pinned;
       const spent = this._resSpent.get(i) || 0;
-      return { i, name, alloc: a.alloc || 1, executed, spent };
+      return { i, name, alloc: a.alloc || 1, executed, spent, pinned };
     });
 
     let freeEntries = entries.filter(e => !e.executed);
@@ -4245,7 +4391,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     let inputsHtml = '';
     for (const e of entries) {
       if (e.executed || abortedSet.has(e.i)) {
-        const label = abortedSet.has(e.i) ? 'Dropped' : `${e.spent}d (used)`;
+        const label = abortedSet.has(e.i) ? 'Dropped' : e.pinned ? `${e.alloc}d (fixed)` : `${e.spent}d (used)`;
         inputsHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;opacity:0.5;">
           <span>${e.name}</span><span>${label}</span></div>`;
       } else {
@@ -4260,7 +4406,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       new Dialog({
         title: `${this.document.name}: Reallocate Dice`,
         content: `<div style="margin:6px 0;color:#ddd;">
-          <p>${opts.reason === 'abort' ? 'Aborted to defense!' : 'Wound penalty changed!'} Pool ${
+          <p>${opts.reason === 'abort' ? 'Aborted to defense!' : opts.reason === 'attribute' ? 'Attributes changed!' : 'Wound penalty changed!'} Pool ${
             diff > 0 ? `reduced from <b>${oldTotal}</b> to <b>${newTotal}</b> (-${diff})`
             : diff < 0 ? `increased from <b>${oldTotal}</b> to <b>${newTotal}</b> (+${-diff})`
             : `recalculated to <b>${newTotal}</b>`}.</p>
@@ -4390,6 +4536,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   async _executeResActionInner(idx, adjust = false) {
     if (isNaN(idx) || this._resExecuted.has(idx) || !this._resCombatant) return;
+    // A blood raise from a moment ago has to be in the pools before they roll
+    await this._flushReprice();
     const deferredIdx = this._myDeferredIdx();
     const isDeferredSlot = deferredIdx === idx;
     if (!this._isMyResTurn() && !isDeferredSlot) {
@@ -4865,9 +5013,11 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const limitNote = opts.limit > 0 ? ` (limit: ${opts.limit})` : '';
     const label = `Horrid Reality vs ${target.name} | Man ${manip} + Sub ${sub} | diff ${difficulty} (Perc ${tPerc} + SC ${tSC})`;
+    // An attack on someone: stays public like the other combat cards
     await this._emitRollCard(actor, {
       roll, label, pool, difficulty, dice, total, outcome,
       extra: `${dmg} ${opts.dmgType} damage${limitNote}, no soak`,
+      open: true,
     });
   }
 
@@ -5039,35 +5189,47 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
     }
 
-    // Add toggle button to Attributes heading (disabled during declaration)
+    // Add toggle button to Attributes heading (disabled in a fight until the
+    // character's own turn)
     const strRow = el.querySelector('.dot-row[data-path="system.attributes.strength"]');
     const attrBlock = strRow?.closest('.section-block');
     if (!attrBlock) return;
     const h2 = attrBlock.querySelector('h2');
     if (!h2 || h2.querySelector('.blood-buff-toggle')) return;
 
-    const inDecl = !!this._declCombat;
+    const blocked = this._enhanceBlock();
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `blood-buff-toggle${this._bloodBuffOpen ? ' active' : ''}${hasAnyBuff ? ' has-buffs' : ''}`;
-    btn.title = inDecl ? 'Cannot enhance during declaration' : 'Enhance Physical Attributes';
-    btn.disabled = inDecl;
+    btn.title = blocked || 'Enhance Physical Attributes';
+    btn.disabled = !!blocked;
     btn.innerHTML = '<i class="fas fa-tint"></i>';
     btn.addEventListener('click', () => {
-      if (this._declCombat) return;
+      if (this._enhanceBlock()) return;
       this._bloodBuffOpen = !this._bloodBuffOpen;
       btn.classList.toggle('active', this._bloodBuffOpen);
       this._syncBloodBuffDrawer();
     });
     h2.appendChild(btn);
 
-    // Close drawer if we entered declaration
-    if (inDecl && this._bloodBuffOpen) {
+    // Close the drawer once the window to enhance has passed
+    if (blocked && this._bloodBuffOpen) {
       this._bloodBuffOpen = false;
       if (this._bloodBuffDrawer) this._bloodBuffDrawer.classList.remove('open');
     }
 
     this._syncBloodBuffDrawer();
+  }
+
+  // Out of combat blood can pump attributes at any time. In a fight it is
+  // spent on the character's own resolution turn, deferred slots included.
+  // Returns why not, or null when it is allowed.
+  _enhanceBlock() {
+    const combat = game.combat;
+    if (!combat?.started || !combatantFor(combat, this.document)) return null;
+    if (combat.getFlag('vtm-v20', 'phase') === 'declaration') return 'Cannot enhance during declaration';
+    if (this._isMyResTurn() || this._myDeferredIdx() !== null) return null;
+    return 'You can only enhance on your own turn';
   }
 
   _syncBloodBuffDrawer() {
@@ -5234,6 +5396,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const current = buffs[attr] || 0;
     const total = base + current;
 
+    const blocked = this._enhanceBlock();
+    if (blocked) return ui.notifications.warn(`${blocked}.`);
     if (total >= 10) return ui.notifications.warn('Cannot exceed 10.');
     if ((sys.blood?.value || 0) < 1) return ui.notifications.warn('No blood to spend.');
 
@@ -5242,11 +5406,13 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return ui.notifications.warn(`No blood budget left this turn.`);
     }
 
+    const lowBefore = this._splitLowNow();
     this._playHealAnimation();
     buffs[attr] = current + 1;
     await actor.update({ 'system.blood.value': (sys.blood.value || 0) - 1 });
     await actor.setFlag('vtm-v20', 'bloodBuffs', buffs);
     if (inCombat) this._resBloodSpent++;
+    if (lowBefore !== null) this._queueReprice(attr, 1, lowBefore);
 
     // Track when blood was last spent on an overflow attribute
     const freeLimit = (sys.traitMax || 5) + 1;
@@ -5261,6 +5427,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const actor = this.document;
     const buffs = foundry.utils.deepClone(actor.getFlag('vtm-v20', 'bloodBuffs') || {});
     if (!buffs[attr]) return;
+    const lowBefore = this._splitLowNow();
     buffs[attr] -= 1;
 
     // Clean up decay tracking if no longer in overflow
@@ -5287,6 +5454,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     } else {
       await actor.setFlag('vtm-v20', 'bloodBuffs', buffs);
     }
+    if (lowBefore !== null) this._queueReprice(attr, -1, lowBefore);
   }
 
   // -- Healing with blood --------------------------------------------------
@@ -6365,6 +6533,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     let hCapped = false;
     const hum = actor.system.humanity ?? 10;
     if (pool > hum) { pool = hum; hCapped = true; }
+    const faith = faithLevel(actor);
+    pool += faith;
     let capped = false;
     const bp = actor.system.blood?.value || 0;
     if (bp < pool) { pool = bp; capped = true; }
@@ -6377,7 +6547,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       : total > 0 ? 'Rides the wave: this action is taken consciously.'
       : 'The Beast does as it pleases.';
     await this._emitRollCard(actor, {
-      roll, label: `Ride the Wave (${label}${hCapped ? ', capped by Humanity' : ''}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`,
+      roll, label: `Ride the Wave (${label}${faith ? `, True Faith +${faith}` : ''}${hCapped ? ', capped by Humanity' : ''}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''})`,
       pool, difficulty, dice, total, outcome, extra,
     });
   }
@@ -6536,6 +6706,8 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     let hCapped = false;
     const hum = actor.system.humanity ?? 10;
     if (pool > hum) { pool = hum; hCapped = true; }
+    const faith = faithLevel(actor);
+    pool += faith;
     let capped = false;
     if (!ghoul) {
       const bp = actor.system.blood?.value || 0;
@@ -6546,7 +6718,7 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
     const { dice, total, outcome } = this._tallyDice(roll, difficulty);
-    const label = `Resist Frenzy: ${provLabel} (${scLabel}${hCapped ? ', capped by Humanity' : ''}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''}${ghoul ? ', ghoul -3 diff' : ''})`;
+    const label = `Resist Frenzy: ${provLabel} (${scLabel}${faith ? `, True Faith +${faith}` : ''}${hCapped ? ', capped by Humanity' : ''}${capped ? ', capped by blood' : ''}${brujah ? ', Brujah +2 diff' : ''}${ghoul ? ', ghoul -3 diff' : ''})`;
 
     if (outcome === 'botch') {
       await this._emitRollCard(actor, { roll, label, pool, difficulty, dice, total: 0, outcome, extra: 'Botch! The Beast takes the wheel.' });
@@ -6634,12 +6806,13 @@ export class VampireSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const courage = actor.system.virtues?.courage || 0;
     const hum = actor.system.humanity ?? 10;
     const hCapped = courage > hum;
-    const pool = Math.max(Math.min(courage, hum), 1);
+    const faith = faithLevel(actor);
+    const pool = Math.max(Math.min(courage, hum) + faith, 1);
 
     const roll = new Roll(`${pool}d10`);
     await roll.evaluate();
     const { dice, total, outcome } = this._tallyDice(roll, difficulty);
-    const label = `R\u00f6tschreck: ${provLabel} (Courage${hCapped ? ', capped by Humanity' : ''})`;
+    const label = `R\u00f6tschreck: ${provLabel} (Courage${faith ? `, True Faith +${faith}` : ''}${hCapped ? ', capped by Humanity' : ''})`;
 
     if (outcome === 'botch') {
       await this._emitRollCard(actor, { roll, label, pool, difficulty, dice, total: 0, outcome, extra: 'Botch! The Red Fear boils over into frenzy.' });

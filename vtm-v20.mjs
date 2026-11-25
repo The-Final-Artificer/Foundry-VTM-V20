@@ -8,6 +8,9 @@ import { VtmItemSheet } from './module/item-sheet.mjs';
 import { rollDicePool, promptChatRoll } from './module/dice.mjs';
 import { rollAttack, bindCombatButtons, bindCombatSocketHandlers, clearClinchForActor, clearHoldForActor } from './module/combat.mjs';
 import { bindElderPowerButtons } from './module/elder-powers.mjs';
+import { bindTentacleSocketHandlers } from './module/tentacles.mjs';
+import { TentacleSheet, registerTentacleHooks } from './module/tentacle-sheet.mjs';
+import { bindFaithButtons, registerTrueFaith, syncTrueFaith } from './module/true-faith.mjs';
 import { registerInitiativeHooks, bindInitiativeSocketHandlers, renderInitiativeTracker } from './module/initiative.mjs';
 import { populateCompendiums, registerCompendiumSettings, WEAPONS } from './module/compendiums.mjs';
 import { registerAuthenticSettings } from './module/authentic-store.mjs';
@@ -312,6 +315,15 @@ Hooks.once('init', () => {
     label: 'VTM.SheetVampire'
   });
 
+  // Never the default: only actors flagged for it open with this sheet
+  Actors.registerSheet('vtm-v20', TentacleSheet, {
+    types: ['mortal'],
+    makeDefault: false,
+    label: 'Arm of the Abyss'
+  });
+  registerTentacleHooks();
+  registerTrueFaith();
+
   Items.registerSheet('vtm-v20', VtmItemSheet, {
     makeDefault: true,
     label: 'VTM.SheetItem'
@@ -484,6 +496,7 @@ Hooks.once('init', () => {
     'systems/vtm-v20/templates/resisted-card.hbs',
     'systems/vtm-v20/templates/falling-card.hbs',
     'systems/vtm-v20/templates/chargen.hbs',
+    'systems/vtm-v20/templates/tentacle-sheet.hbs',
   ]);
 });
 
@@ -491,6 +504,8 @@ Hooks.once('ready', () => {
   populateCompendiums();
   bindCombatSocketHandlers();
   bindInitiativeSocketHandlers();
+  bindTentacleSocketHandlers();
+  syncTrueFaith();
 
   // One-time: token bars bound to blood switch to the movement rate
   if (game.user.isGM && !game.settings.get('vtm-v20', 'movementBarMigrated')) {
@@ -812,6 +827,7 @@ Hooks.on('renderTokenHUD', (hud, html) => {
 Hooks.on('renderChatMessageHTML', (msg, html) => {
   bindCombatButtons(msg, html);
   bindElderPowerButtons(msg, html);
+  bindFaithButtons(msg, html);
 });
 
 // Wire the "Catch a Ledge" button on a failed jump card

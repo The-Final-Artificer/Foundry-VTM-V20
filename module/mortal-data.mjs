@@ -106,6 +106,8 @@ export class MortalData extends foundry.abstract.TypeDataModel {
     }
     this.rawWoundPenalty = this.woundPenalty;
     if (this.parent?.getFlag('vtm-v20', 'wpIgnoreWounds')) this.woundPenalty = 0;
+    // Arms of the Abyss borrow this type: shadow has no pain to slow it
+    if (this.parent?.getFlag('vtm-v20', 'tentacle')) this.woundPenalty = 0;
 
     if (this.parent) this.movement = computeMovement(this.parent);
   }

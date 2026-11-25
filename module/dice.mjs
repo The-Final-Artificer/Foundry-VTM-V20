@@ -1,6 +1,6 @@
 // Find an active player who owns this actor (prefer non-GM so dice match the player's theme)
 import { blindedDifficulty } from './status-effects.mjs';
-import { effectiveTraitValue, itemTraitBonus, naturalTraitValue, potenceAutoSuccesses, traitBoosts, usesStrengthTrait } from './discipline-effects.mjs';
+import { effectiveTraitValue, faithLevel, itemTraitBonus, naturalTraitValue, potenceAutoSuccesses, traitBoosts, usesStrengthTrait } from './discipline-effects.mjs';
 import { computeCarry } from './movement.mjs';
 
 const PHYSICAL_ATTRS = new Set(['attributes.strength', 'attributes.dexterity', 'attributes.stamina']);
@@ -43,6 +43,23 @@ export async function showDice(roll, actor, rollMode = null) {
     whisper = [game.user.id];
   }
   await game.dice3d.showForRoll(roll, getOwner(actor), true, whisper, blind);
+}
+
+// Posts a dice card under the roll mode picked in the chat sidebar. A public
+// roll goes out exactly as it always did. Any other mode attaches the roll,
+// which is what makes Foundry treat the card as one: the right people see
+// it, everyone else gets the "rolled privately" notice, and Dice So Nice
+// follows the same visibility on its own. `open` keeps a card public no
+// matter the mode, for rolls other players have to react to.
+export async function postRollCard(roll, actor, msgData, { open = false } = {}) {
+  const mode = open ? CONST.DICE_ROLL_MODES.PUBLIC : game.settings.get('core', 'rollMode');
+  if (!roll || mode === CONST.DICE_ROLL_MODES.PUBLIC) {
+    if (roll) await showDice(roll, actor);
+    return ChatMessage.create(msgData);
+  }
+  msgData.rolls = [roll];
+  ChatMessage.applyRollMode(msgData, mode);
+  return ChatMessage.create(msgData);
 }
 
 // Right-click adjustment dialog for rolls whose pool is already fixed (combat
@@ -104,7 +121,7 @@ export async function promptRollAdjust({ title = 'Adjust Roll', pool, poolLabel 
   });
 }
 
-export async function rollDicePool(actor, { trait, trait2, label, pool, difficulty = 6, poolMod = 0, poolOverride = null, poolNote = '', adjust = false } = {}) {
+export async function rollDicePool(actor, { trait, trait2, label, pool, difficulty = 6, poolMod = 0, poolOverride = null, poolNote = '', adjust = false, open = false } = {}) {
   // Resolution shortcut: skip dialog/capture, roll with the given pool directly.
   // Everything after this block (roll, tally, chat card) still runs normally.
   let result;
@@ -147,6 +164,9 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
   const itemBonusFor = k => (k ? itemTraitBonus(actor, k) : 0);
   const boostsFor = k => (k ? traitBoosts(actor, k) : []);
   const signedVal = n => (n > 0 ? `+${n}` : `${n}`);
+  // True Faith: a die per dot on Willpower and Virtue rolls, once per roll
+  const faith = faithLevel(actor);
+  const faithTrait = k => k === 'willpower' || (k || '').startsWith('virtues.');
   if (sys.attributes) {
     for (const k of Object.keys(sys.attributes)) {
       const path = `attributes.${k}`;
@@ -260,6 +280,10 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
               total += b.value;
               parts.push(`${b.label} ${signedVal(b.value)}`);
             }
+            if (faith && (faithTrait(pri) || faithTrait(sec))) {
+              total += faith;
+              parts.push(`True Faith +${faith}`);
+            }
             if (mod > 0) parts.push(`+${mod}`);
             else if (mod < 0) parts.push(`${mod}`);
             if (wp) parts.push(`wound ${wp}`);
@@ -359,6 +383,7 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
             if (shadowPlay && picked.some(k => isStealth(k) || isIntimidation(k))) {
               rows.push(row('Shadow Play (Stealth/Intimidation)', '+1'));
             }
+            if (faith && picked.some(faithTrait)) rows.push(row('True Faith', `+${faith}`));
             boostBox.html(rows.join(''));
           };
           updBoosts();
@@ -482,13 +507,13 @@ export async function rollDicePool(actor, { trait, trait2, label, pool, difficul
     autoSuccesses: autoSucc, autoLabel, diceTotal, poolNote,
   });
 
-  await showDice(roll, actor);
-  await ChatMessage.create({
+  // An action resolved in a fight is a combat roll: those never hide
+  await postRollCard(roll, actor, {
     user: game.user.id,
     speaker: ChatMessage.getSpeaker({ actor }),
     content: chatHtml,
     style: CONST.CHAT_MESSAGE_STYLES.OTHER,
-  });
+  }, { open: open || poolOverride !== null });
 
   return { total, outcome, dice };
 }

@@ -61,4 +61,14 @@
     </button>
   </div>
   {{/if}}
+
+  {{#if resistBtns}}
+  <div class="combat-actions">
+    {{#each resistBtns}}
+    <button type="button" class="{{this.cls}}">
+      <i class="fas {{this.icon}}"></i> {{this.label}}
+    </button>
+    {{/each}}
+  </div>
+  {{/if}}
 </div>

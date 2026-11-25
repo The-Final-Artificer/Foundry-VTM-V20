@@ -24,7 +24,10 @@ const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&
 
 const JUNK = [
   /VAMPIRE\s+THE\s+MASQUERADE\s+20th\s+ANNIVERSARY\s+EDITION\s+\d{1,4}/g,
-  /\d{1,4}\s+CHAPTER\s+[A-Z]+:(?:\s+[A-Z]+)+/g,
+  // Title words are all capitals. A lone capital only counts when another
+  // title word follows, or the footer would eat the first letter of a
+  // sentence starting right after it ("... THE OTHERS In theory").
+  /\d{1,4}\s+CHAPTER\s+[A-Z]+:(?:\s+(?:[A-Z]{2,}|[A-Z](?=\s+[A-Z]{2,})))+/g,
   /\d{1,4}\s+APPENDIX/g,
 ];
 
@@ -103,6 +106,17 @@ const SIDEBAR_ROUTES = {
   'zombie statistics': 'path:The Bone Path:power:Shambling Hordes',
   'whither mortis': 'path:The Corpse in the Monster:intro',
   'whither mortis?': 'path:The Corpse in the Monster:intro',
+};
+
+// A rating ladder printed as a box runs straight on into its closing
+// paragraphs, then into the chapter around it. `tail` marks where the text
+// stops belonging to the last rating and goes back to the introduction,
+// `end` where the box is over.
+const BOXED_LADDERS = {
+  'True Faith': {
+    tail: /^In theory, a mortal might have a Faith rating/,
+    end: /\(see the Merit on p\.\s*\d+\)\.?$/,
+  },
 };
 
 // Section markers that carry no capturable text of their own.
@@ -591,6 +605,22 @@ export function parseAuthenticText(raw, catalog) {
       container.done = true;
       openLeftover(`${container.data.name} extras`);
       leftoverBuf.lines.push(t);
+      i++; continue;
+    }
+
+    const boxed = container?.kind === 'discipline' ? BOXED_LADDERS[container.data.name] : null;
+    if (boxed && target) {
+      // a narrow column can break the opening words over two lines
+      if (boxed.tail.test(t) || boxed.tail.test(joinTwo(i))) {
+        target = captures.get(`discipline:${container.data.name}:intro`) || target;
+        target.lines.push('');
+      }
+      target.lines.push(rawLine);
+      // the last sentence may wrap anywhere, so it is looked for in the joined text
+      if (boxed.end.test(target.lines.join(' ').replace(/\s+/g, ' ').trim())) {
+        target = null;
+        container = null;
+      }
       i++; continue;
     }
 

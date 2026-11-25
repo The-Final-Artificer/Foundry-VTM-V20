@@ -5922,3 +5922,124 @@ body.vtm-theme-printed .vtm-roll .result-botch { color: #701722; }
 .vtm-v20.sheet.minimized .decl-timer-bar {
   display: none !important;
 }
+
+/* True Faith sits among the disciplines; this marks it asleep */
+.vtm-v20 .faith-dormant {
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  color: var(--vtm-text-dim);
+  border: 1px solid var(--vtm-border);
+  border-radius: 3px;
+}
+
+/* Arm of the Abyss: a summoned tentacle gets a pocket sheet */
+.vtm-v20.tentacle .tentacle-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  height: auto;
+}
+.vtm-v20.tentacle .tentacle-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--vtm-red);
+}
+.vtm-v20.tentacle .tentacle-head img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border: none;
+}
+.vtm-v20.tentacle .tentacle-head h2 {
+  margin: 0;
+  border: none;
+  font-size: 17px;
+  color: var(--vtm-text-bright);
+}
+.vtm-v20.tentacle .tentacle-master,
+.vtm-v20.tentacle .tentacle-note {
+  font-size: 11px;
+  color: var(--vtm-text-dim);
+}
+.vtm-v20.tentacle .tentacle-note { margin: 0; }
+.vtm-v20.tentacle .tentacle-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.vtm-v20.tentacle .tentacle-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: var(--vtm-surface);
+  border: 1px solid var(--vtm-border);
+  border-radius: 4px;
+}
+.vtm-v20.tentacle .tentacle-stat label,
+.vtm-v20.tentacle .tentacle-row label {
+  font-size: 11px;
+  color: var(--vtm-text-dim);
+  letter-spacing: 0.5px;
+}
+.vtm-v20.tentacle .tentacle-stat b {
+  font-size: 18px;
+  color: var(--vtm-text-bright);
+}
+.vtm-v20.tentacle .tentacle-stat button {
+  width: 24px;
+  height: 20px;
+  line-height: 1;
+  padding: 0;
+  background: var(--vtm-bg);
+  border: 1px solid var(--vtm-border);
+  border-radius: 3px;
+  color: var(--vtm-red);
+  cursor: pointer;
+}
+.vtm-v20.tentacle .tentacle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vtm-v20.tentacle .tentacle-health {
+  display: flex;
+  gap: 4px;
+}
+.vtm-v20.tentacle .tentacle-health .health-box { cursor: default; }
+.vtm-v20.tentacle .tentacle-victim { color: var(--vtm-gold); }
+.vtm-v20.tentacle .tentacle-actions {
+  display: flex;
+  gap: 6px;
+}
+.vtm-v20.tentacle .tentacle-actions button {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: var(--vtm-bg);
+  border: 1px solid var(--vtm-border);
+  border-radius: 4px;
+  color: var(--vtm-text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.vtm-v20.tentacle .tentacle-actions button:hover:not(:disabled),
+.vtm-v20.tentacle .tentacle-stat button:hover {
+  border-color: var(--vtm-red);
+  color: var(--vtm-red);
+  box-shadow: 0 0 6px var(--vtm-red-glow);
+}
+.vtm-v20.tentacle .tentacle-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.vtm-v20.tentacle .tentacle-dismiss button {
+  font-size: 11px;
+  color: var(--vtm-text-dim);
+}

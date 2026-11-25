@@ -1,0 +1,66 @@
+<section class="tentacle-sheet">
+  <header class="tentacle-head">
+    <img src="{{img}}" alt="" />
+    <div class="tentacle-title">
+      <h2>{{name}}</h2>
+      <span class="tentacle-master">{{#if masterName}}Summoned by {{masterName}}{{else}}Summoner not on this scene{{/if}}</span>
+    </div>
+  </header>
+
+  <div class="tentacle-stats">
+    <div class="tentacle-stat">
+      <label>Strength</label>
+      <b>{{str}}</b>
+      {{#if canFeed}}<button type="button" data-action="enhance" data-what="strength" data-tooltip="1 blood: +1 Strength">+</button>{{/if}}
+    </div>
+    <div class="tentacle-stat">
+      <label>Dexterity</label>
+      <b>{{dex}}</b>
+      {{#if canFeed}}<button type="button" data-action="enhance" data-what="dexterity" data-tooltip="1 blood: +1 Dexterity">+</button>{{/if}}
+    </div>
+    <div class="tentacle-stat">
+      <label>Reach</label>
+      <b>{{reach}} ft</b>
+      {{#if canFeed}}<button type="button" data-action="enhance" data-what="length" data-tooltip="1 blood: +6 feet">+</button>{{/if}}
+    </div>
+  </div>
+
+  <div class="tentacle-row">
+    <label>Health</label>
+    <div class="tentacle-health">
+      {{#each boxes}}<span class="health-box {{this.kind}}">{{this.mark}}</span>{{/each}}
+    </div>
+  </div>
+
+  <div class="tentacle-row">
+    <label>Holding</label>
+    <span class="tentacle-victim">{{#if holding}}{{#if victimName}}{{victimName}}{{else}}Someone{{/if}}{{else}}Nothing{{/if}}</span>
+  </div>
+
+  {{#if onMap}}
+  {{#if canAct}}
+  <div class="tentacle-actions">
+    {{#if holding}}
+    <button type="button" data-action="constrict" {{#if blocked}}disabled{{/if}}>
+      <i class="fas fa-compress-arrows-alt"></i> Constrict ({{crush}} lethal)
+    </button>
+    <button type="button" data-action="release">
+      <i class="fas fa-hand-peace"></i> Release
+    </button>
+    {{else}}
+    <button type="button" data-action="grab" {{#if blocked}}disabled{{/if}}>
+      <i class="fas fa-hand-rock"></i> Grab (Str + Brawl {{brawl}})
+    </button>
+    {{/if}}
+  </div>
+  {{#if blocked}}<p class="tentacle-note">{{blocked}}.</p>{{/if}}
+
+  <div class="tentacle-actions tentacle-dismiss">
+    <button type="button" data-action="dismiss">Dismiss</button>
+    <button type="button" data-action="dismissAll">Dismiss all</button>
+  </div>
+  {{/if}}
+  {{else}}
+  <p class="tentacle-note">This is the template the tentacles on the map are copied from. Use the power to raise them.</p>
+  {{/if}}
+</section>

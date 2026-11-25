@@ -169,7 +169,7 @@
 {{!-- TABS --}}
 <nav class="sheet-tabs" data-group="primary">
   <a class="item" data-tab="stats"><i class="fas fa-chart-bar"></i> Stats</a>
-  {{#if hasBlood}}<a class="item" data-tab="powers"><i class="fas fa-fire"></i> Advantages</a>{{/if}}
+  <a class="item" data-tab="powers"><i class="fas fa-fire"></i> Advantages</a>
   <a class="item" data-tab="status"><i class="fas fa-heartbeat"></i> Status</a>
   <a class="item" data-tab="combat"><i class="fas fa-fist-raised"></i> Combat</a>
   <a class="item" data-tab="inventory"><i class="fas fa-suitcase"></i> Inventory</a>
@@ -238,16 +238,15 @@
   </div>
 
   {{!-- POWERS --}}
-  {{#if hasBlood}}
   <div class="tab powers" data-group="primary" data-tab="powers">
     <div class="trait-columns">
       <div class="trait-column">
-        <h3>Disciplines</h3>
+        <h3>{{#if hasBlood}}Disciplines{{else}}Special Abilities{{/if}}</h3>
         <div class="item-list">
           {{#each disciplines}}
           <div class="item" data-item-id="{{this._id}}">
             <img class="item-img" src="{{this.img}}" width="25" height="25" />
-            <span class="item-name item-open">{{this.name}}</span>
+            <span class="item-name item-open">{{this.name}}{{#if this.dormant}} <span class="faith-dormant" data-tooltip="True Faith is silent below Humanity 9">dormant</span>{{/if}}</span>
             <div class="dot-row item-dots" data-item-id="{{this._id}}" data-field="system.level">
               {{{vtmDots this.system.level @root.traitMax}}}
             </div>
@@ -288,6 +287,7 @@
         </div>
       </div>
       <div class="trait-column">
+        {{#if hasBlood}}
         <h3>Virtues</h3>
         <div class="trait-row">
           <span class="trait-label rollable" data-roll="virtues.conscience" data-label="{{virtueLabels.conscience}}">{{virtueLabels.conscience}}</span>
@@ -307,6 +307,7 @@
             {{{vtmDots system.virtues.courage 5}}}
           </div>
         </div>
+        {{/if}}
 
         <h3>Merits</h3>
         <div class="item-list compact">
@@ -336,6 +337,7 @@
       </div>
     </div>
 
+    {{#if hasBlood}}
     <div class="trait-columns paths-rituals-row">
       <div class="trait-column">
         <h3>Paths</h3>
@@ -377,8 +379,8 @@
         </div>
       </div>
     </div>
+    {{/if}}
   </div>
-  {{/if}}
 
   {{!-- STATUS --}}
   <div class="tab status" data-group="primary" data-tab="status">

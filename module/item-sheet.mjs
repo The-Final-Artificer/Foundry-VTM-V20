@@ -259,7 +259,9 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       ctx.powerLevels = await Promise.all([1, 2, 3, 4, 5].filter(n => n <= maxVisible).map(async n => {
         const key = `lvl${n}`;
         const power = ctx.system.powers[key];
-        const needsActivate = (disc === 'vicissitude' && key === 'lvl3');
+        // No traits to pick and no cost, but there is still something to do
+        const needsActivate = (disc === 'vicissitude' && key === 'lvl3')
+          || (disc === 'true faith' && (key === 'lvl1' || key === 'lvl5'));
         return {
           num: n, key,
           name: power.name, desc: power.desc,
@@ -515,6 +517,12 @@ export class VtmItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const actor = this.document.parent;
         if (!actor) {
           ui.notifications.warn('This item must be on a character to activate.');
+          return;
+        }
+        // Powers with their own flow take over, same as on the roll button
+        const special = elderPowerAction(this.document, power);
+        if (special) {
+          await special(actor, this.document, power);
           return;
         }
 

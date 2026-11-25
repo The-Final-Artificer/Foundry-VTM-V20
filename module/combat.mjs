@@ -15,6 +15,7 @@ import {
 } from './status-effects.mjs';
 import { disciplineLevel, physicalLevel, isStrengthDamageFormula, effectiveTraitValue, effectiveStrength, itemTraitBonus, naturalTraitValue, potenceAutoSuccesses, traitBoosts, usesStrengthTrait } from './discipline-effects.mjs';
 import { trackSize, countDamage, rebuildTrack } from './health-track.mjs';
+import { checkTentacleDestroyed, isTentacle, tentacleMaster } from './tentacles.mjs';
 
 const TARGETING_ARMOR_REQUESTS = new Map();
 const WOUND_ACKS = new Map();
@@ -369,7 +370,22 @@ export function finalDamageAfterSoak(actor, amount, type) {
   return actor?.type === 'vampire' && damageType === 'bashing' ? Math.floor(net / 2) : net;
 }
 
+// Arms of the Abyss soak with their summoner's Stamina + Fortitude, and
+// nothing stops aggravated damage
+function tentacleSoakPool(actor, dmgType) {
+  const master = tentacleMaster(actor);
+  if (dmgType === 'aggravated' || !master) {
+    return { pool: 0, parts: [master ? 'A tentacle cannot soak aggravated damage' : 'Summoner gone, no soak'], difficulty: 6, canSoak: false };
+  }
+  const sta = effectiveTraitValue(master, 'attributes.stamina');
+  const fort = disciplineLevel(master, 'fortitude');
+  const parts = [`${master.name}'s Sta ${sta}`];
+  if (fort) parts.push(`Fort ${fort}`);
+  return { pool: Math.max(sta + fort, 1), parts, difficulty: 6, canSoak: true };
+}
+
 export function computeSoakPool(actor, { dmgType, fireOrSunlight = false, bypassArmor = false } = {}) {
+  if (isTentacle(actor)) return tentacleSoakPool(actor, dmgType);
   const stamina = effectiveTraitValue(actor, 'attributes.stamina');
   const items = Array.from(actor.items);
   const fort = items.find(i => i.type === 'discipline' && i.name.toLowerCase() === 'fortitude');
@@ -496,6 +512,7 @@ function attackPool(actor, atk) {
 }
 
 export function dazeThreshold(actor) {
+  if (isTentacle(actor)) return Infinity;
   const stamina = actor.system.attributes?.stamina || 0;
   return actor.type === 'vampire' ? stamina + 2 : stamina;
 }
@@ -521,6 +538,7 @@ function isIncapacitated(actor) {
 }
 
 export async function checkIncapacitated(actor) {
+  if (isTentacle(actor)) return checkTentacleDestroyed(actor);
   if (!isIncapacitated(actor)) return;
   if (!actor.isOwner) return applyWounds(actor, tokenFor(actor), { checkIncap: true });
   await applyIncapacitated(actor);
@@ -1125,7 +1143,9 @@ export async function rollDefense(msg) {
 
   // Locked in a clinch or a hold: no actions of any kind, defenses included
   const inClinch = !!(defender.getFlag('vtm-v20', 'clinch') || defender.getFlag('vtm-v20', 'held'));
-  if (inClinch) {
+  // An arm of shadow is rooted where it rose: it soaks, it never dodges
+  const rooted = isTentacle(defender);
+  if (inClinch || rooted) {
     choice = null;
   } else if (isFullDef) {
     // Full defense: pick any defense type, full pool minus the cumulative
@@ -1323,7 +1343,7 @@ export async function rollDefense(msg) {
     const html = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
       actorImg: defender.img, actorName: defender.name,
       portraitStyle: portraitStyle(defender),
-      label: 'No Defense', sublabel: inClinch ? 'Locked in a grapple' : '',
+      label: 'No Defense', sublabel: rooted ? 'Tentacles cannot dodge' : inClinch ? 'Locked in a grapple' : '',
       damageBtnLabel: c.isHold ? 'Apply Hold' : null,
       noDice: true, showDamageBtn: true,
       hitLabel: `${c.weaponName} hits with ${c.attackSuccesses} net success${c.attackSuccesses > 1 ? 'es' : ''}!`,
@@ -1643,14 +1663,24 @@ export async function clinchInflictDamage(actor) {
   const str = effectiveStrength(actor);
   const dmgAuto = potenceAutoSuccesses(actor);
   const wp = actor.system.woundPenalty || 0;
-  const dp = Math.max(str + wp, 1);
-  let dmgLabel = `Str ${str}`;
+  // Arms of the Abyss constrict for Strength + 1 lethal instead
+  const arm = isTentacle(actor);
+  const dp = Math.max(str + (arm ? 1 : 0) + wp, 1);
+  let dmgLabel = arm ? `Str ${str} + 1` : `Str ${str}`;
   if (wp) dmgLabel += ` wound ${wp}`;
   if (dmgAuto) dmgLabel += ` + Potence ${dmgAuto} auto`;
 
   await resolveDirectDamage(actor, opp, oppToken, {
-    weaponName: 'Clinch', dmgLabel, dp, dmgAuto, dt: 'bashing',
+    weaponName: arm ? 'Constrict' : 'Clinch', dmgLabel, dp, dmgAuto, dt: arm ? 'lethal' : 'bashing',
   });
+}
+
+// The holder lets go on purpose. Both sides change, so it takes the GM relay.
+export async function releaseClinch(actor) {
+  const clinch = actor.getFlag('vtm-v20', 'clinch');
+  if (!clinch) return;
+  const tok = tokenFor(actor);
+  await clearClinchPair({ aId: actor.id, aTok: tok?.id ?? null, bId: clinch.actorId, bTok: clinch.tokenId });
 }
 
 // Resisted Str + Brawl escape. Each side rolls against a difficulty set by the
@@ -1915,6 +1945,44 @@ export async function rollDamage(msg) {
       style: CONST.CHAT_MESSAGE_STYLES.OTHER,
     });
     return;
+  }
+
+  // A tentacle that catches someone may simply hold them: crushing is its
+  // controller's call, on the grab and on every turn after
+  if (c.isClinch && isTentacle(attacker)) {
+    const crush = await new Promise(resolve => {
+      new Dialog({
+        title: `${attacker.name}: Grab`,
+        content: `<p style="margin:8px 0;color:#ddd;">${defender.name} is caught. Constrict right away?</p>`,
+        buttons: {
+          crush: { icon: '<i class="fas fa-compress-arrows-alt"></i>', label: 'Constrict (Str + 1 lethal)', callback: () => resolve(true) },
+          hold: { icon: '<i class="fas fa-hand-rock"></i>', label: 'Just hold', callback: () => resolve(false) },
+        },
+        default: 'crush',
+        close: () => resolve(false),
+      }, { classes: ['vtm-v20', 'dialog'], width: 380 }).render(true);
+    });
+    if (!crush) {
+      await setClinchPair({
+        aId: c.attackerId, aTok: c.attackerTokenId,
+        bId: c.defenderId, bTok: c.defenderTokenId,
+      });
+      const html = await renderTemplate('systems/vtm-v20/templates/combat-card.hbs', {
+        actorImg: attacker.img, actorName: attacker.name,
+        portraitStyle: portraitStyle(attacker),
+        targetImg: defender.img, targetPortraitStyle: portraitStyle(defender),
+        label: 'Grab', sublabel: '',
+        noDice: true,
+        hitLabel: `${attacker.name} coils around ${defender.name} and holds fast.`,
+      });
+      await ChatMessage.create({
+        user: game.user.id,
+        speaker: ChatMessage.getSpeaker({ actor: attacker }),
+        content: html,
+        style: CONST.CHAT_MESSAGE_STYLES.OTHER,
+      });
+      return;
+    }
   }
 
   // Damage roll

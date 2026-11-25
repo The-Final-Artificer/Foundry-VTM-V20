@@ -9,6 +9,8 @@ import {
 import { confirmAndSpend, whisperActivation } from './item-sheet.mjs';
 import { hasStatus, FRENZY_STATUS_ID, CONTROLLED_FRENZY_STATUS_ID } from './status-effects.mjs';
 import { effectiveTraitValue } from './discipline-effects.mjs';
+import { rollArmsOfTheAbyss } from './tentacles.mjs';
+import { rollHolyPresence, rollWard } from './true-faith.mjs';
 
 async function enterFrenzy(actor, difficulty, note) {
   await actor.unsetFlag('vtm-v20', 'frenzyResist');
@@ -33,7 +35,7 @@ async function enterFrenzy(actor, difficulty, note) {
 
 // Fixed damage successes against a normal soak roll. The wounds land through
 // the GM relay when the clicking player doesn't own the victim.
-async function soakAndApply(source, victim, victimToken, successes, dmgType, label, dmgLabel) {
+export async function soakAndApply(source, victim, victimToken, successes, dmgType, label, dmgLabel) {
   const soakData = computeSoakPool(victim, { dmgType });
   let soakRoll = null;
   let soak = { dice: [], total: 0 };
@@ -145,6 +147,7 @@ async function rollTauntCagedBeast(actor, item, power) {
     trait: power.primary, trait2: power.secondary,
     label: `${item.name}: ${power.name} vs ${target.name}`,
     difficulty: power.difficulty || 7,
+    open: true,
   });
   if (!result) return;
 
@@ -200,6 +203,7 @@ async function rollUnchainTheBeast(actor, item, power) {
     trait: power.primary, trait2: power.secondary,
     label: `${item.name}: ${power.name} vs ${target.name} (their Self-Control + 4)`,
     difficulty,
+    open: true,
   });
   if (!result) return;
 
@@ -310,6 +314,9 @@ const ELDER_ACTIONS = {
   'animalism:taunt the caged beast': rollTauntCagedBeast,
   'animalism:unchain the beast': rollUnchainTheBeast,
   'chimerstry:shared nightmare': rollSharedNightmare,
+  'obtenebration:arms of the abyss': rollArmsOfTheAbyss,
+  'true faith:true faith 1': rollWard,
+  'true faith:true faith 5': rollHolyPresence,
 };
 
 export function elderPowerAction(item, power) {
@@ -348,6 +355,7 @@ export function bindElderPowerButtons(msg, html) {
       trait: 'virtues.selfControl',
       label: 'Resist the Roused Beast',
       difficulty: c.difficulty || 5,
+      open: true,
     });
     if (!result) { btn.disabled = false; return; }
 

@@ -6,6 +6,7 @@ import { PATHS } from './paths-data.mjs';
 import { RITUALS } from './rituals-data.mjs';
 import { ARCHETYPES } from './archetypes-data.mjs';
 import { TRAIT_DESCRIPTIONS } from './trait-descriptions.mjs';
+import { TRUE_FAITH } from './true-faith-data.mjs';
 import { VTM } from './config.mjs';
 
 // Virtues, Willpower and Humanity keep their shipped text by design.
@@ -27,11 +28,19 @@ const powerList = sys => [
     .map(p => ({ name: p?.name || '', lvl: p?.level || 6, elder: true })),
 ].filter(p => p.lvl >= 1);
 
+// True Faith is filed with the disciplines: the book prints it as a heading
+// over five bulleted ratings, the same shape as Celerity. Its ratings have no
+// names in the book, so they are matched by their dots.
+const faithEntry = {
+  name: TRUE_FAITH.name,
+  powers: [1, 2, 3, 4, 5].map(lvl => ({ name: '', lvl })),
+};
+
 export function buildCatalog() {
   return {
     archetypes: Object.keys(ARCHETYPES),
     clans: VTM.clans.map(name => ({ name, disciplines: VTM.clanDisciplines[name] || [] })),
-    disciplines: DISCIPLINES.map(d => ({ name: d.name, powers: powerList(d.system) })),
+    disciplines: [...DISCIPLINES.map(d => ({ name: d.name, powers: powerList(d.system) })), faithEntry],
     paths: PATHS.map(p => ({ name: p.name, powers: powerList(p.system) })),
     rituals: RITUALS.map(r => ({ name: r.name, level: r.system?.level ?? 0, type: r.system?.ritualType || '' })),
     ritualcats: RITUAL_CATEGORIES.filter(c => !c.parent).map(c => c.name),

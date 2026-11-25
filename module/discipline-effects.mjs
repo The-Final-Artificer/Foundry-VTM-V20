@@ -30,6 +30,13 @@ export function celerityLevel(actor) {
   return disciplineLevel(actor, 'celerity');
 }
 
+// True Faith rides on a discipline-shaped item, rated 1 to 5. It goes quiet
+// the moment Humanity slips below 9 and returns when the Humanity does.
+export function faithLevel(actor) {
+  if ((actor?.system?.humanity ?? 0) < 9) return 0;
+  return Math.min(disciplineLevel(actor, 'true faith'), 5);
+}
+
 // Which Celerity ruleset the world runs: the enhanced homebrew kit (default)
 // or RAW V20. Settings may not be registered yet during early data prep.
 export function celerityRawMode() {
